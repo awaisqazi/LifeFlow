@@ -30,7 +30,7 @@ final class WaterManager {
     
     private let motionManager = CMMotionManager()
     private let updateInterval: TimeInterval = 1.0 / 60.0  // 60 Hz
-    private let maxTiltAngle: Double = 0.5  // Clamp for realistic motion
+    private let maxTiltAngle: Double = 0.8  // Clamp for dramatic motion
     
     // MARK: - Lifecycle
     
@@ -71,9 +71,9 @@ final class WaterManager {
             let normalizedPitch = attitude.pitch / .pi  // -1 to 1
             let clampedPitch = max(-self.maxTiltAngle, min(self.maxTiltAngle, normalizedPitch))
             
-            // Smooth interpolation for fluid motion
-            self.tiltAngle = self.tiltAngle * 0.8 + clampedRoll * 0.2
-            self.pitchOffset = self.pitchOffset * 0.8 + clampedPitch * 0.2
+            // Smooth interpolation for fluid motion (very fast response for dramatic effect)
+            self.tiltAngle = self.tiltAngle * 0.5 + clampedRoll * 0.5
+            self.pitchOffset = self.pitchOffset * 0.5 + clampedPitch * 0.5
         }
         
         isActive = true

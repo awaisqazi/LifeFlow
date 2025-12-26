@@ -43,7 +43,7 @@ struct FlowDashboardView: View {
                 if let today = todayLogState {
                     VStack(spacing: 16) {
                         // 1. System Cards
-                        HydrationCard(dayLog: today)
+                        HydrationVesselCard(dayLog: today)
                         GymCard(dayLog: today)
                         
                         Divider()
