@@ -210,8 +210,7 @@ struct HydrationView: View {
         } else {
             let newMetrics = DailyMetrics(
                 date: Date(),
-                waterIntake: addAmount,
-                gymAttendance: false
+                waterIntake: addAmount
             )
             modelContext.insert(newMetrics)
         }

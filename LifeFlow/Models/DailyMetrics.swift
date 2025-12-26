@@ -9,7 +9,7 @@ import Foundation
 import SwiftData
 
 /// Tracks daily wellness metrics for the LifeFlow momentum tracker.
-/// This model persists water intake, gym attendance, and workout notes.
+/// This model persists water intake and workout sessions.
 @Model
 final class DailyMetrics {
     /// The date this record represents (unique per day)
@@ -18,27 +18,36 @@ final class DailyMetrics {
     /// Water consumed in ounces
     var waterIntake: Double
     
-    /// Whether the user attended the gym
-    var gymAttendance: Bool
+    /// Workout sessions logged for this day
+    @Relationship(deleteRule: .cascade) var workouts: [WorkoutSession]
     
-    /// Optional notes about the workout session
-    var gymNotes: String?
+    /// Total active calories burned from all workouts
+    var totalActiveCalories: Double {
+        workouts.reduce(0) { $0 + $1.calories }
+    }
+    
+    /// Total workout duration for the day in seconds
+    var totalWorkoutDuration: TimeInterval {
+        workouts.reduce(0) { $0 + $1.duration }
+    }
+    
+    /// Whether any workouts have been logged today
+    var hasWorkedOut: Bool {
+        !workouts.isEmpty
+    }
     
     /// Creates a new daily metrics record
     /// - Parameters:
     ///   - date: The date for this record
     ///   - waterIntake: Starting water intake (default 0)
-    ///   - gymAttendance: Whether gym was attended (default false)
-    ///   - gymNotes: Optional workout notes
+    ///   - workouts: Initial workout sessions (default empty)
     init(
         date: Date = .now,
         waterIntake: Double = 0,
-        gymAttendance: Bool = false,
-        gymNotes: String? = nil
+        workouts: [WorkoutSession] = []
     ) {
         self.date = date
         self.waterIntake = waterIntake
-        self.gymAttendance = gymAttendance
-        self.gymNotes = gymNotes
+        self.workouts = workouts
     }
 }

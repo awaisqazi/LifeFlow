@@ -13,6 +13,7 @@ struct LifeFlowApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             DailyMetrics.self,
+            WorkoutSession.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
