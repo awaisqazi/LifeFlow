@@ -123,24 +123,42 @@ struct HydrationView: View {
                 }
             }
             
-            // Add Water Button
-            Button {
-                addWater()
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "plus")
-                        .font(.title3.weight(.semibold))
-                    
-                    Text("Add 8oz")
-                        .font(.headline)
+            // Water Control Buttons
+            HStack(spacing: 16) {
+                // Remove Water Button (secondary)
+                Button {
+                    removeWater()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "minus")
+                            .font(.body.weight(.semibold))
+                    }
+                    .foregroundStyle(.white.opacity(0.8))
+                    .frame(width: 50, height: 44)
                 }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 14)
+                .buttonStyle(.glass)
+                .disabled(currentIntake <= 0)
+                .opacity(currentIntake <= 0 ? 0.4 : 1.0)
+                
+                // Add Water Button (primary)
+                Button {
+                    addWater()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus")
+                            .font(.title3.weight(.semibold))
+                        
+                        Text("Add 8oz")
+                            .font(.headline)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 14)
+                }
+                .buttonStyle(.glass)
+                .disabled(currentIntake >= dailyGoal)
+                .opacity(currentIntake >= dailyGoal ? 0.5 : 1.0)
             }
-            .buttonStyle(.glass)
-            .disabled(currentIntake >= dailyGoal)
-            .opacity(currentIntake >= dailyGoal ? 0.5 : 1.0)
         }
         .onAppear {
             // Animate water level on appear
@@ -169,8 +187,8 @@ struct HydrationView: View {
         let impact = UIImpactFeedbackGenerator(style: .medium)
         impact.impactOccurred()
         
-        // Trigger splash animation
-        waterManager.triggerSplash()
+        // Trigger splash animation (rising)
+        waterManager.triggerSplash(direction: .up)
         
         // Update or create today's metrics
         if let today = todayMetrics {
@@ -186,6 +204,26 @@ struct HydrationView: View {
         
         // Save context
         try? modelContext.save()
+    }
+    
+    private func removeWater() {
+        // Validate: can't go below 0
+        guard currentIntake > 0 else { return }
+        
+        // Haptic feedback (lighter for removal)
+        let impact = UIImpactFeedbackGenerator(style: .light)
+        impact.impactOccurred()
+        
+        // Trigger splash animation (dropping)
+        waterManager.triggerSplash(direction: .down)
+        
+        // Update today's metrics
+        if let today = todayMetrics {
+            today.waterIntake = max(0, today.waterIntake - addAmount)
+            
+            // Save context
+            try? modelContext.save()
+        }
     }
 }
 

@@ -91,17 +91,33 @@ final class WaterManager {
         pitchOffset = 0
     }
     
-    /// Simulate a splash effect (for add water animation)
-    func triggerSplash() {
-        // Create a temporary disturbance in tilt
+    /// Direction for splash animation
+    enum SplashDirection {
+        case up    // Adding water - splash rises
+        case down  // Removing water - splash drops
+    }
+    
+    /// Simulate a splash effect with directional animation
+    /// - Parameter direction: `.up` for adding water, `.down` for removing
+    func triggerSplash(direction: SplashDirection = .up) {
         let originalTilt = tiltAngle
-        tiltAngle = originalTilt + 0.15
+        let multiplier: Double = direction == .up ? 1.0 : -1.0
         
-        // Reset after a short delay
+        // Create a temporary disturbance in tilt
+        tiltAngle = originalTilt + (0.15 * multiplier)
+        
+        // Bounce back effect
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            self?.tiltAngle = originalTilt - 0.1
+            self?.tiltAngle = originalTilt - (0.1 * multiplier)
         }
+        
+        // Settle to original
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            self?.tiltAngle = originalTilt + (0.05 * multiplier)
+        }
+        
+        // Final settle
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
             self?.tiltAngle = originalTilt
         }
     }
