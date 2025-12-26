@@ -30,7 +30,7 @@ final class WorkoutSession {
     var timestamp: Date
     
     /// The daily metrics record this workout belongs to
-    @Relationship(inverse: \DailyMetrics.workouts) var dailyMetrics: DailyMetrics?
+    @Relationship(inverse: \DayLog.workouts) var dayLog: DayLog?
     
     /// Creates a new workout session
     /// - Parameters:

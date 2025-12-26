@@ -12,8 +12,10 @@ import SwiftData
 struct LifeFlowApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            DailyMetrics.self,
+            DayLog.self,
             WorkoutSession.self,
+            Goal.self,
+            DailyEntry.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

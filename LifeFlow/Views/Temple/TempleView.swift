@@ -13,20 +13,20 @@ import HealthKit
 /// Features the showpiece HydrationView and comprehensive workout tracking.
 struct TempleView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \DailyMetrics.date, order: .reverse) private var allMetrics: [DailyMetrics]
+    @Query(sort: \DayLog.date, order: .reverse) private var allLogs: [DayLog]
     
     @State private var healthKitManager = HealthKitManager()
     @State private var showingAddWorkout = false
     
     /// Get today's metrics by filtering in Swift
-    private var todayMetrics: DailyMetrics? {
+    private var todayLog: DayLog? {
         let startOfDay = Calendar.current.startOfDay(for: Date())
-        return allMetrics.first { $0.date >= startOfDay }
+        return allLogs.first { $0.date >= startOfDay }
     }
     
     /// Today's workouts
     private var todaysWorkouts: [WorkoutSession] {
-        todayMetrics?.workouts ?? []
+        todayLog?.workouts ?? []
     }
     
     var body: some View {
@@ -79,14 +79,14 @@ struct TempleView: View {
                 let hkWorkouts = try await healthKitManager.fetchTodaysWorkouts()
                 
                 // Get or create today's metrics
-                let today = getOrCreateTodayMetrics()
+                let today = getOrCreateTodayLog()
                 
                 // Add new workouts (avoid duplicates by checking UUID)
                 let existingIds = Set(today.workouts.map { $0.id })
                 
                 for workout in hkWorkouts {
                     if !existingIds.contains(workout.id) {
-                        workout.dailyMetrics = today
+                        workout.dayLog = today
                         modelContext.insert(workout)
                     }
                 }
@@ -107,7 +107,7 @@ struct TempleView: View {
     
     /// Save a manually added workout
     private func saveManualWorkout(type: String, duration: TimeInterval, calories: Double) {
-        let today = getOrCreateTodayMetrics()
+        let today = getOrCreateTodayLog()
         
         let workout = WorkoutSession(
             type: type,
@@ -115,7 +115,7 @@ struct TempleView: View {
             calories: calories,
             source: "Manual"
         )
-        workout.dailyMetrics = today
+        workout.dayLog = today
         modelContext.insert(workout)
         
         try? modelContext.save()
@@ -134,15 +134,15 @@ struct TempleView: View {
         impact.impactOccurred()
     }
     
-    /// Get or create today's DailyMetrics record
-    private func getOrCreateTodayMetrics() -> DailyMetrics {
-        if let today = todayMetrics {
+    /// Get or create today's DayLog record
+    private func getOrCreateTodayLog() -> DayLog {
+        if let today = todayLog {
             return today
         }
         
-        let newMetrics = DailyMetrics(date: Date(), waterIntake: 0)
-        modelContext.insert(newMetrics)
-        return newMetrics
+        let newLog = DayLog(date: Date(), waterIntake: 0)
+        modelContext.insert(newLog)
+        return newLog
     }
 }
 
@@ -172,46 +172,40 @@ struct WorkoutLogView: View {
                 
                 // Control buttons
                 HStack(spacing: 10) {
-                    // Sync from HealthKit - Apple Health branded
+                    // Sync from HealthKit
                     if healthKitManager.isAvailable {
-                        Button {
-                            onSyncHealth()
-                        } label: {
-                            Label {
-                                Text("Sync")
-                                    .font(.subheadline.weight(.semibold))
-                            } icon: {
+                        Button(action: onSyncHealth) {
+                            HStack(spacing: 6) {
+                                // Health app mini icon
                                 ZStack {
-                                    // Mini Health app icon
-                                    RoundedRectangle(cornerRadius: 5)
+                                    RoundedRectangle(cornerRadius: 4)
                                         .fill(
                                             LinearGradient(
-                                                colors: [
-                                                    Color(red: 1.0, green: 0.23, blue: 0.19),
-                                                    Color(red: 1.0, green: 0.38, blue: 0.42)
-                                                ],
+                                                colors: [Color(red: 1.0, green: 0.23, blue: 0.19),
+                                                         Color(red: 1.0, green: 0.38, blue: 0.42)],
                                                 startPoint: .top,
                                                 endPoint: .bottom
                                             )
                                         )
-                                        .frame(width: 22, height: 22)
+                                        .frame(width: 20, height: 20)
                                     
-                                    if healthKitManager.isSyncing {
-                                        ProgressView()
-                                            .scaleEffect(0.5)
-                                            .tint(.white)
-                                    } else {
-                                        Image(systemName: "heart.fill")
-                                            .font(.system(size: 11, weight: .bold))
-                                            .foregroundStyle(.white)
-                                    }
+                                    Image(systemName: healthKitManager.isSyncing ? "arrow.triangle.2.circlepath" : "heart.fill")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .rotationEffect(.degrees(healthKitManager.isSyncing ? 360 : 0))
+                                        .animation(healthKitManager.isSyncing ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: healthKitManager.isSyncing)
                                 }
+                                
+                                Text("Sync")
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundColor(.white)
+                                    .lineLimit(1)
                             }
-                            .foregroundStyle(.primary)
+                            .fixedSize()  // Prevent squeezing
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
+                            .background(Color.white.opacity(0.1), in: Capsule())
                         }
-                        .buttonStyle(.glass)
                         .disabled(healthKitManager.isSyncing)
                     }
                     
@@ -479,6 +473,6 @@ struct AddWorkoutSheet: View {
         LiquidBackgroundView()
         TempleView()
     }
-    .modelContainer(for: [DailyMetrics.self, WorkoutSession.self], inMemory: true)
+    .modelContainer(for: [DayLog.self, WorkoutSession.self], inMemory: true)
     .preferredColorScheme(.dark)
 }

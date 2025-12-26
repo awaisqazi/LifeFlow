@@ -52,5 +52,5 @@ struct TabContentView: View {
 
 #Preview {
     MainTabView()
-        .modelContainer(for: DailyMetrics.self, inMemory: true)
+        .modelContainer(for: DayLog.self, inMemory: true)
 }

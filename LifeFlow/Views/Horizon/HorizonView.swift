@@ -6,10 +6,15 @@
 //
 
 import SwiftUI
+import SwiftData
 
 /// The Horizon tab - your long-term goals await.
 /// Tracks debt payoff, skill building, and major life challenges.
 struct HorizonView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \Goal.deadline, order: .forward) private var goals: [Goal]
+    @State private var showingAddGoal = false
+    
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
@@ -36,7 +41,7 @@ struct HorizonView: View {
                                 Spacer()
                                 
                                 Button {
-                                    // Add goal action
+                                    showingAddGoal = true
                                 } label: {
                                     Image(systemName: "plus.circle.fill")
                                         .font(.title2)
@@ -50,24 +55,23 @@ struct HorizonView: View {
                             
                             // Goals list
                             VStack(spacing: 12) {
-                                GoalRow(
-                                    icon: "dollarsign.circle",
-                                    title: "Debt Freedom",
-                                    progress: 0.3,
-                                    color: .green
-                                )
-                                GoalRow(
-                                    icon: "book.fill",
-                                    title: "Learn Swift",
-                                    progress: 0.6,
-                                    color: .blue
-                                )
-                                GoalRow(
-                                    icon: "figure.run",
-                                    title: "Run Marathon",
-                                    progress: 0.15,
-                                    color: .orange
-                                )
+                                if goals.isEmpty {
+                                    ContentUnavailableView(
+                                        "No Goals Yet",
+                                        systemImage: "mountain.2",
+                                        description: Text("Set your sights on the horizon.")
+                                    )
+                                    .padding(.vertical)
+                                } else {
+                                    ForEach(goals) { goal in
+                                        GoalRow(
+                                            icon: iconForGoal(goal),
+                                            title: goal.title,
+                                            progress: goal.currentAmount / max(goal.targetAmount, 1),
+                                            color: colorForGoal(goal)
+                                        )
+                                    }
+                                }
                             }
                             .padding(.top, 8)
                         }
@@ -100,6 +104,25 @@ struct HorizonView: View {
                 Spacer(minLength: 100) // Space for tab bar
             }
             .padding(.top, 60)
+        }
+        .sheet(isPresented: $showingAddGoal) {
+            AddGoalSheet()
+        }
+    }
+    
+    private func iconForGoal(_ goal: Goal) -> String {
+        switch goal.type {
+        case .targetValue: return "flag.fill"
+        case .frequency: return "repeat"
+        case .dailyHabit: return "checkmark.seal.fill"
+        }
+    }
+    
+    private func colorForGoal(_ goal: Goal) -> Color {
+        switch goal.type {
+        case .targetValue: return .green
+        case .frequency: return .blue
+        case .dailyHabit: return .orange
         }
     }
 }
@@ -156,5 +179,6 @@ struct GoalRow: View {
         LiquidBackgroundView()
         HorizonView()
     }
+    .modelContainer(for: Goal.self, inMemory: true)
     .preferredColorScheme(.dark)
 }

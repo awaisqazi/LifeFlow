@@ -12,7 +12,7 @@ import SwiftData
 /// Features elegant curves, animated water with shimmer, and motion physics.
 struct HydrationView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \DailyMetrics.date, order: .reverse) private var allMetrics: [DailyMetrics]
+    @Query(sort: \DayLog.date, order: .reverse) private var allLogs: [DayLog]
     
     @State private var waterManager = WaterManager()
     @State private var animatedWaterLevel: Double = 0
@@ -24,14 +24,14 @@ struct HydrationView: View {
     private let addAmount: Double = 8
     
     /// Get today's metrics by filtering in Swift
-    private var todayMetrics: DailyMetrics? {
+    private var todayLog: DayLog? {
         let startOfDay = Calendar.current.startOfDay(for: Date())
-        return allMetrics.first { $0.date >= startOfDay }
+        return allLogs.first { $0.date >= startOfDay }
     }
     
     /// Current water intake from SwiftData
     private var currentIntake: Double {
-        todayMetrics?.waterIntake ?? 0
+        todayLog?.waterIntake ?? 0
     }
     
     /// Fill level as percentage (0.0 to 1.0)
@@ -205,14 +205,14 @@ struct HydrationView: View {
         waterManager.triggerSplash(direction: .up)
         
         // Update or create today's metrics
-        if let today = todayMetrics {
+        if let today = todayLog {
             today.waterIntake += addAmount
         } else {
-            let newMetrics = DailyMetrics(
+            let newLog = DayLog(
                 date: Date(),
                 waterIntake: addAmount
             )
-            modelContext.insert(newMetrics)
+            modelContext.insert(newLog)
         }
         
         // Save context
@@ -231,7 +231,7 @@ struct HydrationView: View {
         waterManager.triggerSplash(direction: .down)
         
         // Update today's metrics
-        if let today = todayMetrics {
+        if let today = todayLog {
             today.waterIntake = max(0, today.waterIntake - addAmount)
             
             // Save context
@@ -246,6 +246,6 @@ struct HydrationView: View {
         
         HydrationView()
     }
-    .modelContainer(for: DailyMetrics.self, inMemory: true)
+    .modelContainer(for: DayLog.self, inMemory: true)
     .preferredColorScheme(.dark)
 }

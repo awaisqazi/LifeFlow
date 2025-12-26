@@ -12,7 +12,7 @@ import SwiftData
 /// Shows a snapshot of water intake, gym status, and momentum metrics.
 struct FlowDashboardView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \DailyMetrics.date, order: .reverse) private var metrics: [DailyMetrics]
+    @Query(sort: \DayLog.date, order: .reverse) private var dayLogs: [DayLog]
     
     var body: some View {
         ScrollView {
@@ -139,6 +139,6 @@ struct GlassCard<Content: View>: View {
         LiquidBackgroundView()
         FlowDashboardView()
     }
-    .modelContainer(for: DailyMetrics.self, inMemory: true)
+    .modelContainer(for: DayLog.self, inMemory: true)
     .preferredColorScheme(.dark)
 }
