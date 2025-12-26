@@ -193,22 +193,41 @@ struct GoalActionCard: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                         
-                        HStack {
-                            TextField("Amount", text: $amountString)
-                                .keyboardType(.decimalPad)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 80)
-                            
-                            Text(goal.unit.symbol)
-                                .foregroundStyle(.secondary)
-                            
-                            Spacer()
-                            
-                            Button("Done") {
-                                saveEntry()
+                        if goal.type == .dailyHabit {
+                            Button(action: {
+                                saveEntry(value: 1.0)
+                            }) {
+                                HStack {
+                                    Spacer()
+                                    Label("Mark Complete", systemImage: "checkmark")
+                                        .font(.headline)
+                                    Spacer()
+                                }
+                                .padding(.vertical, 8)
+                                .background(colorForGoal(goal).opacity(0.15), in: Capsule())
+                                .foregroundStyle(colorForGoal(goal))
                             }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(Double(amountString) == nil)
+                        } else {
+                            HStack {
+                                TextField("Amount", text: $amountString)
+                                    .keyboardType(.decimalPad)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 100)
+                                
+                                Text(goal.unit.symbol)
+                                    .foregroundStyle(.secondary)
+                                
+                                Spacer()
+                                
+                                Button("Done") {
+                                    if let value = Double(amountString) {
+                                        saveEntry(value: value)
+                                    }
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(colorForGoal(goal))
+                                .disabled(Double(amountString) == nil)
+                            }
                         }
                     }
                 }
@@ -222,18 +241,17 @@ struct GoalActionCard: View {
         }
     }
     
-    private func saveEntry() {
-        guard let amount = Double(amountString) else { return }
-        
-        let newEntry = DailyEntry(valueAdded: amount)
+    private func saveEntry(value: Double) {
+        let newEntry = DailyEntry(valueAdded: value)
         newEntry.goal = goal
         newEntry.dayLog = dayLog
         
         // Update Goal total
-        goal.currentAmount += amount
+        goal.currentAmount += value
         
         modelContext.insert(newEntry)
         // Auto-save happens via CloudKit/SwiftData usually, but explicit save is safe
+        try? modelContext.save()
     }
     
     private func iconForGoal(_ goal: Goal) -> String {
