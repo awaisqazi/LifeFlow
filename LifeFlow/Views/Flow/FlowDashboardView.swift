@@ -13,6 +13,23 @@ import SwiftData
 struct FlowDashboardView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \DayLog.date, order: .reverse) private var dayLogs: [DayLog]
+    @Query(sort: \Goal.deadline, order: .forward) private var goals: [Goal]
+    
+    /// Get or create today's DayLog
+    private var todayLog: DayLog {
+        let startOfDay = Calendar.current.startOfDay(for: Date())
+        if let existing = dayLogs.first(where: { $0.date >= startOfDay }) {
+            return existing
+        }
+        // Ideally we don't insert in computed prop view body, but for simplicity in this prototype.
+        // A better pattern is .onAppear check.
+        // For now, let's just return the first one or a dummy if empty to avoid write-in-view issues,
+        // but we need a bindable.
+        // Let's use a safe unwrapper.
+        return dayLogs.first ?? DayLog() // Should handle creation in onAppear
+    }
+    
+    @State private var todayLogState: DayLog?
     
     var body: some View {
         ScrollView {
@@ -20,87 +37,58 @@ struct FlowDashboardView: View {
                 // Header
                 HeaderView(
                     title: "Flow",
-                    subtitle: "Your Daily Momentum"
+                    subtitle: "Daily Input Stream"
                 )
                 
-                // Glass cards using native Liquid Glass
-                GlassEffectContainer(spacing: 16) {
+                if let today = todayLogState {
                     VStack(spacing: 16) {
-                        // Today's Overview Card
-                        VStack(alignment: .leading, spacing: 12) {
-                            Label("Today's Overview", systemImage: "calendar")
-                                .font(.headline)
-                                .foregroundStyle(.primary)
-                            
-                            Text("Your wellness metrics will appear here")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding()
-                        .glassEffect(in: .rect(cornerRadius: 20))
+                        // 1. System Cards
+                        HydrationCard(dayLog: today)
+                        GymCard(dayLog: today)
                         
-                        // Quick Stats Row
-                        HStack(spacing: 12) {
-                            QuickStatCard(
-                                icon: "drop.fill",
-                                value: "0",
-                                unit: "oz",
-                                color: .cyan
+                        Divider()
+                            .padding(.vertical, 8)
+                        
+                        // 2. Goal Cards
+                        if goals.isEmpty {
+                            ContentUnavailableView(
+                                "No Goals Active",
+                                systemImage: "mountain.2",
+                                description: Text("Add goals in Horizon to see them here.")
                             )
-                            
-                            QuickStatCard(
-                                icon: "figure.strengthtraining.traditional",
-                                value: "—",
-                                unit: "gym",
-                                color: .orange
-                            )
-                            
-                            QuickStatCard(
-                                icon: "flame.fill",
-                                value: "0",
-                                unit: "streak",
-                                color: .red
-                            )
+                        } else {
+                            ForEach(goals) { goal in
+                                GoalActionCard(goal: goal, dayLog: today)
+                            }
                         }
                     }
+                    .padding(.horizontal)
+                } else {
+                    ProgressView()
                 }
-                .padding(.horizontal)
                 
-                Spacer(minLength: 100) // Space for tab bar
+                Spacer(minLength: 100)
             }
             .padding(.top, 60)
+        }
+        .onAppear {
+            ensureTodayLog()
+        }
+    }
+    
+    private func ensureTodayLog() {
+        let startOfDay = Calendar.current.startOfDay(for: Date())
+        if let existing = dayLogs.first(where: { $0.date >= startOfDay }) {
+            todayLogState = existing
+        } else {
+            let newLog = DayLog(date: Date())
+            modelContext.insert(newLog)
+            try? modelContext.save() // Force save
+            todayLogState = newLog
         }
     }
 }
 
-/// Quick stat card with Liquid Glass effect
-struct QuickStatCard: View {
-    let icon: String
-    let value: String
-    let unit: String
-    let color: Color
-    
-    var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundStyle(color)
-            
-            Text(value)
-                .font(.system(size: 24, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
-            
-            Text(unit)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
-        .glassEffect(in: .rect(cornerRadius: 16))
-    }
-}
 
 /// Reusable header component for each tab
 struct HeaderView: View {

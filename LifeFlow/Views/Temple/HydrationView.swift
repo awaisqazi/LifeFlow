@@ -20,8 +20,7 @@ struct HydrationView: View {
     /// Daily water goal in ounces
     private let dailyGoal: Double = 64
     
-    /// Amount to add per tap
-    private let addAmount: Double = 8
+
     
     /// Get today's metrics by filtering in Swift
     private var todayLog: DayLog? {
@@ -140,39 +139,7 @@ struct HydrationView: View {
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.secondary)
             
-            // Water Control Buttons
-            HStack(spacing: 16) {
-                // Remove Water Button (secondary)
-                Button {
-                    removeWater()
-                } label: {
-                    Image(systemName: "minus")
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.8))
-                        .frame(width: 56, height: 56)
-                }
-                .buttonStyle(.glass)
-                .disabled(currentIntake <= 0)
-                .opacity(currentIntake <= 0 ? 0.3 : 1.0)
-                
-                // Add Water Button (primary)
-                Button {
-                    addWater()
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "plus")
-                            .font(.title3.weight(.bold))
-                        
-                        Text("8oz")
-                            .font(.headline.weight(.bold))
-                    }
-                    .foregroundStyle(.white)
-                    .frame(width: 120, height: 56)
-                }
-                .buttonStyle(.glass)
-                .disabled(currentIntake >= dailyGoal)
-                .opacity(currentIntake >= dailyGoal ? 0.3 : 1.0)
-            }
+
         }
         .onAppear {
             // Animate water level on appear
@@ -194,50 +161,7 @@ struct HydrationView: View {
         }
     }
     
-    // MARK: - Actions
-    
-    private func addWater() {
-        // Haptic feedback
-        let impact = UIImpactFeedbackGenerator(style: .medium)
-        impact.impactOccurred()
-        
-        // Trigger splash animation (rising)
-        waterManager.triggerSplash(direction: .up)
-        
-        // Update or create today's metrics
-        if let today = todayLog {
-            today.waterIntake += addAmount
-        } else {
-            let newLog = DayLog(
-                date: Date(),
-                waterIntake: addAmount
-            )
-            modelContext.insert(newLog)
-        }
-        
-        // Save context
-        try? modelContext.save()
-    }
-    
-    private func removeWater() {
-        // Validate: can't go below 0
-        guard currentIntake > 0 else { return }
-        
-        // Haptic feedback (lighter for removal)
-        let impact = UIImpactFeedbackGenerator(style: .light)
-        impact.impactOccurred()
-        
-        // Trigger splash animation (dropping)
-        waterManager.triggerSplash(direction: .down)
-        
-        // Update today's metrics
-        if let today = todayLog {
-            today.waterIntake = max(0, today.waterIntake - addAmount)
-            
-            // Save context
-            try? modelContext.save()
-        }
-    }
+
 }
 
 #Preview {
