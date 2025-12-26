@@ -9,6 +9,34 @@ import SwiftUI
 import SwiftData
 import Charts
 
+// MARK: - Time Scope Enum
+
+enum TimeScope: String, CaseIterable, Identifiable {
+    case week = "Week"
+    case month = "Month"
+    case year = "Year"
+    
+    var id: String { rawValue }
+    
+    /// Number of days to display
+    var dayCount: Int {
+        switch self {
+        case .week: return 7
+        case .month: return 30
+        case .year: return 365
+        }
+    }
+    
+    /// X-axis stride unit for charts
+    var strideUnit: Calendar.Component {
+        switch self {
+        case .week: return .day
+        case .month: return .weekOfMonth
+        case .year: return .month
+        }
+    }
+}
+
 // MARK: - Hydration Chart
 
 struct HydrationChart: View {
@@ -29,49 +57,107 @@ struct HydrationChart: View {
             startDate = calendar.date(byAdding: .year, value: -1, to: now)!
         }
         
-        // Filter and sort
         return logs.filter { $0.date >= startDate }.sorted { $0.date < $1.date }
+    }
+    
+    /// For month/year views, aggregate by week/month
+    var aggregatedData: [(date: Date, intake: Double)] {
+        let calendar = Calendar.current
+        
+        switch scope {
+        case .week:
+            // Show individual days
+            return filteredLogs.map { ($0.date, $0.waterIntake) }
+            
+        case .month:
+            // Aggregate by week
+            var weeklyData: [Date: Double] = [:]
+            for log in filteredLogs {
+                let weekStart = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: log.date))!
+                weeklyData[weekStart, default: 0] += log.waterIntake
+            }
+            return weeklyData.sorted { $0.key < $1.key }.map { ($0.key, $0.value) }
+            
+        case .year:
+            // Aggregate by month
+            var monthlyData: [Date: Double] = [:]
+            for log in filteredLogs {
+                let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: log.date))!
+                monthlyData[monthStart, default: 0] += log.waterIntake
+            }
+            return monthlyData.sorted { $0.key < $1.key }.map { ($0.key, $0.value) }
+        }
     }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Hydration History")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-            
-            Chart {
-                ForEach(filteredLogs) { log in
-                    BarMark(
-                        x: .value("Date", log.date, unit: .day),
-                        y: .value("Intake", log.waterIntake)
-                    )
-                    .foregroundStyle(.cyan.gradient)
-                    .cornerRadius(4)
-                }
-                
-                RuleMark(y: .value("Goal", 64))
-                    .foregroundStyle(.cyan.opacity(0.5))
-                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [5, 5]))
-                    .annotation(position: .leading, alignment: .bottom) {
-                        Text("Goal")
-                            .font(.caption)
-                            .foregroundColor(.cyan)
-                    }
+            HStack {
+                Image(systemName: "drop.fill")
+                    .foregroundStyle(.cyan)
+                Text("Hydration")
+                    .font(.headline)
+                    .foregroundStyle(.primary)
             }
-            .frame(height: 180)
-            .chartXAxis {
-                AxisMarks(values: .stride(by: .day)) { value in
-                    if scope == .week {
-                        AxisValueLabel(format: .dateTime.weekday(.abbreviated))
-                    } else {
-                         // Simplify for longer ranges
-                         AxisValueLabel(format: .dateTime.day())
+            
+            if filteredLogs.isEmpty {
+                EmptyChartState(message: "No hydration data for this period")
+            } else {
+                Chart {
+                    ForEach(aggregatedData, id: \.date) { data in
+                        BarMark(
+                            x: .value("Date", data.date, unit: scope == .week ? .day : (scope == .month ? .weekOfYear : .month)),
+                            y: .value("Intake", data.intake)
+                        )
+                        .foregroundStyle(.cyan.gradient)
+                        .cornerRadius(4)
+                    }
+                    
+                    // Goal line (64oz daily, adjusted for aggregation)
+                    let goalValue: Double = scope == .week ? 64 : (scope == .month ? 64 * 7 : 64 * 30)
+                    RuleMark(y: .value("Goal", goalValue))
+                        .foregroundStyle(.cyan.opacity(0.5))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [5, 5]))
+                }
+                .frame(height: 180)
+                .chartXAxis {
+                    AxisMarks(values: .automatic) { value in
+                        AxisGridLine()
+                        AxisValueLabel {
+                            if let date = value.as(Date.self) {
+                                Text(formatAxisLabel(for: date))
+                                    .font(.caption2)
+                            }
+                        }
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks { value in
+                        AxisGridLine()
+                        AxisValueLabel {
+                            if let intValue = value.as(Double.self) {
+                                Text("\(Int(intValue))oz")
+                                    .font(.caption2)
+                            }
+                        }
                     }
                 }
             }
         }
         .padding()
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+    
+    private func formatAxisLabel(for date: Date) -> String {
+        let formatter = DateFormatter()
+        switch scope {
+        case .week:
+            formatter.dateFormat = "E"  // Mon, Tue, etc.
+        case .month:
+            formatter.dateFormat = "M/d" // 1/15
+        case .year:
+            formatter.dateFormat = "MMM" // Jan, Feb, etc.
+        }
+        return formatter.string(from: date)
     }
 }
 
@@ -80,72 +166,83 @@ struct HydrationChart: View {
 struct GoalProgressChart: View {
     let goal: Goal
     
-    // Calculate cumulative progress data points
-    // This is computationally expensive, ideally would be pre-calculated
-    // For this prototype, we'll iterate entries
-    struct DataPoint: Identifiable {
-        let id = UUID()
-        let date: Date
-        let actual: Double
-        let ideal: Double
-    }
-    
-    var dataPoints: [DataPoint] {
-        let start = goal.startDate
-        let end = goal.deadline
-        
-        var points: [DataPoint] = []
-        
-        // Ensure we have entries linked to this goal
-        // SwiftData queries might be tricky here without inverse relationship on DailyEntry working perfectly
-        // Assuming goal.entries works maybe? Or we pass in relevant DayLogs.
-        // For now, let's use goal.currentAmount as a single point vs time if we can't easily get history
-        // Actually, currentAmount is just a total. We need history for a line chart.
-        // If we can't easily get history distribution, we might simplify to just "Current vs Expected" bar.
-        // But requested is a line chart.
-        
-        // Let's create a simplified "Ideal" line from Start to End
-        // And an "Actual" point for Today.
-        
-        // Ideal Line
-        points.append(DataPoint(date: start, actual: 0, ideal: 0))
-        points.append(DataPoint(date: end, actual: 0, ideal: goal.targetAmount))
-        
-        return points
-    }
-    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Trajectory: \(goal.title)")
-                .font(.headline)
-                .foregroundStyle(.secondary)
+            HStack {
+                Image(systemName: "chart.line.uptrend.xyaxis")
+                    .foregroundStyle(.green)
+                Text(goal.title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
             
             Chart {
-                // Ideal Line
+                // Ideal trajectory line (start to deadline)
                 LineMark(
                     x: .value("Date", goal.startDate),
-                    y: .value("Ideal", 0)
+                    y: .value("Progress", 0),
+                    series: .value("Type", "Ideal")
                 )
-                .foregroundStyle(.green.opacity(0.3))
+                .foregroundStyle(.green.opacity(0.4))
                 .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 5]))
                 
                 LineMark(
                     x: .value("Date", goal.deadline),
-                    y: .value("Ideal", goal.targetAmount)
+                    y: .value("Progress", goal.targetAmount),
+                    series: .value("Type", "Ideal")
                 )
-                .foregroundStyle(.green.opacity(0.3))
+                .foregroundStyle(.green.opacity(0.4))
                 .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 5]))
                 
-                // Actual Current Point (Simplification since we don't have full history easily queryable in this view without passing all DayLogs)
-                 PointMark(
+                // Actual progress from entries
+                let sortedEntries = goal.entries.sorted { $0.date < $1.date }
+                var cumulative: Double = 0
+                
+                // Start point
+                PointMark(
+                    x: .value("Date", goal.startDate),
+                    y: .value("Progress", 0)
+                )
+                .foregroundStyle(.green)
+                .symbolSize(50)
+                
+                // Plot cumulative progress
+                ForEach(Array(sortedEntries.enumerated()), id: \.offset) { index, entry in
+                    let _ = (cumulative += entry.valueAdded)
+                    
+                    LineMark(
+                        x: .value("Date", entry.date),
+                        y: .value("Progress", cumulative),
+                        series: .value("Type", "Actual")
+                    )
+                    .foregroundStyle(.green)
+                    .lineStyle(StrokeStyle(lineWidth: 3))
+                    
+                    PointMark(
+                        x: .value("Date", entry.date),
+                        y: .value("Progress", cumulative)
+                    )
+                    .foregroundStyle(.green)
+                    .symbolSize(30)
+                }
+                
+                // Current position marker
+                PointMark(
                     x: .value("Date", Date()),
-                    y: .value("Actual", goal.currentAmount)
+                    y: .value("Progress", goal.currentAmount)
                 )
                 .foregroundStyle(.green)
                 .symbolSize(100)
-                
+                .annotation(position: .top) {
+                    Text("\(Int(goal.currentAmount))/\(Int(goal.targetAmount))")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.green)
+                }
             }
             .frame(height: 180)
+            .chartXScale(domain: goal.startDate...goal.deadline)
+            .chartYScale(domain: 0...goal.targetAmount)
         }
         .padding()
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
@@ -157,29 +254,72 @@ struct GoalProgressChart: View {
 struct ConsistencyHeatmap: View {
     let logs: [DayLog]
     
-    let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7) // 7 cols for weeks
+    let columns = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
+    
+    /// Days to show in heatmap (last 28 days = 4 weeks)
+    private let dayCount = 28
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Consistency")
-                .font(.headline)
+            HStack {
+                Image(systemName: "square.grid.3x3.fill")
+                    .foregroundStyle(.green)
+                Text("Consistency")
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+            }
+            
+            Text("Days with all targets met")
+                .font(.caption)
                 .foregroundStyle(.secondary)
             
-            LazyVGrid(columns: columns, spacing: 4) {
-                // Show last 28 days (4 weeks)
-                ForEach(0..<28) { index in
-                    let date = Calendar.current.date(byAdding: .day, value: -index, to: Date()) ?? Date()
-                    let log = logs.first(where: { Calendar.current.isDate($0.date, inSameDayAs: date) })
-                    
-                    // Simple logic: Green opacity based on workout + water
-                    // Or if we had separate "goals met" count
-                    let intensity: Double = calculateIntensity(for: log)
-                    
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(intensity > 0 ? Color.green.opacity(intensity) : Color.primary.opacity(0.1))
-                        .frame(height: 20)
+            // Weekday labels
+            let weekdays = ["S", "M", "T", "W", "T", "F", "S"]
+            HStack(spacing: 4) {
+                ForEach(Array(weekdays.enumerated()), id: \.offset) { index, day in
+                    Text(day)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
                 }
             }
+            
+            LazyVGrid(columns: columns, spacing: 4) {
+                ForEach(0..<dayCount, id: \.self) { index in
+                    let daysAgo = dayCount - 1 - index
+                    let date = Calendar.current.date(byAdding: .day, value: -daysAgo, to: Date()) ?? Date()
+                    let log = logs.first { Calendar.current.isDate($0.date, inSameDayAs: date) }
+                    let intensity = calculateIntensity(for: log)
+                    
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(intensityColor(intensity))
+                        .frame(height: 20)
+                        .overlay {
+                            if Calendar.current.isDateInToday(date) {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .stroke(.primary.opacity(0.3), lineWidth: 1)
+                            }
+                        }
+                }
+            }
+            
+            // Legend
+            HStack(spacing: 8) {
+                Text("Less")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                
+                ForEach([0.0, 0.25, 0.5, 0.75, 1.0], id: \.self) { level in
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(intensityColor(level))
+                        .frame(width: 12, height: 12)
+                }
+                
+                Text("More")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding()
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
@@ -189,17 +329,41 @@ struct ConsistencyHeatmap: View {
         guard let log = log else { return 0 }
         
         var score: Double = 0
-        if log.waterIntake >= 64 { score += 0.5 }
+        
+        // Hydration: 64oz = full credit
+        score += min(log.waterIntake / 64.0, 1.0) * 0.5
+        
+        // Workout: any workout = half credit
         if log.hasWorkedOut { score += 0.5 }
         
-        return max(score, 0.1) // Minimum visibility if log exists
+        return score
+    }
+    
+    private func intensityColor(_ intensity: Double) -> Color {
+        if intensity == 0 {
+            return Color.primary.opacity(0.1)
+        }
+        return Color.green.opacity(0.2 + (intensity * 0.6))
     }
 }
 
-enum TimeScope: String, CaseIterable, Identifiable {
-    case week = "Week"
-    case month = "Month"
-    case year = "Year"
+// MARK: - Empty State
+
+struct EmptyChartState: View {
+    let message: String
     
-    var id: String { rawValue }
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "chart.bar.xaxis")
+                .font(.title)
+                .foregroundStyle(.secondary)
+            
+            Text(message)
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 180)
+    }
 }

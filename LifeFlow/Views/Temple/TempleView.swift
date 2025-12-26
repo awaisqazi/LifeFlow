@@ -8,43 +8,92 @@
 import SwiftUI
 import SwiftData
 import HealthKit
+import Charts
 
-/// The Temple tab - your body is a temple.
-/// Features the showpiece HydrationView and comprehensive workout tracking.
+/// The Temple tab - Analytics Dashboard.
+/// Read-only view displaying health metrics, charts, and consistency data.
 struct TempleView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \DayLog.date, order: .reverse) private var allLogs: [DayLog]
+    @Query(sort: \Goal.deadline, order: .forward) private var goals: [Goal]
     
-    /// Get today's metrics by filtering in Swift
-    private var todayLog: DayLog? {
-        let startOfDay = Calendar.current.startOfDay(for: Date())
-        return allLogs.first { $0.date >= startOfDay }
+    @State private var selectedScope: TimeScope = .week
+    @State private var healthKitWorkouts: [WorkoutSession] = []
+    @State private var showingHealthKitAlert = false
+    
+    private let healthKitManager = HealthKitManager()
+    
+    /// Filtered logs based on selected time scope
+    private var filteredLogs: [DayLog] {
+        let calendar = Calendar.current
+        let now = Date()
+        let startDate: Date
+        
+        switch selectedScope {
+        case .week:
+            startDate = calendar.date(byAdding: .day, value: -7, to: now)!
+        case .month:
+            startDate = calendar.date(byAdding: .month, value: -1, to: now)!
+        case .year:
+            startDate = calendar.date(byAdding: .year, value: -1, to: now)!
+        }
+        
+        return allLogs.filter { $0.date >= startDate }.sorted { $0.date < $1.date }
     }
     
-    /// Today's workouts
-    private var todaysWorkouts: [WorkoutSession] {
-        todayLog?.workouts ?? []
+    /// Aggregate workout stats for the selected scope
+    private var workoutStats: (count: Int, calories: Double, duration: TimeInterval) {
+        let workouts = filteredLogs.flatMap { $0.workouts }
+        return (
+            count: workouts.count,
+            calories: workouts.reduce(0) { $0 + $1.calories },
+            duration: workouts.reduce(0) { $0 + $1.duration }
+        )
     }
     
     var body: some View {
         ScrollView {
-            VStack(spacing: 32) {
+            VStack(spacing: 24) {
                 // Header
                 HeaderView(
                     title: "Temple",
-                    subtitle: "Honor Your Body"
+                    subtitle: "Analytics Dashboard"
                 )
                 
-                // Main Hydration Vessel - the showpiece
-                GlassEffectContainer(spacing: 20) {
-                    HydrationView()
+                // Time Scope Picker
+                Picker("Time Scope", selection: $selectedScope) {
+                    ForEach(TimeScope.allCases) { scope in
+                        Text(scope.rawValue).tag(scope)
+                    }
                 }
-    
-    /// Get or create today's DayLog record
-                // Workout Tracking Section
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                
+                // Analytics Container
+                GlassEffectContainer(spacing: 20) {
+                    VStack(spacing: 20) {
+                        // Hydration Chart
+                        HydrationChart(logs: allLogs, scope: selectedScope)
+                        
+                        // Goal Progress Chart
+                        if let firstGoal = goals.first {
+                            GoalProgressChart(goal: firstGoal)
+                        } else {
+                            EmptyGoalChartState()
+                        }
+                        
+                        // Consistency Heatmap
+                        ConsistencyHeatmap(logs: allLogs)
+                    }
+                }
+                .padding(.horizontal)
+                
+                // Workout Summary (Read-only)
                 GlassEffectContainer(spacing: 16) {
-                    WorkoutLogView(
-                        workouts: todaysWorkouts
+                    WorkoutSummaryView(
+                        stats: workoutStats,
+                        isSyncing: healthKitManager.isSyncing,
+                        onSyncTap: syncHealthKit
                     )
                 }
                 .padding(.horizontal)
@@ -53,64 +102,164 @@ struct TempleView: View {
             }
             .padding(.top, 60)
         }
+        .onAppear {
+            syncHealthKitOnAppear()
+        }
+        .alert("HealthKit", isPresented: $showingHealthKitAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(healthKitManager.lastError?.localizedDescription ?? "Unable to sync with HealthKit")
+        }
+    }
+    
+    private func syncHealthKitOnAppear() {
+        Task {
+            do {
+                try await healthKitManager.requestAuthorization()
+                let workouts = try await healthKitManager.fetchWorkouts(for: selectedScope)
+                await MainActor.run {
+                    healthKitWorkouts = workouts
+                    mergeHealthKitWorkouts(workouts)
+                }
+            } catch {
+                // Silently fail on initial sync - user can manually sync
+                print("HealthKit sync error: \(error)")
+            }
+        }
+    }
+    
+    private func syncHealthKit() {
+        Task {
+            do {
+                try await healthKitManager.requestAuthorization()
+                let workouts = try await healthKitManager.fetchWorkouts(for: selectedScope)
+                await MainActor.run {
+                    healthKitWorkouts = workouts
+                    mergeHealthKitWorkouts(workouts)
+                }
+            } catch {
+                await MainActor.run {
+                    showingHealthKitAlert = true
+                }
+            }
+        }
+    }
+    
+    /// Merge HealthKit workouts into DayLog records
+    private func mergeHealthKitWorkouts(_ workouts: [WorkoutSession]) {
+        let calendar = Calendar.current
+        
+        for workout in workouts {
+            let startOfDay = calendar.startOfDay(for: workout.timestamp)
+            
+            // Find or create DayLog for this date
+            if let dayLog = allLogs.first(where: { calendar.isDate($0.date, inSameDayAs: startOfDay) }) {
+                // Check if workout already exists (by ID)
+                let exists = dayLog.workouts.contains { $0.id == workout.id }
+                if !exists {
+                    dayLog.workouts.append(workout)
+                }
+            } else {
+                // Create new DayLog for this date
+                let newLog = DayLog(date: startOfDay, workouts: [workout])
+                modelContext.insert(newLog)
+            }
+        }
+        
+        try? modelContext.save()
     }
 }
 
-// MARK: - Workout Log View
+// MARK: - Empty States
 
-/// Displays today's workouts with sync and add controls
-struct WorkoutLogView: View {
-    let workouts: [WorkoutSession]
+struct EmptyGoalChartState: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "chart.line.uptrend.xyaxis")
+                .font(.largeTitle)
+                .foregroundStyle(.secondary)
+            
+            Text("No Goals Set")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+            
+            Text("Add goals in Horizon to see progress charts")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+// MARK: - Workout Summary View (Read-Only)
+
+struct WorkoutSummaryView: View {
+    let stats: (count: Int, calories: Double, duration: TimeInterval)
+    let isSyncing: Bool
+    let onSyncTap: () -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Header
+            // Header with sync button
             HStack {
                 Image(systemName: "figure.strengthtraining.traditional")
                     .font(.title2)
                     .foregroundStyle(.orange)
                 
-                Text("Workouts")
+                Text("Workout Summary")
                     .font(.headline)
                     .foregroundStyle(.primary)
                 
-                
                 Spacer()
+                
+                Button(action: onSyncTap) {
+                    HStack(spacing: 4) {
+                        if isSyncing {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        } else {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                        }
+                        Text("Sync")
+                            .font(.caption)
+                    }
+                    .foregroundStyle(.pink)
+                }
+                .disabled(isSyncing)
             }
             
-            // Workouts list or empty state
-            if workouts.isEmpty {
-                EmptyWorkoutState()
+            // Stats
+            if stats.count == 0 {
+                Text("No workouts in this period")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 20)
             } else {
-                // Summary
                 HStack(spacing: 16) {
                     StatPill(
                         icon: "flame.fill",
-                        value: "\(Int(workouts.reduce(0) { $0 + $1.calories }))",
+                        value: "\(Int(stats.calories))",
                         label: "cal",
                         color: .orange
                     )
                     
                     StatPill(
                         icon: "clock.fill",
-                        value: formatTotalDuration(workouts.reduce(0) { $0 + $1.duration }),
+                        value: formatDuration(stats.duration),
                         label: "",
                         color: .cyan
                     )
                     
                     StatPill(
                         icon: "checkmark.circle.fill",
-                        value: "\(workouts.count)",
-                        label: workouts.count == 1 ? "workout" : "workouts",
+                        value: "\(stats.count)",
+                        label: stats.count == 1 ? "workout" : "workouts",
                         color: .green
                     )
-                }
-                
-                // Workout cards
-                VStack(spacing: 8) {
-                    ForEach(workouts, id: \.id) { workout in
-                        WorkoutCard(workout: workout)
-                    }
                 }
             }
         }
@@ -119,7 +268,7 @@ struct WorkoutLogView: View {
         .glassEffect(in: .rect(cornerRadius: 20))
     }
     
-    private func formatTotalDuration(_ seconds: TimeInterval) -> String {
+    private func formatDuration(_ seconds: TimeInterval) -> String {
         let hours = Int(seconds) / 3600
         let minutes = (Int(seconds) % 3600) / 60
         
@@ -131,28 +280,7 @@ struct WorkoutLogView: View {
     }
 }
 
-// MARK: - Supporting Views
-
-/// Empty state when no workouts logged
-struct EmptyWorkoutState: View {
-    var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "figure.wave")
-                .font(.largeTitle)
-                .foregroundStyle(.secondary)
-            
-            Text("No workouts yet")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            
-            Text("Tap + to log or sync from Health")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
-    }
-}
+// MARK: - Stat Pill Component
 
 /// Stat pill for workout summary
 struct StatPill: View {
@@ -182,63 +310,11 @@ struct StatPill: View {
     }
 }
 
-/// Individual workout card
-struct WorkoutCard: View {
-    let workout: WorkoutSession
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            // Icon
-            Image(systemName: WorkoutSession.icon(for: workout.type))
-                .font(.title3)
-                .foregroundStyle(.cyan)
-                .frame(width: 40, height: 40)
-                .background(.cyan.opacity(0.15), in: Circle())
-            
-            // Info
-            VStack(alignment: .leading, spacing: 2) {
-                Text(workout.type)
-                    .font(.subheadline.weight(.medium))
-                
-                HStack(spacing: 8) {
-                    Text(workout.formattedDuration)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    
-                    if workout.calories > 0 {
-                        Text("•")
-                            .foregroundStyle(.tertiary)
-                        Text("\(Int(workout.calories)) cal")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            
-            Spacer()
-            
-            // Source badge
-            Text(workout.source)
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(workout.source == "HealthKit" ? .pink : .cyan)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(
-                    (workout.source == "HealthKit" ? Color.pink : Color.cyan)
-                        .opacity(0.15),
-                    in: Capsule()
-                )
-        }
-        .padding(12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-    }
-}
-
 #Preview {
     ZStack {
         LiquidBackgroundView()
         TempleView()
     }
-    .modelContainer(for: [DayLog.self, WorkoutSession.self], inMemory: true)
+    .modelContainer(for: [DayLog.self, WorkoutSession.self, Goal.self], inMemory: true)
     .preferredColorScheme(.dark)
 }

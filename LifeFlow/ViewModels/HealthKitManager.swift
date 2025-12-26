@@ -9,6 +9,8 @@ import Foundation
 import HealthKit
 import Observation
 
+// TimeScope is defined in AnalyticsCharts.swift and accessible within the module
+
 /// Manages HealthKit integration for syncing workout data.
 /// Uses iOS 17+ async/await patterns for querying workout samples.
 @Observable
@@ -109,6 +111,65 @@ final class HealthKitManager {
             lastError = error
             throw error
         }
+    }
+    
+    /// Fetch workouts within a date range from HealthKit
+    /// - Parameters:
+    ///   - startDate: The start of the date range
+    ///   - endDate: The end of the date range
+    /// - Returns: Array of WorkoutSession objects mapped from HKWorkout
+    func fetchWorkouts(from startDate: Date, to endDate: Date) async throws -> [WorkoutSession] {
+        guard isAvailable else {
+            throw HealthKitError.notAvailable
+        }
+        
+        isSyncing = true
+        defer { isSyncing = false }
+        
+        lastError = nil
+        
+        do {
+            let datePredicate = HKQuery.predicateForSamples(
+                withStart: startDate,
+                end: endDate,
+                options: .strictStartDate
+            )
+            
+            let descriptor = HKSampleQueryDescriptor(
+                predicates: [.workout(datePredicate)],
+                sortDescriptors: [SortDescriptor(\.startDate, order: .reverse)]
+            )
+            
+            let workouts = try await descriptor.result(for: healthStore)
+            
+            return workouts.map { hkWorkout in
+                mapToWorkoutSession(hkWorkout)
+            }
+            
+        } catch {
+            lastError = error
+            throw error
+        }
+    }
+    
+    /// Fetch workouts for a given time scope
+    /// - Parameter scope: The time scope (week, month, year)
+    /// - Returns: Array of WorkoutSession objects
+    func fetchWorkouts(for scope: TimeScope) async throws -> [WorkoutSession] {
+        let calendar = Calendar.current
+        let now = Date()
+        let startDate: Date
+        
+        switch scope {
+        case .week:
+            startDate = calendar.date(byAdding: .day, value: -7, to: now)!
+        case .month:
+            startDate = calendar.date(byAdding: .month, value: -1, to: now)!
+        case .year:
+            startDate = calendar.date(byAdding: .year, value: -1, to: now)!
+        }
+        
+        return try await fetchWorkouts(from: startDate, to: now)
     }
     
     // MARK: - Mapping
