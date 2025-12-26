@@ -8,12 +8,8 @@
 import SwiftUI
 import SwiftData
 
-/// The showpiece hydration tracker with Liquid Glass vessel and motion-reactive water.
-/// Features:
-/// - Glass vessel using native `.glassEffect()` with custom shape
-/// - Animated water that responds to device tilt via CoreMotion
-/// - SwiftData integration for persistence
-/// - Fluid "splash" animation when adding water
+/// The showpiece hydration tracker with premium Liquid Glass vessel.
+/// Features elegant curves, animated water with shimmer, and motion physics.
 struct HydrationView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \DailyMetrics.date, order: .reverse) private var allMetrics: [DailyMetrics]
@@ -44,84 +40,105 @@ struct HydrationView: View {
     }
     
     var body: some View {
-        VStack(spacing: 24) {
-            // Title
-            VStack(spacing: 4) {
-                Text("Hydration")
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-                
-                Text("\(Int(currentIntake)) of \(Int(dailyGoal)) oz")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            
+        VStack(spacing: 20) {
             // Glass Vessel with Water
             ZStack {
-                // Background glow
-                VesselShape()
+                // Ambient glow behind vessel
+                Ellipse()
                     .fill(
                         RadialGradient(
                             colors: [
-                                .cyan.opacity(0.2),
+                                .cyan.opacity(0.25),
+                                .blue.opacity(0.1),
                                 .clear
                             ],
                             center: .center,
-                            startRadius: 50,
-                            endRadius: 200
+                            startRadius: 20,
+                            endRadius: 150
                         )
                     )
-                    .blur(radius: 30)
-                    .scaleEffect(1.2)
+                    .frame(width: 250, height: 180)
+                    .offset(y: 60)
+                    .blur(radius: 25)
                 
-                // Animated Water
-                AnimatedWaterView(
-                    fillLevel: animatedWaterLevel,
-                    tiltAngle: waterManager.tiltAngle
-                )
-                .clipShape(VesselShape())
-                
-                // Glass Vessel overlay with Liquid Glass effect
-                VesselShape()
-                    .stroke(
-                        LinearGradient(
-                            colors: [
-                                .white.opacity(0.4),
-                                .white.opacity(0.1),
-                                .white.opacity(0.2)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 2
+                // Main vessel container
+                ZStack {
+                    // Animated Water
+                    AnimatedWaterView(
+                        fillLevel: animatedWaterLevel,
+                        tiltAngle: waterManager.tiltAngle
                     )
-                    .glassEffect(.regular.tint(.cyan.opacity(0.1)), in: VesselShape())
-                
-                // Floating intake display
-                VStack(spacing: 4) {
-                    Text("\(Int(currentIntake))")
-                        .font(.system(size: 48, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+                    .clipShape(VesselShape())
                     
-                    Text("ounces")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.8))
-                        .textCase(.uppercase)
-                        .tracking(1.5)
+                    // Glass vessel with Liquid Glass effect
+                    VesselShape()
+                        .stroke(
+                            LinearGradient(
+                                colors: [
+                                    .white.opacity(0.5),
+                                    .white.opacity(0.2),
+                                    .white.opacity(0.1),
+                                    .white.opacity(0.2)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1.5
+                        )
+                    
+                    // Inner glass highlight (left side reflection)
+                    VesselHighlightShape()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    .white.opacity(0.25),
+                                    .white.opacity(0.05)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                    
+                    // Glass effect overlay
+                    VesselShape()
+                        .fill(.clear)
+                        .glassEffect(.regular.tint(.cyan.opacity(0.08)), in: VesselShape())
+                    
+                    // Floating intake display
+                    VStack(spacing: 2) {
+                        Text("\(Int(currentIntake))")
+                            .font(.system(size: 56, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
+                        
+                        Text("oz")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.8))
+                            .textCase(.uppercase)
+                            .tracking(2)
+                    }
+                    .offset(y: -20)
                 }
-                .offset(y: -20)
+                .frame(width: 180, height: 280)
             }
-            .frame(width: 200, height: 280)
             
-            // Progress indicator
-            HStack(spacing: 8) {
+            // Progress indicator with glow
+            HStack(spacing: 10) {
                 ForEach(0..<8, id: \.self) { index in
+                    let isFilled = Double(index) < (currentIntake / 8)
                     Circle()
-                        .fill(Double(index) < (currentIntake / 8) ? .cyan : .white.opacity(0.2))
+                        .fill(isFilled ? .cyan : .white.opacity(0.15))
                         .frame(width: 10, height: 10)
+                        .shadow(color: isFilled ? .cyan.opacity(0.6) : .clear, radius: 4)
+                        .scaleEffect(isFilled ? 1.1 : 1.0)
+                        .animation(.spring(response: 0.3), value: isFilled)
                 }
             }
+            
+            // Goal text
+            Text("\(Int(currentIntake)) of \(Int(dailyGoal)) oz")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.secondary)
             
             // Water Control Buttons
             HStack(spacing: 16) {
@@ -129,16 +146,14 @@ struct HydrationView: View {
                 Button {
                     removeWater()
                 } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "minus")
-                            .font(.body.weight(.semibold))
-                    }
-                    .foregroundStyle(.white.opacity(0.8))
-                    .frame(width: 50, height: 44)
+                    Image(systemName: "minus")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.8))
+                        .frame(width: 56, height: 56)
                 }
                 .buttonStyle(.glass)
                 .disabled(currentIntake <= 0)
-                .opacity(currentIntake <= 0 ? 0.4 : 1.0)
+                .opacity(currentIntake <= 0 ? 0.3 : 1.0)
                 
                 // Add Water Button (primary)
                 Button {
@@ -146,23 +161,22 @@ struct HydrationView: View {
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "plus")
-                            .font(.title3.weight(.semibold))
+                            .font(.title3.weight(.bold))
                         
-                        Text("Add 8oz")
-                            .font(.headline)
+                        Text("8oz")
+                            .font(.headline.weight(.bold))
                     }
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 14)
+                    .frame(width: 120, height: 56)
                 }
                 .buttonStyle(.glass)
                 .disabled(currentIntake >= dailyGoal)
-                .opacity(currentIntake >= dailyGoal ? 0.5 : 1.0)
+                .opacity(currentIntake >= dailyGoal ? 0.3 : 1.0)
             }
         }
         .onAppear {
             // Animate water level on appear
-            withAnimation(.easeOut(duration: 1.0)) {
+            withAnimation(.easeOut(duration: 1.2)) {
                 animatedWaterLevel = fillLevel
             }
             

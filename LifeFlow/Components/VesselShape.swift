@@ -7,57 +7,76 @@
 
 import SwiftUI
 
-/// A custom shape for the water vessel/glass container.
+/// A premium glass vessel shape with elegant curves.
 /// Designed to work with `.glassEffect(in:)` for the Liquid Glass aesthetic.
-/// Features a rounded bottom and slightly tapered sides.
 struct VesselShape: Shape {
-    /// How much the vessel tapers (0 = straight sides, 1 = very tapered)
-    var taperAmount: CGFloat = 0.15
-    
-    /// Corner radius for the bottom
-    var bottomCornerRadius: CGFloat = 40
+    /// How rounded the vessel is (0 = angular, 1 = very rounded)
+    var roundness: CGFloat = 0.4
     
     func path(in rect: CGRect) -> Path {
         var path = Path()
         
         let width = rect.width
         let height = rect.height
-        let taper = width * taperAmount
         
-        // Top edge (wider)
-        let topLeft = CGPoint(x: 0, y: 0)
-        let topRight = CGPoint(x: width, y: 0)
+        // Control points for elegant curves
+        let topWidth = width * 0.98
+        let bottomWidth = width * 0.7
+        let topInset = (width - topWidth) / 2
+        let bottomInset = (width - bottomWidth) / 2
         
-        // Bottom edge (narrower due to taper)
-        let bottomLeft = CGPoint(x: taper, y: height)
-        let bottomRight = CGPoint(x: width - taper, y: height)
+        // Neck taper (top of glass is slightly narrower)
+        let neckHeight = height * 0.08
+        let neckWidth = width * 0.94
+        let neckInset = (width - neckWidth) / 2
         
         // Start from top-left
-        path.move(to: topLeft)
+        path.move(to: CGPoint(x: neckInset, y: 0))
         
-        // Right side (tapered)
-        path.addLine(to: topRight)
+        // Top edge
+        path.addLine(to: CGPoint(x: width - neckInset, y: 0))
         
-        // Bottom-right curve
-        let bottomRightControl = CGPoint(x: width - taper, y: height - bottomCornerRadius)
-        path.addLine(to: CGPoint(x: width, y: height - bottomCornerRadius * 1.5))
-        path.addQuadCurve(
-            to: CGPoint(x: width - taper - bottomCornerRadius * 0.5, y: height),
-            control: bottomRightControl
+        // Right side - elegant curve widening then tapering
+        path.addCurve(
+            to: CGPoint(x: width - topInset, y: neckHeight),
+            control1: CGPoint(x: width - neckInset + 5, y: neckHeight * 0.3),
+            control2: CGPoint(x: width - topInset, y: neckHeight * 0.7)
         )
         
-        // Bottom edge
-        path.addLine(to: CGPoint(x: taper + bottomCornerRadius * 0.5, y: height))
-        
-        // Bottom-left curve
-        let bottomLeftControl = CGPoint(x: taper, y: height - bottomCornerRadius)
-        path.addQuadCurve(
-            to: CGPoint(x: 0, y: height - bottomCornerRadius * 1.5),
-            control: bottomLeftControl
+        // Right side body
+        path.addCurve(
+            to: CGPoint(x: width - bottomInset, y: height * 0.85),
+            control1: CGPoint(x: width - topInset + 5, y: height * 0.3),
+            control2: CGPoint(x: width - bottomInset + 10, y: height * 0.6)
         )
         
-        // Left side (back to top)
-        path.addLine(to: topLeft)
+        // Bottom right curve
+        path.addCurve(
+            to: CGPoint(x: width * 0.5, y: height),
+            control1: CGPoint(x: width - bottomInset, y: height * 0.95),
+            control2: CGPoint(x: width * 0.65, y: height)
+        )
+        
+        // Bottom left curve
+        path.addCurve(
+            to: CGPoint(x: bottomInset, y: height * 0.85),
+            control1: CGPoint(x: width * 0.35, y: height),
+            control2: CGPoint(x: bottomInset, y: height * 0.95)
+        )
+        
+        // Left side body
+        path.addCurve(
+            to: CGPoint(x: topInset, y: neckHeight),
+            control1: CGPoint(x: bottomInset - 10, y: height * 0.6),
+            control2: CGPoint(x: topInset - 5, y: height * 0.3)
+        )
+        
+        // Left side neck curve back to start
+        path.addCurve(
+            to: CGPoint(x: neckInset, y: 0),
+            control1: CGPoint(x: topInset, y: neckHeight * 0.7),
+            control2: CGPoint(x: neckInset - 5, y: neckHeight * 0.3)
+        )
         
         path.closeSubpath()
         
@@ -65,17 +84,32 @@ struct VesselShape: Shape {
     }
 }
 
-/// A shape that represents just the vessel outline (for borders)
-struct VesselOutlineShape: Shape {
-    var taperAmount: CGFloat = 0.15
-    var bottomCornerRadius: CGFloat = 40
-    var lineWidth: CGFloat = 2
-    
+/// Inner highlight shape for glass reflection effect
+struct VesselHighlightShape: Shape {
     func path(in rect: CGRect) -> Path {
-        VesselShape(
-            taperAmount: taperAmount,
-            bottomCornerRadius: bottomCornerRadius
-        ).path(in: rect)
+        var path = Path()
+        
+        let width = rect.width
+        let height = rect.height
+        
+        // Left side highlight - thin curved strip
+        path.move(to: CGPoint(x: width * 0.12, y: height * 0.1))
+        
+        path.addCurve(
+            to: CGPoint(x: width * 0.18, y: height * 0.6),
+            control1: CGPoint(x: width * 0.08, y: height * 0.25),
+            control2: CGPoint(x: width * 0.1, y: height * 0.45)
+        )
+        
+        path.addCurve(
+            to: CGPoint(x: width * 0.22, y: height * 0.1),
+            control1: CGPoint(x: width * 0.2, y: height * 0.45),
+            control2: CGPoint(x: width * 0.18, y: height * 0.25)
+        )
+        
+        path.closeSubpath()
+        
+        return path
     }
 }
 
@@ -83,12 +117,23 @@ struct VesselOutlineShape: Shape {
     ZStack {
         Color.black.ignoresSafeArea()
         
-        VesselShape()
-            .fill(.cyan.opacity(0.2))
-            .frame(width: 200, height: 300)
-            .overlay {
-                VesselOutlineShape()
-                    .stroke(.white.opacity(0.3), lineWidth: 2)
-            }
+        ZStack {
+            VesselShape()
+                .fill(.cyan.opacity(0.15))
+            
+            VesselShape()
+                .stroke(
+                    LinearGradient(
+                        colors: [.white.opacity(0.4), .white.opacity(0.1)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 2
+                )
+            
+            VesselHighlightShape()
+                .fill(.white.opacity(0.15))
+        }
+        .frame(width: 180, height: 280)
     }
 }
