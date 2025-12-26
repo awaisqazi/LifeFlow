@@ -171,28 +171,41 @@ struct WorkoutLogView: View {
                 Spacer()
                 
                 // Control buttons
-                HStack(spacing: 8) {
+                HStack(spacing: 12) {
                     // Sync from HealthKit
                     if healthKitManager.isAvailable {
                         Button {
                             onSyncHealth()
                         } label: {
-                            HStack(spacing: 4) {
+                            HStack(spacing: 6) {
                                 if healthKitManager.isSyncing {
                                     ProgressView()
-                                        .scaleEffect(0.7)
+                                        .scaleEffect(0.8)
+                                        .tint(.white)
                                 } else {
                                     Image(systemName: "heart.fill")
+                                        .font(.system(size: 14, weight: .semibold))
                                 }
                                 Text("Sync")
-                                    .font(.caption.weight(.medium))
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .lineLimit(1)
+                                    .fixedSize(horizontal: true, vertical: false)
                             }
-                            .foregroundStyle(.pink)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(
+                                LinearGradient(
+                                    colors: [.pink, .red.opacity(0.8)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .clipShape(Capsule())
+                            .shadow(color: .pink.opacity(0.4), radius: 8, y: 4)
                         }
-                        .buttonStyle(.glass)
                         .disabled(healthKitManager.isSyncing)
+                        .opacity(healthKitManager.isSyncing ? 0.7 : 1.0)
                     }
                     
                     // Add manual workout
