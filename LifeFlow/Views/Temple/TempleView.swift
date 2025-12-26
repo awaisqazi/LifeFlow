@@ -9,32 +9,47 @@ import SwiftUI
 import SwiftData
 
 /// The Temple tab - your body is a temple.
-/// Tracks gym attendance and water intake for physical wellness.
+/// Features the showpiece HydrationView and gym tracking.
 struct TempleView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \DailyMetrics.date, order: .reverse) private var metrics: [DailyMetrics]
+    @Query(sort: \DailyMetrics.date, order: .reverse) private var allMetrics: [DailyMetrics]
     
-    @State private var waterGlasses: Int = 0
     @State private var gymCheckedIn: Bool = false
+    
+    /// Get today's metrics by filtering in Swift
+    private var todayMetrics: DailyMetrics? {
+        let startOfDay = Calendar.current.startOfDay(for: Date())
+        return allMetrics.first { $0.date >= startOfDay }
+    }
+    
+    /// Current gym status from SwiftData
+    private var isGymDone: Bool {
+        todayMetrics?.gymAttendance ?? false
+    }
     
     var body: some View {
         ScrollView {
-            VStack(spacing: 24) {
+            VStack(spacing: 32) {
                 // Header
                 HeaderView(
                     title: "Temple",
                     subtitle: "Honor Your Body"
                 )
                 
-                // Glass effect container for blending cards
+                // Main Hydration Vessel - the showpiece
+                GlassEffectContainer(spacing: 20) {
+                    HydrationView()
+                }
+                
+                // Gym Tracking Card
                 GlassEffectContainer(spacing: 16) {
-                    VStack(spacing: 16) {
-                        // Water Tracking Card
-                        WaterTrackingCard(glasses: $waterGlasses)
-                        
-                        // Gym Tracking Card
-                        GymTrackingCard(isCheckedIn: $gymCheckedIn)
-                    }
+                    GymTrackingCard(isCheckedIn: $gymCheckedIn)
+                        .onChange(of: gymCheckedIn) { _, newValue in
+                            updateGymStatus(newValue)
+                        }
+                        .onAppear {
+                            gymCheckedIn = isGymDone
+                        }
                 }
                 .padding(.horizontal)
                 
@@ -43,70 +58,22 @@ struct TempleView: View {
             .padding(.top, 60)
         }
     }
-}
-
-/// Interactive water tracking card with Liquid Glass
-struct WaterTrackingCard: View {
-    @Binding var glasses: Int
-    let maxGlasses = 8
     
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Image(systemName: "drop.fill")
-                    .font(.title2)
-                    .foregroundStyle(.cyan)
-                
-                Text("Hydration")
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                
-                Spacer()
-                
-                Text("\(glasses * 8) oz")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
-            
-            Text("Track your daily water intake")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            
-            // Interactive water glasses
-            HStack(spacing: 8) {
-                ForEach(0..<maxGlasses, id: \.self) { index in
-                    Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                            if glasses == index + 1 {
-                                glasses = index // Tap same to deselect
-                            } else {
-                                glasses = index + 1
-                            }
-                        }
-                        let impact = UIImpactFeedbackGenerator(style: .soft)
-                        impact.impactOccurred()
-                    } label: {
-                        Circle()
-                            .fill(index < glasses ? .cyan : .primary.opacity(0.1))
-                            .frame(width: 32, height: 32)
-                            .overlay {
-                                if index < glasses {
-                                    Image(systemName: "drop.fill")
-                                        .font(.caption)
-                                        .foregroundStyle(.white)
-                                }
-                            }
-                    }
-                    .buttonStyle(.plain)
-                    .scaleEffect(index < glasses ? 1.1 : 1.0)
-                }
-            }
-            .padding(.top, 4)
+    // MARK: - Actions
+    
+    private func updateGymStatus(_ attended: Bool) {
+        if let today = todayMetrics {
+            today.gymAttendance = attended
+        } else {
+            let newMetrics = DailyMetrics(
+                date: Date(),
+                waterIntake: 0,
+                gymAttendance: attended
+            )
+            modelContext.insert(newMetrics)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .glassEffect(in: .rect(cornerRadius: 20))
+        
+        try? modelContext.save()
     }
 }
 
@@ -145,9 +112,8 @@ struct GymTrackingCard: View {
                     .foregroundStyle(isCheckedIn ? .green : .secondary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .glassEffect(in: .capsule)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.glass)
             }
             
             Text(isCheckedIn ? "Great work today! 💪" : "Log your workout session")
