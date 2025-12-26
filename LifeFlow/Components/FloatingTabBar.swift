@@ -59,8 +59,9 @@ struct FloatingTabBar: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 8)
-            .glassEffect(in: .capsule)
+            .glassEffect(.regular.interactive(), in: .capsule)
         }
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: selectedTab)
         .padding(.horizontal, 40)
         .padding(.bottom, 20)
     }
@@ -93,14 +94,16 @@ struct TabButton: View {
                 if isSelected {
                     Capsule()
                         .fill(.tint.opacity(0.3))
-                        .glassEffect()
+                        .glassEffect(.regular.interactive())
                         .matchedGeometryEffect(id: "TAB_INDICATOR", in: namespace)
                 }
             }
+            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSelected)
         }
         .buttonStyle(.plain)
         .contentShape(Capsule())
         .scaleEffect(isSelected ? 1.02 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: isSelected)
     }
 }
 

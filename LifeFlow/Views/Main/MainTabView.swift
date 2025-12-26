@@ -46,7 +46,9 @@ struct TabContentView: View {
                 HorizonView()
             }
         }
+        .id(selectedTab) // Force view identity change for animation
         .transition(.opacity.combined(with: .scale(scale: 0.98)))
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: selectedTab)
     }
 }
 
