@@ -171,41 +171,48 @@ struct WorkoutLogView: View {
                 Spacer()
                 
                 // Control buttons
-                HStack(spacing: 12) {
-                    // Sync from HealthKit
+                HStack(spacing: 10) {
+                    // Sync from HealthKit - Apple Health branded
                     if healthKitManager.isAvailable {
                         Button {
                             onSyncHealth()
                         } label: {
-                            HStack(spacing: 6) {
-                                if healthKitManager.isSyncing {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                        .tint(.white)
-                                } else {
-                                    Image(systemName: "heart.fill")
-                                        .font(.system(size: 14, weight: .semibold))
-                                }
+                            Label {
                                 Text("Sync")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .lineLimit(1)
-                                    .fixedSize(horizontal: true, vertical: false)
+                                    .font(.subheadline.weight(.semibold))
+                            } icon: {
+                                ZStack {
+                                    // Mini Health app icon
+                                    RoundedRectangle(cornerRadius: 5)
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [
+                                                    Color(red: 1.0, green: 0.23, blue: 0.19),
+                                                    Color(red: 1.0, green: 0.38, blue: 0.42)
+                                                ],
+                                                startPoint: .top,
+                                                endPoint: .bottom
+                                            )
+                                        )
+                                        .frame(width: 22, height: 22)
+                                    
+                                    if healthKitManager.isSyncing {
+                                        ProgressView()
+                                            .scaleEffect(0.5)
+                                            .tint(.white)
+                                    } else {
+                                        Image(systemName: "heart.fill")
+                                            .font(.system(size: 11, weight: .bold))
+                                            .foregroundStyle(.white)
+                                    }
+                                }
                             }
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
-                            .background(
-                                LinearGradient(
-                                    colors: [.pink, .red.opacity(0.8)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .clipShape(Capsule())
-                            .shadow(color: .pink.opacity(0.4), radius: 8, y: 4)
+                            .foregroundStyle(.primary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
                         }
+                        .buttonStyle(.glass)
                         .disabled(healthKitManager.isSyncing)
-                        .opacity(healthKitManager.isSyncing ? 0.7 : 1.0)
                     }
                     
                     // Add manual workout
