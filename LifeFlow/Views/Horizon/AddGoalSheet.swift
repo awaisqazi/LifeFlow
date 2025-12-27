@@ -354,7 +354,6 @@ struct AddGoalSheet: View {
         
         // For weight loss, current is starting weight, target is goal weight
         let startValue: Double? = selectedType == .weightLoss ? current : nil
-        let goalCurrent: Double = selectedType == .weightLoss ? current : current
         
         let newGoal = Goal(
             title: title,
