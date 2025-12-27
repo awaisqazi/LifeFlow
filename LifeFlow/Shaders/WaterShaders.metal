@@ -31,9 +31,10 @@ using namespace metal;
     float wave3 = sin(uv.x * 20.0 + time * 3.2) * 0.006;
     float totalWave = wave1 + wave2 + wave3;
     
-    // Tilt effect - when tilting left (negative), left side should be higher
-    // (0.5 - uv.x) makes left side positive, right side negative
-    float tiltEffect = (0.5 - uv.x) * tiltAngle * 0.3;
+    // Tilt effect - INVERTED for correct gravity simulation
+    // When tilting left (negative angle from CoreMotion), water should rise on LEFT
+    // Negate tiltAngle to correct the direction
+    float tiltEffect = (0.5 - uv.x) * (-tiltAngle) * 1.0;
     
     // Water surface line
     float waterSurface = fillLevel + tiltEffect + totalWave;
