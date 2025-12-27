@@ -75,4 +75,51 @@ final class Goal {
         
         return remainingAmount / remainingDays
     }
+    
+    // MARK: - Smart Goal Calculations
+    
+    /// Get the full daily plan using GoalCalculator
+    var dailyPlan: DailyPlan {
+        GoalCalculator.calculateDailyPlan(
+            targetAmount: targetAmount,
+            currentAmount: currentAmount,
+            deadline: deadline ?? Date.distantFuture,
+            startDate: startDate,
+            frequency: .daily,
+            historicalAverage: calculateHistoricalAverage(),
+            safeThreshold: nil
+        )
+    }
+    
+    /// Calculate historical daily average from entries
+    func calculateHistoricalAverage() -> Double? {
+        guard !entries.isEmpty else { return nil }
+        
+        // Get unique days with entries
+        let calendar = Calendar.current
+        let entriesByDay = Dictionary(grouping: entries) { entry in
+            calendar.startOfDay(for: entry.date)
+        }
+        
+        guard entriesByDay.count > 0 else { return nil }
+        
+        // Sum values per day, then average across days
+        let dailyTotals = entriesByDay.values.map { dayEntries in
+            dayEntries.reduce(0) { $0 + $1.valueAdded }
+        }
+        
+        return dailyTotals.reduce(0, +) / Double(dailyTotals.count)
+    }
+    
+    /// Current status based on GoalCalculator
+    var status: GoalStatus {
+        dailyPlan.status
+    }
+    
+    /// Progress percentage (0.0 to 1.0)
+    var progressPercentage: Double {
+        guard targetAmount > 0 else { return 0 }
+        return min(currentAmount / targetAmount, 1.0)
+    }
 }
+
