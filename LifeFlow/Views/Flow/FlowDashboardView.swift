@@ -32,48 +32,56 @@ struct FlowDashboardView: View {
     @State private var todayLogState: DayLog?
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                // Header
-                HeaderView(
-                    title: "Flow",
-                    subtitle: "Daily Input Stream"
-                )
-                
-                if let today = todayLogState {
-                    VStack(spacing: 16) {
-                        // 1. System Cards
-                        HydrationVesselCard(dayLog: today)
-                        GymCard(dayLog: today)
-                        
-                        Divider()
-                            .padding(.vertical, 8)
-                        
-                        // 2. Goal Cards
-                        if goals.isEmpty {
-                            ContentUnavailableView(
-                                "No Goals Active",
-                                systemImage: "mountain.2",
-                                description: Text("Add goals in Horizon to see them here.")
-                            )
-                        } else {
-                            ForEach(goals) { goal in
-                                GoalActionCard(goal: goal, dayLog: today)
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Header
+                    HeaderView(
+                        title: "Flow",
+                        subtitle: "Daily Input Stream"
+                    )
+                    .id("top")
+                    
+                    if let today = todayLogState {
+                        VStack(spacing: 16) {
+                            // 1. System Cards
+                            HydrationVesselCard(dayLog: today)
+                            GymCard(dayLog: today)
+                            
+                            Divider()
+                                .padding(.vertical, 8)
+                            
+                            // 2. Goal Cards
+                            if goals.isEmpty {
+                                ContentUnavailableView(
+                                    "No Goals Active",
+                                    systemImage: "mountain.2",
+                                    description: Text("Add goals in Horizon to see them here.")
+                                )
+                            } else {
+                                ForEach(goals) { goal in
+                                    GoalActionCard(goal: goal, dayLog: today) {
+                                        withAnimation(.smooth) {
+                                            proxy.scrollTo(goal.id, anchor: .center)
+                                        }
+                                    }
+                                    .id(goal.id)
+                                }
                             }
                         }
+                        .padding(.horizontal)
+                    } else {
+                        ProgressView()
                     }
-                    .padding(.horizontal)
-                } else {
-                    ProgressView()
+                    
+                    Spacer(minLength: 400)
                 }
-                
-                Spacer(minLength: 100)
+                .padding(.top, 60)
             }
-            .padding(.top, 60)
-        }
-        .scrollDismissesKeyboard(.interactively)
-        .onTapGesture {
-            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            .scrollDismissesKeyboard(.interactively)
+            .onTapGesture {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            }
         }
         .onAppear {
             ensureTodayLog()

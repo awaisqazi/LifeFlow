@@ -237,6 +237,7 @@ struct GoalActionCard: View {
     
     let goal: Goal
     @Bindable var dayLog: DayLog
+    var onFocus: (() -> Void)? = nil
     
     @State private var amountString: String = ""
     @State private var offset: CGFloat = 0
@@ -336,6 +337,16 @@ struct GoalActionCard: View {
                                             .keyboardType(.decimalPad)
                                             .multilineTextAlignment(.trailing)
                                             .font(.title3.weight(.semibold))
+                                            .onReceive(NotificationCenter.default.publisher(for: UITextField.textDidBeginEditingNotification)) { obj in
+                                                if let textField = obj.object as? UITextField {
+                                                    // Async dispatch is crucial to beat the system's default cursor placement
+                                                    DispatchQueue.main.async {
+                                                        textField.selectAll(nil)
+                                                    }
+                                                    // Notify parent to scroll
+                                                    onFocus?()
+                                                }
+                                            }
                                         
                                         Text(unitLabelForGoal(goal))
                                             .font(.subheadline.weight(.medium))
