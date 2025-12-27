@@ -228,7 +228,7 @@ struct GoalActionCard: View {
                                     .textFieldStyle(.roundedBorder)
                                     .frame(width: 100)
                                 
-                                Text(goal.unit.symbol)
+                                Text(unitLabelForGoal(goal))
                                     .foregroundStyle(.secondary)
                                 
                                 Spacer()
@@ -289,11 +289,24 @@ struct GoalActionCard: View {
         }
     }
     
+    private func unitLabelForGoal(_ goal: Goal) -> String {
+        switch goal.type {
+        case .study: return "hours"
+        case .savings: return "$"
+        default: return goal.unit.symbol
+        }
+    }
+    
     private func promptForGoal(_ goal: Goal) -> String {
-        if goal.type == .habit {
+        switch goal.type {
+        case .habit:
             return "Did you complete this today?"
-        } else {
-            return "Target: \(String(format: "%.1f", goal.dailyTarget)) \(goal.unit.symbol). Add progress:"
+        case .study:
+            return "Target: \(String(format: "%.1f", goal.dailyTarget)) hours/day. Add progress:"
+        case .savings:
+            return "Target: $\(String(format: "%.2f", goal.dailyTarget))/day. Add progress:"
+        default:
+            return "Target: \(String(format: "%.1f", goal.dailyTarget)) \(goal.unit.symbol)/day. Add progress:"
         }
     }
 }

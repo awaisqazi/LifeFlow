@@ -94,14 +94,14 @@ struct AddGoalSheet: View {
             
         case .study:
             let formattedDaily = String(format: "%.1f", dailyRate)
-            return "Study \(formattedDaily) hours/day to complete \(String(format: "%.0f", target)) hours."
+            return "Study \(formattedDaily) hours/day to complete \(String(format: "%.0f", target)) hours in \(Int(days)) days."
             
         case .habit:
             return "Complete \(Int(target)) times over \(Int(days)) days (\(String(format: "%.1f", dailyRate))/day avg)."
             
         case .custom:
             let formattedDaily = String(format: "%.2f", dailyRate)
-            return "Add \(formattedDaily) \(selectedUnit.symbol)/day to reach \(String(format: "%.0f", target))."
+            return "Add \(formattedDaily) \(selectedUnit.symbol)/day to reach \(String(format: "%.0f", target)) in \(Int(days)) days."
         }
     }
     
