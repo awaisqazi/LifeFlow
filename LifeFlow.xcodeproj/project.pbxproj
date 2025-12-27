@@ -41,6 +41,7 @@
 		D9501C102F0079A200ED9FB6 /* HydrationWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HydrationWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		D9501C122F0079A200ED9FB6 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		D9501C142F0079A200ED9FB6 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		D9501C4F2F00879100ED9FB6 /* HydrationWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HydrationWidgetExtension.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -51,11 +52,41 @@
 			);
 			target = D9501C0F2F0079A200ED9FB6 /* HydrationWidgetExtension */;
 		};
+		D9501C362F0083C200ED9FB6 /* Exceptions for "LifeFlow" folder in "HydrationWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Components/AnimatedMeshGradientView.swift,
+				Components/FloatingTabBar.swift,
+				Components/LiquidBackgroundView.swift,
+				Components/VesselShape.swift,
+				Components/WaterShape.swift,
+				Models/DailyEntry.swift,
+				Models/DailyPlan.swift,
+				Models/DayLog.swift,
+				Models/ExerciseSet.swift,
+				Models/ExerciseType.swift,
+				Models/Goal.swift,
+				Models/GoalFrequency.swift,
+				Models/GoalStatus.swift,
+				Models/GoalType.swift,
+				Models/LifeFlowSchemaVersions.swift,
+				Models/LifeFlowTab.swift,
+				Models/MeshGradientTheme.swift,
+				Models/UnitType.swift,
+				Models/WorkoutExercise.swift,
+				Models/WorkoutSession.swift,
+				Services/GoalCalculator.swift,
+			);
+			target = D9501C0F2F0079A200ED9FB6 /* HydrationWidgetExtension */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		D9501B5C2EFF213E00ED9FB6 /* LifeFlow */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				D9501C362F0083C200ED9FB6 /* Exceptions for "LifeFlow" folder in "HydrationWidgetExtension" target */,
+			);
 			path = LifeFlow;
 			sourceTree = "<group>";
 		};
@@ -92,6 +123,7 @@
 		D9501B512EFF213E00ED9FB6 = {
 			isa = PBXGroup;
 			children = (
+				D9501C4F2F00879100ED9FB6 /* HydrationWidgetExtension.entitlements */,
 				D9501B5C2EFF213E00ED9FB6 /* LifeFlow */,
 				D9501C162F0079A200ED9FB6 /* HydrationWidget */,
 				D9501C112F0079A200ED9FB6 /* Frameworks */,
@@ -443,6 +475,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = HydrationWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 3KZ25N2F2R;
@@ -473,6 +506,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = HydrationWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 3KZ25N2F2R;

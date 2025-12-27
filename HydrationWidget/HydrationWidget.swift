@@ -7,82 +7,68 @@
 
 import WidgetKit
 import SwiftUI
+import SwiftData
 
-struct Provider: AppIntentTimelineProvider {
+struct Provider: TimelineProvider {
+    // Helper to fetch today's data directly
+    func getTodayLog() -> DayLog {
+        let context = ModelContext(WidgetDataLayer.shared.modelContainer)
+        let today = Calendar.current.startOfDay(for: Date())
+        let descriptor = FetchDescriptor<DayLog>(
+            predicate: #Predicate<DayLog> { $0.date >= today }
+        )
+        let results = try? context.fetch(descriptor)
+        return results?.first ?? DayLog(date: Date())
+    }
+
     func placeholder(in context: Context) -> SimpleEntry {
-        SimpleEntry(date: Date(), configuration: ConfigurationAppIntent())
+        SimpleEntry(date: Date(), waterIntake: 24, dailyGoal: 64)
     }
 
-    func snapshot(for configuration: ConfigurationAppIntent, in context: Context) async -> SimpleEntry {
-        SimpleEntry(date: Date(), configuration: configuration)
-    }
-    
-    func timeline(for configuration: ConfigurationAppIntent, in context: Context) async -> Timeline<SimpleEntry> {
-        var entries: [SimpleEntry] = []
-
-        // Generate a timeline consisting of five entries an hour apart, starting from the current date.
-        let currentDate = Date()
-        for hourOffset in 0 ..< 5 {
-            let entryDate = Calendar.current.date(byAdding: .hour, value: hourOffset, to: currentDate)!
-            let entry = SimpleEntry(date: entryDate, configuration: configuration)
-            entries.append(entry)
-        }
-
-        return Timeline(entries: entries, policy: .atEnd)
+    func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> ()) {
+        let log = getTodayLog()
+        let entry = SimpleEntry(date: Date(), waterIntake: log.waterIntake, dailyGoal: 64)
+        completion(entry)
     }
 
-//    func relevances() async -> WidgetRelevances<ConfigurationAppIntent> {
-//        // Generate a list containing the contexts this widget is relevant in.
-//    }
+    func getTimeline(in context: Context, completion: @escaping (Timeline<SimpleEntry>) -> ()) {
+        let log = getTodayLog()
+        
+        // Create an entry for now
+        let entry = SimpleEntry(
+            date: Date(),
+            waterIntake: log.waterIntake,
+            dailyGoal: 64
+        )
+
+        // Reload policy: update next time the app is opened or every hour, but Intent will trigger reload too.
+        let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(3600)))
+        completion(timeline)
+    }
 }
 
 struct SimpleEntry: TimelineEntry {
     let date: Date
-    let configuration: ConfigurationAppIntent
-}
-
-struct HydrationWidgetEntryView : View {
-    var entry: Provider.Entry
-
-    var body: some View {
-        VStack {
-            Text("Time:")
-            Text(entry.date, style: .time)
-
-            Text("Favorite Emoji:")
-            Text(entry.configuration.favoriteEmoji)
-        }
-    }
+    let waterIntake: Double
+    let dailyGoal: Double
 }
 
 struct HydrationWidget: Widget {
     let kind: String = "HydrationWidget"
 
     var body: some WidgetConfiguration {
-        AppIntentConfiguration(kind: kind, intent: ConfigurationAppIntent.self, provider: Provider()) { entry in
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
             HydrationWidgetEntryView(entry: entry)
-                .containerBackground(.fill.tertiary, for: .widget)
         }
-    }
-}
-
-extension ConfigurationAppIntent {
-    fileprivate static var smiley: ConfigurationAppIntent {
-        let intent = ConfigurationAppIntent()
-        intent.favoriteEmoji = "😀"
-        return intent
-    }
-    
-    fileprivate static var starEyes: ConfigurationAppIntent {
-        let intent = ConfigurationAppIntent()
-        intent.favoriteEmoji = "🤩"
-        return intent
+        .configurationDisplayName("Hydration Tracker")
+        .description("Log water and track your daily progress.")
+        .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
 
 #Preview(as: .systemSmall) {
     HydrationWidget()
 } timeline: {
-    SimpleEntry(date: .now, configuration: .smiley)
-    SimpleEntry(date: .now, configuration: .starEyes)
+    SimpleEntry(date: .now, waterIntake: 12, dailyGoal: 64)
+    SimpleEntry(date: .now, waterIntake: 48, dailyGoal: 64)
 }

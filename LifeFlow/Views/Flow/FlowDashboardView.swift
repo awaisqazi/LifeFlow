@@ -29,8 +29,6 @@ struct FlowDashboardView: View {
         return dayLogs.first ?? DayLog() // Should handle creation in onAppear
     }
     
-    @State private var todayLogState: DayLog?
-    
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -42,37 +40,33 @@ struct FlowDashboardView: View {
                     )
                     .id("top")
                     
-                    if let today = todayLogState {
-                        VStack(spacing: 16) {
-                            // 1. System Cards
-                            HydrationVesselCard(dayLog: today)
-                            GymCard(dayLog: today)
-                            
-                            Divider()
-                                .padding(.vertical, 8)
-                            
-                            // 2. Goal Cards
-                            if goals.isEmpty {
-                                ContentUnavailableView(
-                                    "No Goals Active",
-                                    systemImage: "mountain.2",
-                                    description: Text("Add goals in Horizon to see them here.")
-                                )
-                            } else {
-                                ForEach(goals) { goal in
-                                    GoalActionCard(goal: goal, dayLog: today) {
-                                        withAnimation(.smooth) {
-                                            proxy.scrollTo(goal.id, anchor: .center)
-                                        }
+                    VStack(spacing: 16) {
+                        // 1. System Cards
+                        HydrationVesselCard(dayLog: todayLog)
+                        GymCard(dayLog: todayLog)
+                        
+                        Divider()
+                            .padding(.vertical, 8)
+                        
+                        // 2. Goal Cards
+                        if goals.isEmpty {
+                            ContentUnavailableView(
+                                "No Goals Active",
+                                systemImage: "mountain.2",
+                                description: Text("Add goals in Horizon to see them here.")
+                            )
+                        } else {
+                            ForEach(goals) { goal in
+                                GoalActionCard(goal: goal, dayLog: todayLog) {
+                                    withAnimation(.smooth) {
+                                        proxy.scrollTo(goal.id, anchor: .center)
                                     }
-                                    .id(goal.id)
                                 }
+                                .id(goal.id)
                             }
                         }
-                        .padding(.horizontal)
-                    } else {
-                        ProgressView()
                     }
+                    .padding(.horizontal)
                     
                     Spacer(minLength: 400)
                 }
@@ -84,19 +78,16 @@ struct FlowDashboardView: View {
             }
         }
         .onAppear {
-            ensureTodayLog()
+            ensureTodayLogExists()
         }
     }
     
-    private func ensureTodayLog() {
+    private func ensureTodayLogExists() {
         let startOfDay = Calendar.current.startOfDay(for: Date())
-        if let existing = dayLogs.first(where: { $0.date >= startOfDay }) {
-            todayLogState = existing
-        } else {
+        if dayLogs.first(where: { $0.date >= startOfDay }) == nil {
             let newLog = DayLog(date: Date())
             modelContext.insert(newLog)
-            try? modelContext.save() // Force save
-            todayLogState = newLog
+            try? modelContext.save()
         }
     }
 }

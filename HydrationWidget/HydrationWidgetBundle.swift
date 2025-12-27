@@ -12,6 +12,5 @@ import SwiftUI
 struct HydrationWidgetBundle: WidgetBundle {
     var body: some Widget {
         HydrationWidget()
-        HydrationWidgetControl()
     }
 }

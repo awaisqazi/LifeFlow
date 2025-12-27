@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import WidgetKit
 import SwiftData
 
 /// A premium hydration card featuring a glass vessel with CoreMotion water physics.
@@ -155,6 +156,7 @@ struct HydrationVesselCard: View {
                             dayLog.waterIntake -= 8
                             waterManager.triggerSplash(direction: .down)
                             triggerHaptic(style: .light)
+                            WidgetCenter.shared.reloadAllTimelines()
                         }
                     } label: {
                         Image(systemName: "minus")
@@ -174,12 +176,14 @@ struct HydrationVesselCard: View {
                             dayLog.waterIntake += 8
                             waterManager.triggerSplash(direction: .up)
                             triggerHaptic(style: .soft)
+                            WidgetCenter.shared.reloadAllTimelines()
                         }
                         
                         QuickAddButton(amount: 16, unit: "oz") {
                             dayLog.waterIntake += 16
                             waterManager.triggerSplash(direction: .up)
                             triggerHaptic(style: .medium)
+                            WidgetCenter.shared.reloadAllTimelines()
                         }
                     }
                     
@@ -190,6 +194,7 @@ struct HydrationVesselCard: View {
                         dayLog.waterIntake += 8
                         waterManager.triggerSplash(direction: .up)
                         triggerHaptic(style: .soft)
+                        WidgetCenter.shared.reloadAllTimelines()
                     } label: {
                         Image(systemName: "plus")
                             .font(.title3.weight(.semibold))

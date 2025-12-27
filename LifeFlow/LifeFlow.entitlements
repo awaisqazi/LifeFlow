@@ -6,7 +6,7 @@
 	<true/>
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.com.fez.LifeFlow</string>
+		<string>group.com.Fez.LifeFlow</string>
 	</array>
 </dict>
 </plist>

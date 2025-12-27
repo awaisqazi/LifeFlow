@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import WidgetKit
 import SwiftData
 
 // MARK: - Hydration Card
@@ -45,6 +46,7 @@ struct HydrationCard: View {
                     Button {
                         if dayLog.waterIntake >= 8 {
                             dayLog.waterIntake -= 8
+                            WidgetCenter.shared.reloadAllTimelines()
                         }
                     } label: {
                         Image(systemName: "minus")
@@ -55,6 +57,7 @@ struct HydrationCard: View {
                     
                     Button {
                         dayLog.waterIntake += 8
+                        WidgetCenter.shared.reloadAllTimelines()
                     } label: {
                         Image(systemName: "plus")
                             .frame(width: 32, height: 32)
