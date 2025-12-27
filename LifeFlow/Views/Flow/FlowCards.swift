@@ -329,25 +329,38 @@ struct GoalActionCard: View {
                                     .foregroundStyle(colorForGoal(goal))
                                 }
                             } else {
-                                HStack {
-                                    TextField("Amount", text: $amountString)
-                                        .keyboardType(.decimalPad)
-                                        .textFieldStyle(.roundedBorder)
-                                        .frame(width: 100)
+                                HStack(spacing: 12) {
+                                    // Styled Input Setup
+                                    HStack(spacing: 4) {
+                                        TextField("0", text: $amountString)
+                                            .keyboardType(.decimalPad)
+                                            .multilineTextAlignment(.trailing)
+                                            .font(.title3.weight(.semibold))
+                                        
+                                        Text(unitLabelForGoal(goal))
+                                            .font(.subheadline.weight(.medium))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
+                                    .background(Color(uiColor: .secondarySystemFill))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
                                     
-                                    Text(unitLabelForGoal(goal))
-                                        .foregroundStyle(.secondary)
-                                    
-                                    Spacer()
-                                    
-                                    Button("Done") {
+                                    // Submit Button
+                                    Button {
                                         if let value = Double(amountString) {
                                             saveEntry(value: value)
+                                            // Dismiss keyboard
+                                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                                         }
+                                    } label: {
+                                        Image(systemName: "arrow.up.circle.fill")
+                                            .font(.system(size: 38))
+                                            .foregroundStyle(colorForGoal(goal))
+                                            .symbolEffect(.bounce, value: amountString)
                                     }
-                                    .buttonStyle(.borderedProminent)
-                                    .tint(colorForGoal(goal))
                                     .disabled(Double(amountString) == nil)
+                                    .opacity(Double(amountString) == nil ? 0.5 : 1)
                                 }
                             }
                         }

@@ -71,6 +71,10 @@ struct FlowDashboardView: View {
             }
             .padding(.top, 60)
         }
+        .scrollDismissesKeyboard(.interactively)
+        .onTapGesture {
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        }
         .onAppear {
             ensureTodayLog()
         }
