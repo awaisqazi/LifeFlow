@@ -74,6 +74,9 @@ struct HydrationCard: View {
 struct GymCard: View {
     @Bindable var dayLog: DayLog
     
+    /// Environment action to trigger success pulse on the mesh gradient background
+    @Environment(\.triggerSuccessPulse) private var triggerSuccessPulse
+    
     var body: some View {
         GlassCard(cornerRadius: 16) {
             HStack(spacing: 16) {
@@ -122,6 +125,13 @@ struct GymCard: View {
                             source: "Flow"
                         )
                         dayLog.workouts.append(workout)
+                        
+                        // Trigger celebratory success pulse
+                        triggerSuccessPulse()
+                        
+                        // Haptic feedback
+                        let notification = UINotificationFeedbackGenerator()
+                        notification.notificationOccurred(.success)
                     } label: {
                         Text("Check In")
                             .font(.caption.weight(.bold))
@@ -141,6 +151,10 @@ struct GymCard: View {
 
 struct GoalActionCard: View {
     @Environment(\.modelContext) private var modelContext
+    
+    /// Environment action to trigger success pulse on the mesh gradient background
+    @Environment(\.triggerSuccessPulse) private var triggerSuccessPulse
+    
     let goal: Goal
     @Bindable var dayLog: DayLog
     
@@ -252,6 +266,13 @@ struct GoalActionCard: View {
         modelContext.insert(newEntry)
         // Auto-save happens via CloudKit/SwiftData usually, but explicit save is safe
         try? modelContext.save()
+        
+        // Trigger celebratory success pulse
+        triggerSuccessPulse()
+        
+        // Haptic feedback
+        let notification = UINotificationFeedbackGenerator()
+        notification.notificationOccurred(.success)
     }
     
     private func iconForGoal(_ goal: Goal) -> String {

@@ -8,70 +8,124 @@
 import SwiftUI
 
 /// A mesmerizing animated mesh gradient background that creates the "Liquid Glass" aesthetic.
-/// Uses SwiftUI's MeshGradient with animated control points for organic, fluid motion.
+/// Uses iOS 18's MeshGradient with TimelineView-driven complex sine wave animations
+/// for organic, fluid motion that never repeats exactly.
+///
+/// Color palettes are based on psychological color theory:
+/// - Flow: Cool blues and teals for focus
+/// - Temple: Warm oranges and deep purples for reflection
+/// - Horizon: Cosmic violets for aspiration
+/// - Success: Gold and green pulse for achievement
 struct LiquidBackgroundView: View {
-    /// Animation phase driver
-    @State private var phase: CGFloat = 0
+    /// The current tab determining the color theme
+    var currentTab: LifeFlowTab = .flow
     
-    /// Calm, premium color palette
-    private let colors: [Color] = [
-        Color(red: 0.05, green: 0.10, blue: 0.20),  // Deep navy
-        Color(red: 0.10, green: 0.15, blue: 0.30),  // Midnight blue
-        Color(red: 0.08, green: 0.20, blue: 0.35),  // Ocean depth
-        Color(red: 0.15, green: 0.12, blue: 0.30),  // Deep purple
-        Color(red: 0.05, green: 0.18, blue: 0.28),  // Teal shadow
-        Color(red: 0.12, green: 0.08, blue: 0.25),  // Violet night
-        Color(red: 0.06, green: 0.12, blue: 0.22),  // Slate blue
-        Color(red: 0.10, green: 0.20, blue: 0.35),  // Steel blue
-        Color(red: 0.08, green: 0.15, blue: 0.28),  // Deep teal
-    ]
+    /// Whether a success pulse animation is active
+    @Binding var showSuccessPulse: Bool
+    
+    /// Internal state for animating the success pulse intensity
+    @State private var successPulseIntensity: Double = 0.0
+    
+    /// State for tracking the previous theme for smooth transitions
+    @State private var previousTheme: MeshGradientTheme?
+    @State private var transitionProgress: Double = 1.0
+    
+    init(currentTab: LifeFlowTab = .flow, showSuccessPulse: Binding<Bool> = .constant(false)) {
+        self.currentTab = currentTab
+        self._showSuccessPulse = showSuccessPulse
+    }
+    
+    /// The current theme based on tab selection
+    private var currentTheme: MeshGradientTheme {
+        MeshGradientTheme.forTab(currentTab)
+    }
     
     var body: some View {
-        GeometryReader { geometry in
-            MeshGradient(
-                width: 3,
-                height: 3,
-                points: animatedPoints,
-                colors: colors
-            )
-            .ignoresSafeArea()
-            .onAppear {
-                // Start the continuous animation
-                withAnimation(
-                    .easeInOut(duration: 8)
-                    .repeatForever(autoreverses: true)
-                ) {
-                    phase = 1
-                }
+        AnimatedMeshGradientView(
+            theme: currentTheme,
+            successPulseIntensity: successPulseIntensity
+        )
+        .onChange(of: currentTab) { oldValue, newValue in
+            // Trigger smooth theme transition
+            withAnimation(.easeInOut(duration: 0.8)) {
+                // The color transition happens automatically via the theme change
+            }
+        }
+        .onChange(of: showSuccessPulse) { _, isActive in
+            if isActive {
+                triggerSuccessPulse()
             }
         }
     }
     
-    /// Calculates animated mesh control points with organic drift
-    private var animatedPoints: [SIMD2<Float>] {
-        let drift: Float = 0.05  // Subtle movement range
-        let p = Float(phase)
+    /// Triggers the success pulse animation sequence
+    private func triggerSuccessPulse() {
+        // Phase 1: Ramp up (0.3s)
+        withAnimation(.easeOut(duration: 0.3)) {
+            successPulseIntensity = 0.7
+        }
         
-        // 3x3 grid of control points with gentle organic motion
-        return [
-            // Row 0
-            SIMD2(0.0, 0.0),
-            SIMD2(0.5 + drift * sin(p * .pi), 0.0),
-            SIMD2(1.0, 0.0),
+        // Phase 2: Hold at peak (0.5s), then fade (1.0s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            withAnimation(.easeInOut(duration: 1.0)) {
+                successPulseIntensity = 0.0
+            }
             
-            // Row 1 - more movement in the middle
-            SIMD2(0.0, 0.5 + drift * cos(p * .pi * 0.7)),
-            SIMD2(0.5 + drift * sin(p * .pi * 1.3), 0.5 + drift * cos(p * .pi * 0.9)),
-            SIMD2(1.0, 0.5 + drift * sin(p * .pi * 0.6)),
-            
-            // Row 2
-            SIMD2(0.0, 1.0),
-            SIMD2(0.5 + drift * cos(p * .pi * 0.8), 1.0),
-            SIMD2(1.0, 1.0),
-        ]
+            // Reset the trigger after animation completes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                showSuccessPulse = false
+            }
+        }
     }
 }
 
-#Preview {
-    LiquidBackgroundView()
+// MARK: - Environment Key for Success Pulse
+
+/// Environment key for triggering success pulses from anywhere in the app
+struct SuccessPulseTriggerKey: EnvironmentKey {
+    static let defaultValue: () -> Void = {}
+}
+
+extension EnvironmentValues {
+    var triggerSuccessPulse: () -> Void {
+        get { self[SuccessPulseTriggerKey.self] }
+        set { self[SuccessPulseTriggerKey.self] = newValue }
+    }
+}
+
+// MARK: - Previews
+
+#Preview("Flow Theme") {
+    LiquidBackgroundView(currentTab: .flow)
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Temple Theme") {
+    LiquidBackgroundView(currentTab: .temple)
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Horizon Theme") {
+    LiquidBackgroundView(currentTab: .horizon)
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Success Pulse") {
+    struct SuccessPreview: View {
+        @State private var showPulse = false
+        
+        var body: some View {
+            ZStack {
+                LiquidBackgroundView(currentTab: .flow, showSuccessPulse: $showPulse)
+                
+                Button("Trigger Success") {
+                    showPulse = true
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .preferredColorScheme(.dark)
+        }
+    }
+    
+    return SuccessPreview()
 }

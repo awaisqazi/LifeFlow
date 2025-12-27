@@ -13,8 +13,12 @@ import SwiftData
 struct HydrationVesselCard: View {
     @Bindable var dayLog: DayLog
     
+    /// Environment action to trigger success pulse on the mesh gradient background
+    @Environment(\.triggerSuccessPulse) private var triggerSuccessPulse
+    
     @State private var waterManager = WaterManager()
     @State private var animatedWaterLevel: Double = 0
+    @State private var hasTriggeredMilestone: Bool = false
     
     /// Daily water goal in ounces
     private let dailyGoal: Double = 64
@@ -209,10 +213,19 @@ struct HydrationVesselCard: View {
         .onDisappear {
             waterManager.stopMotionUpdates()
         }
-        .onChange(of: fillLevel) { _, newLevel in
+        .onChange(of: fillLevel) { oldLevel, newLevel in
             // Animate water level changes
             withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
                 animatedWaterLevel = newLevel
+            }
+            
+            // Trigger success pulse when reaching daily goal
+            if newLevel >= 1.0 && oldLevel < 1.0 && !hasTriggeredMilestone {
+                hasTriggeredMilestone = true
+                triggerSuccessPulse()
+                // Extra celebratory haptic
+                let notification = UINotificationFeedbackGenerator()
+                notification.notificationOccurred(.success)
             }
         }
     }

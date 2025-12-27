@@ -12,11 +12,15 @@ import SwiftData
 /// tab content, and floating tab bar navigation.
 struct MainTabView: View {
     @State private var selectedTab: LifeFlowTab = .flow
+    @State private var showSuccessPulse: Bool = false
     
     var body: some View {
         ZStack {
-            // Liquid Glass Background
-            LiquidBackgroundView()
+            // Animated Mesh Gradient Background with psychological color themes
+            LiquidBackgroundView(
+                currentTab: selectedTab,
+                showSuccessPulse: $showSuccessPulse
+            )
             
             // Tab Content
             TabContentView(selectedTab: selectedTab)
@@ -28,6 +32,10 @@ struct MainTabView: View {
             }
         }
         .preferredColorScheme(.dark)
+        // Provide success pulse trigger to child views
+        .environment(\.triggerSuccessPulse) {
+            showSuccessPulse = true
+        }
     }
 }
 

@@ -23,6 +23,10 @@ final class WaterManager {
     /// Represents the device's pitch (forward-back tilt)
     private(set) var pitchOffset: Double = 0
     
+    /// Raw gravity vector from accelerometer (normalized)
+    /// X: left/right tilt, Y: forward/back tilt
+    private(set) var gravityVector: SIMD2<Float> = SIMD2(0, 1)
+    
     /// Whether motion updates are currently active
     private(set) var isActive: Bool = false
     
@@ -59,6 +63,10 @@ final class WaterManager {
             
             // Extract attitude (device orientation relative to reference frame)
             let attitude = motion.attitude
+            
+            // Extract raw gravity vector for shader physics
+            let gravity = motion.gravity
+            self.gravityVector = SIMD2(Float(gravity.x), Float(gravity.y))
             
             // Roll: rotation around the X-axis (tilting phone left/right)
             // Pitch: rotation around the Y-axis (tilting phone forward/back)
