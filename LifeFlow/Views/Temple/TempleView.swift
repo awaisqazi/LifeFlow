@@ -98,6 +98,29 @@ struct TempleView: View {
                 }
                 .padding(.horizontal)
                 
+                // Goal Progress Visualization Section
+                if !goals.isEmpty {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack {
+                            Image(systemName: "chart.bar.fill")
+                                .font(.title2)
+                                .foregroundStyle(.purple)
+                            
+                            Text("Goal Progress")
+                                .font(.headline)
+                                .foregroundStyle(.primary)
+                            
+                            Spacer()
+                        }
+                        .padding(.horizontal)
+                        
+                        ForEach(goals) { goal in
+                            GoalVisualizationCard(goal: goal)
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                
                 Spacer(minLength: 100) // Space for tab bar
             }
             .padding(.top, 60)

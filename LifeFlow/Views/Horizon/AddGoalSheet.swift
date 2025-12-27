@@ -16,8 +16,46 @@ struct AddGoalSheet: View {
     @State private var targetAmountString: String = ""
     @State private var currentAmountString: String = ""
     @State private var selectedUnit: UnitType = .currency
-    @State private var selectedType: GoalType = .targetValue
+    @State private var selectedType: GoalType = .savings
     @State private var deadline: Date = Date().addingTimeInterval(86400 * 30) // 30 days default
+    
+    // Type-specific unit options
+    private var availableUnits: [UnitType] {
+        switch selectedType {
+        case .savings:
+            return [.currency]
+        case .weightLoss:
+            return [.weight]
+        case .study:
+            return [.time]
+        case .habit:
+            return [.count]
+        case .custom:
+            return UnitType.allCases
+        }
+    }
+    
+    // Placeholder text based on goal type
+    private var targetPlaceholder: String {
+        switch selectedType {
+        case .savings: return "Target Amount ($)"
+        case .weightLoss: return "Target Weight (lbs)"
+        case .study: return "Total Hours"
+        case .habit: return "Times to Complete"
+        case .custom: return "Target Amount"
+        }
+    }
+    
+    // Title placeholder based on goal type
+    private var titlePlaceholder: String {
+        switch selectedType {
+        case .savings: return "e.g. New Mac, Vacation Fund"
+        case .weightLoss: return "e.g. Summer Body, Healthy Weight"
+        case .study: return "e.g. Swift Mastery, MCAT Prep"
+        case .habit: return "e.g. Daily Meditation, Read Books"
+        case .custom: return "e.g. My Goal"
+        }
+    }
     
     var isFormValid: Bool {
         !title.isEmpty && Double(targetAmountString) != nil
@@ -28,7 +66,6 @@ struct AddGoalSheet: View {
             return "Enter details to see your plan."
         }
         
-        // Ensure inputs are valid
         let current = Double(currentAmountString) ?? 0
         let remaining = target - current
         
@@ -36,7 +73,6 @@ struct AddGoalSheet: View {
             return "You've already reached this target!"
         }
         
-        // Calculate days
         let calendar = Calendar.current
         let startOfToday = calendar.startOfDay(for: Date())
         let endOfDay = calendar.startOfDay(for: deadline)
@@ -45,31 +81,33 @@ struct AddGoalSheet: View {
         
         let dailyRate = remaining / days
         
-        let unitSymbol = selectedUnit.symbol
-        let formattedDaily = String(format: "%.2f", dailyRate)
-        let formattedTarget = String(format: "%.0f", target)
-        
-        let actionVerb: String
         switch selectedType {
-        case .targetValue: actionVerb = "save/add"
-        case .frequency: actionVerb = "do"
-        case .dailyHabit: actionVerb = "complete"
-        }
-        
-        // "This means you need to save $5.50 per day."
-        // Or "To reach 'Car' ($2000) by Dec 31..." - keeping concise as requested
-        
-        if selectedUnit == .currency {
-            return "To reached \(formattedTarget) \(unitSymbol) in \(Int(days)) days, you need to set aside \(unitSymbol)\(formattedDaily) daily."
-        } else {
-            return "To reach \(formattedTarget) \(unitSymbol) in \(Int(days)) days, you need to \(actionVerb) \(formattedDaily) \(unitSymbol) daily."
+        case .savings:
+            let formattedDaily = String(format: "$%.2f", dailyRate)
+            let formattedTarget = String(format: "$%.0f", target)
+            return "Save \(formattedDaily)/day to reach \(formattedTarget) in \(Int(days)) days."
+            
+        case .weightLoss:
+            let weeklyRate = dailyRate * 7
+            let formattedWeekly = String(format: "%.1f", weeklyRate)
+            return "Lose \(formattedWeekly) lbs/week to reach \(String(format: "%.0f", target)) lbs in \(Int(days)) days."
+            
+        case .study:
+            let formattedDaily = String(format: "%.1f", dailyRate)
+            return "Study \(formattedDaily) hours/day to complete \(String(format: "%.0f", target)) hours."
+            
+        case .habit:
+            return "Complete \(Int(target)) times over \(Int(days)) days (\(String(format: "%.1f", dailyRate))/day avg)."
+            
+        case .custom:
+            let formattedDaily = String(format: "%.2f", dailyRate)
+            return "Add \(formattedDaily) \(selectedUnit.symbol)/day to reach \(String(format: "%.0f", target))."
         }
     }
     
     var body: some View {
         NavigationStack {
             ZStack {
-                // Subtle background
                 Color(uiColor: .systemGroupedBackground)
                     .ignoresSafeArea()
                 
@@ -86,24 +124,32 @@ struct AddGoalSheet: View {
                                 HStack(spacing: 12) {
                                     ForEach(GoalType.allCases, id: \.self) { type in
                                         Button {
-                                            selectedType = type
+                                            withAnimation(.spring(response: 0.3)) {
+                                                selectedType = type
+                                                // Auto-select appropriate unit
+                                                selectedUnit = defaultUnit(for: type)
+                                            }
                                         } label: {
                                             VStack(spacing: 8) {
-                                                Image(systemName: iconForType(type))
+                                                Image(systemName: type.icon)
                                                     .font(.title2)
                                                 Text(type.title)
                                                     .font(.caption.weight(.semibold))
+                                                    .lineLimit(1)
+                                                    .minimumScaleFactor(0.8)
                                             }
-                                            .frame(width: 100, height: 100)
+                                            .frame(width: 90, height: 90)
                                             .background(
-                                                selectedType == type ? Color.accentColor.opacity(0.1) : Color(uiColor: .secondarySystemGroupedBackground),
+                                                selectedType == type 
+                                                    ? colorForType(type).opacity(0.15) 
+                                                    : Color(uiColor: .secondarySystemGroupedBackground),
                                                 in: RoundedRectangle(cornerRadius: 16)
                                             )
                                             .overlay(
                                                 RoundedRectangle(cornerRadius: 16)
-                                                    .stroke(selectedType == type ? Color.accentColor : .clear, lineWidth: 2)
+                                                    .stroke(selectedType == type ? colorForType(type) : .clear, lineWidth: 2)
                                             )
-                                            .foregroundStyle(selectedType == type ? Color.accentColor : .primary)
+                                            .foregroundStyle(selectedType == type ? colorForType(type) : .primary)
                                         }
                                     }
                                 }
@@ -111,13 +157,13 @@ struct AddGoalSheet: View {
                             }
                         }
                         
-                        // 2. Details
+                        // 2. Type-Specific Details
                         VStack(spacing: 0) {
                             // Title
                             HStack {
                                 Image(systemName: "pencil")
                                     .foregroundStyle(.secondary)
-                                TextField("Goal Title (e.g. New Mac)", text: $title)
+                                TextField(titlePlaceholder, text: $title)
                                     .font(.body)
                             }
                             .padding()
@@ -125,25 +171,27 @@ struct AddGoalSheet: View {
                             Divider()
                                 .padding(.leading)
                             
-                            // Target & Unit
-                            HStack {
-                                Image(systemName: "target")
-                                    .foregroundStyle(.secondary)
-                                TextField("Target Amount", text: $targetAmountString)
-                                    .keyboardType(.decimalPad)
-                                
-                                Picker("Unit", selection: $selectedUnit) {
-                                    ForEach(UnitType.allCases, id: \.self) { unit in
-                                        Text(unit.rawValue.capitalized).tag(unit)
-                                    }
-                                }
-                                .pickerStyle(.menu)
-                                .labelsHidden()
-                            }
-                            .padding()
+                            // Target - Type Specific
+                            typeSpecificTargetInput
                             
                             Divider()
                                 .padding(.leading)
+                            
+                            // Starting value (for weight loss)
+                            if selectedType == .weightLoss {
+                                HStack {
+                                    Image(systemName: "scalemass")
+                                        .foregroundStyle(.secondary)
+                                    TextField("Current Weight (lbs)", text: $currentAmountString)
+                                        .keyboardType(.decimalPad)
+                                    Text("lbs")
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding()
+                                
+                                Divider()
+                                    .padding(.leading)
+                            }
                             
                             // Deadline
                             DatePicker(selection: $deadline, displayedComponents: .date) {
@@ -164,14 +212,14 @@ struct AddGoalSheet: View {
                             VStack(alignment: .leading, spacing: 12) {
                                 Label("Smart Preview", systemImage: "sparkles")
                                     .font(.headline)
-                                    .foregroundStyle(.purple)
+                                    .foregroundStyle(colorForType(selectedType))
                                 
                                 Text(smartPreviewText)
                                     .font(.system(.body, design: .rounded))
                                     .foregroundStyle(.primary)
                                     .padding()
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color.purple.opacity(0.1))
+                                    .background(colorForType(selectedType).opacity(0.1))
                                     .clipShape(RoundedRectangle(cornerRadius: 12))
                             }
                             .padding(.horizontal)
@@ -199,11 +247,104 @@ struct AddGoalSheet: View {
         }
     }
     
-    private func iconForType(_ type: GoalType) -> String {
+    // MARK: - Type-Specific Input
+    
+    @ViewBuilder
+    private var typeSpecificTargetInput: some View {
+        switch selectedType {
+        case .savings:
+            // Currency input with dollar sign
+            HStack {
+                Image(systemName: "dollarsign.circle")
+                    .foregroundStyle(.yellow)
+                Text("$")
+                    .foregroundStyle(.secondary)
+                TextField("0.00", text: $targetAmountString)
+                    .keyboardType(.decimalPad)
+                Text("USD")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.secondary.opacity(0.15), in: Capsule())
+            }
+            .padding()
+            
+        case .weightLoss:
+            // Weight input with lbs
+            HStack {
+                Image(systemName: "target")
+                    .foregroundStyle(.green)
+                TextField("Goal Weight", text: $targetAmountString)
+                    .keyboardType(.decimalPad)
+                Text("lbs")
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+            
+        case .study:
+            // Time input with hours
+            HStack {
+                Image(systemName: "clock")
+                    .foregroundStyle(.purple)
+                TextField("Total Hours", text: $targetAmountString)
+                    .keyboardType(.decimalPad)
+                Text("hours")
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+            
+        case .habit:
+            // Count input
+            HStack {
+                Image(systemName: "flame")
+                    .foregroundStyle(.orange)
+                TextField("Times", text: $targetAmountString)
+                    .keyboardType(.numberPad)
+                Text("times")
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+            
+        case .custom:
+            // Generic with unit picker
+            HStack {
+                Image(systemName: "target")
+                    .foregroundStyle(.blue)
+                TextField("Target Amount", text: $targetAmountString)
+                    .keyboardType(.decimalPad)
+                
+                Picker("Unit", selection: $selectedUnit) {
+                    ForEach(UnitType.allCases, id: \.self) { unit in
+                        Text(unit.rawValue.capitalized).tag(unit)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+            }
+            .padding()
+        }
+    }
+    
+    // MARK: - Helpers
+    
+    private func defaultUnit(for type: GoalType) -> UnitType {
         switch type {
-        case .targetValue: return "flag.checkered"
-        case .frequency: return "repeat"
-        case .dailyHabit: return "checkmark.circle"
+        case .savings: return .currency
+        case .weightLoss: return .weight
+        case .study: return .time
+        case .habit: return .count
+        case .custom: return .count
+        }
+    }
+    
+    private func colorForType(_ type: GoalType) -> Color {
+        switch type {
+        case .savings: return .yellow
+        case .weightLoss: return .green
+        case .habit: return .orange
+        case .study: return .purple
+        case .custom: return .blue
         }
     }
     
@@ -211,19 +352,24 @@ struct AddGoalSheet: View {
         guard let target = Double(targetAmountString) else { return }
         let current = Double(currentAmountString) ?? 0
         
+        // For weight loss, current is starting weight, target is goal weight
+        let startValue: Double? = selectedType == .weightLoss ? current : nil
+        let goalCurrent: Double = selectedType == .weightLoss ? current : current
+        
         let newGoal = Goal(
             title: title,
             targetAmount: target,
-            currentAmount: current,
+            currentAmount: selectedType == .weightLoss ? current : 0,
             startDate: Date(),
             deadline: deadline,
             unit: selectedUnit,
-            type: selectedType
+            type: selectedType,
+            startValue: startValue
         )
         
         modelContext.insert(newGoal)
-        dismiss() // NavigationStack handles save automatically or we can context.save()
         try? modelContext.save()
+        dismiss()
     }
 }
 

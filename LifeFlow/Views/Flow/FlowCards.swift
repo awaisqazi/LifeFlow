@@ -207,7 +207,7 @@ struct GoalActionCard: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                         
-                        if goal.type == .dailyHabit {
+                        if goal.type == .habit {
                             Button(action: {
                                 saveEntry(value: 1.0)
                             }) {
@@ -276,23 +276,21 @@ struct GoalActionCard: View {
     }
     
     private func iconForGoal(_ goal: Goal) -> String {
-        switch goal.type {
-        case .targetValue: return "flag.fill"
-        case .frequency: return "repeat"
-        case .dailyHabit: return "checkmark.seal.fill"
-        }
+        goal.type.icon
     }
     
     private func colorForGoal(_ goal: Goal) -> Color {
         switch goal.type {
-        case .targetValue: return .green
-        case .frequency: return .blue
-        case .dailyHabit: return .orange
+        case .savings: return .yellow
+        case .weightLoss: return .green
+        case .habit: return .orange
+        case .study: return .purple
+        case .custom: return .blue
         }
     }
     
     private func promptForGoal(_ goal: Goal) -> String {
-        if goal.type == .dailyHabit {
+        if goal.type == .habit {
             return "Did you complete this today?"
         } else {
             return "Target: \(String(format: "%.1f", goal.dailyTarget)) \(goal.unit.symbol). Add progress:"

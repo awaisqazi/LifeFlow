@@ -14,6 +14,8 @@ struct HorizonView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Goal.deadline, order: .forward) private var goals: [Goal]
     @State private var showingAddGoal = false
+    @State private var isEditing = false
+    @State private var goalToDelete: Goal?
     
     var body: some View {
         ScrollView {
@@ -40,18 +42,41 @@ struct HorizonView: View {
                                 
                                 Spacer()
                                 
-                                Button {
-                                    showingAddGoal = true
-                                } label: {
-                                    Image(systemName: "plus.circle.fill")
-                                        .font(.title2)
-                                        .foregroundStyle(.purple)
+                                // Edit/Done button (only show if there are goals)
+                                if !goals.isEmpty {
+                                    Button {
+                                        withAnimation(.spring(response: 0.3)) {
+                                            isEditing.toggle()
+                                        }
+                                    } label: {
+                                        Text(isEditing ? "Done" : "Edit")
+                                            .font(.subheadline.weight(.semibold))
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 6)
+                                            .background(
+                                                isEditing 
+                                                    ? Color.green.opacity(0.2) 
+                                                    : Color.secondary.opacity(0.15),
+                                                in: Capsule()
+                                            )
+                                            .foregroundStyle(isEditing ? .green : .primary)
+                                    }
+                                }
+                                
+                                if !isEditing {
+                                    Button {
+                                        showingAddGoal = true
+                                    } label: {
+                                        Image(systemName: "plus.circle.fill")
+                                            .font(.title2)
+                                            .foregroundStyle(.purple)
+                                    }
                                 }
                             }
                             
-                            Text("Your long-term challenges")
+                            Text(isEditing ? "Swipe left or tap ⊖ to delete" : "Your long-term challenges")
                                 .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(isEditing ? .red.opacity(0.8) : .secondary)
                             
                             // Goals list
                             VStack(spacing: 12) {
@@ -64,11 +89,11 @@ struct HorizonView: View {
                                     .padding(.vertical)
                                 } else {
                                     ForEach(goals) { goal in
-                                        GoalRow(
-                                            icon: iconForGoal(goal),
-                                            title: goal.title,
-                                            progress: goal.currentAmount / max(goal.targetAmount, 1),
-                                            color: colorForGoal(goal)
+                                        SwipeableGoalRow(
+                                            goal: goal,
+                                            isEditing: isEditing,
+                                            colorForGoal: colorForGoal,
+                                            onDelete: { goalToDelete = goal }
                                         )
                                     }
                                 }
@@ -108,21 +133,127 @@ struct HorizonView: View {
         .sheet(isPresented: $showingAddGoal) {
             AddGoalSheet()
         }
+        .alert("Delete Goal?", isPresented: .init(
+            get: { goalToDelete != nil },
+            set: { if !$0 { goalToDelete = nil } }
+        )) {
+            Button("Cancel", role: .cancel) {
+                goalToDelete = nil
+            }
+            Button("Delete", role: .destructive) {
+                if let goal = goalToDelete {
+                    deleteGoal(goal)
+                }
+                goalToDelete = nil
+            }
+        } message: {
+            Text("This will permanently delete \"\(goalToDelete?.title ?? "this goal")\" and all its progress data.")
+        }
     }
     
     private func iconForGoal(_ goal: Goal) -> String {
-        switch goal.type {
-        case .targetValue: return "flag.fill"
-        case .frequency: return "repeat"
-        case .dailyHabit: return "checkmark.seal.fill"
-        }
+        goal.type.icon
     }
     
     private func colorForGoal(_ goal: Goal) -> Color {
         switch goal.type {
-        case .targetValue: return .green
-        case .frequency: return .blue
-        case .dailyHabit: return .orange
+        case .savings: return .yellow
+        case .weightLoss: return .green
+        case .habit: return .orange
+        case .study: return .purple
+        case .custom: return .blue
+        }
+    }
+    
+    private func deleteGoal(_ goal: Goal) {
+        withAnimation {
+            modelContext.delete(goal)
+            try? modelContext.save()
+        }
+    }
+}
+
+/// A goal row with swipe-to-delete and tap delete button functionality
+struct SwipeableGoalRow: View {
+    let goal: Goal
+    let isEditing: Bool
+    let colorForGoal: (Goal) -> Color
+    let onDelete: () -> Void
+    
+    @State private var offset: CGFloat = 0
+    @State private var isDragging = false
+    
+    private let deleteThreshold: CGFloat = -100
+    
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            // Delete background (revealed on swipe)
+            if isEditing {
+                HStack {
+                    Spacer()
+                    Button(action: onDelete) {
+                        Image(systemName: "trash.fill")
+                            .font(.title2)
+                            .foregroundStyle(.white)
+                            .frame(width: 60, height: 44)
+                    }
+                    .background(Color.red)
+                    .cornerRadius(8)
+                }
+                .opacity(offset < -20 ? 1 : 0)
+            }
+            
+            // Main row content
+            HStack(spacing: 12) {
+                // Delete button (visible in edit mode)
+                if isEditing {
+                    Button(action: onDelete) {
+                        Image(systemName: "minus.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(.red)
+                    }
+                    .transition(.scale.combined(with: .opacity))
+                }
+                
+                GoalRow(
+                    icon: goal.type.icon,
+                    title: goal.title,
+                    progress: goal.progressPercentage,
+                    color: colorForGoal(goal)
+                )
+            }
+            .background(Color(uiColor: .systemBackground).opacity(0.01)) // For hit testing
+            .offset(x: offset)
+            .gesture(
+                isEditing ? 
+                DragGesture()
+                    .onChanged { gesture in
+                        isDragging = true
+                        // Only allow left swipe
+                        if gesture.translation.width < 0 {
+                            offset = gesture.translation.width
+                        }
+                    }
+                    .onEnded { gesture in
+                        isDragging = false
+                        withAnimation(.spring(response: 0.3)) {
+                            if offset < deleteThreshold {
+                                // Trigger delete
+                                let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                                impactFeedback.impactOccurred()
+                                onDelete()
+                            }
+                            // Reset position
+                            offset = 0
+                        }
+                    }
+                : nil
+            )
+            .contextMenu {
+                Button(role: .destructive, action: onDelete) {
+                    Label("Delete Goal", systemImage: "trash")
+                }
+            }
         }
     }
 }

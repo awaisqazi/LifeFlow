@@ -43,7 +43,7 @@ final class Goal {
         startDate: Date = .now,
         deadline: Date? = .now.addingTimeInterval(86400 * 30), // Default 30 days
         unit: UnitType = .count,
-        type: GoalType = .targetValue,
+        type: GoalType = .custom,
         startValue: Double? = nil,
         iconName: String? = nil
     ) {
