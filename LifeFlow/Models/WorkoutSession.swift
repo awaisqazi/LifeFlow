@@ -9,12 +9,16 @@ import Foundation
 import SwiftData
 
 /// Represents a single workout session logged manually or synced from HealthKit.
+/// Contains a hierarchical structure: Session -> Exercises -> Sets
 @Model
 final class WorkoutSession {
     /// Unique identifier for the workout
     var id: UUID
     
-    /// Type of workout (e.g., "Running", "Weightlifting", "Yoga")
+    /// Title of the workout session (e.g., "Leg Day", "Morning Cardio")
+    var title: String = ""
+    
+    /// Legacy type field for backwards compatibility with HealthKit synced workouts
     var type: String
     
     /// Duration of the workout in seconds
@@ -26,34 +30,66 @@ final class WorkoutSession {
     /// Source of the workout data: "Manual" or "HealthKit"
     var source: String
     
-    /// When the workout occurred
+    /// When the workout occurred (legacy field for HealthKit sync)
     var timestamp: Date
+    
+    /// When the workout session started
+    var startTime: Date = Date()
+    
+    /// When the workout session ended (nil if still in progress)
+    var endTime: Date?
+    
+    /// Optional notes for the session
+    var notes: String?
+    
+    // MARK: - Relationships
     
     /// The daily metrics record this workout belongs to
     @Relationship(inverse: \DayLog.workouts) var dayLog: DayLog?
     
+    /// Exercises performed in this workout session
+    @Relationship(deleteRule: .cascade)
+    var exercises: [WorkoutExercise] = []
+    
     /// Creates a new workout session
     /// - Parameters:
     ///   - id: Unique identifier (defaults to new UUID)
-    ///   - type: Workout type name
+    ///   - title: Session title (e.g., "Leg Day")
+    ///   - type: Workout type name (for HealthKit compatibility)
     ///   - duration: Duration in seconds
     ///   - calories: Active calories burned
     ///   - source: Data source ("Manual" or "HealthKit")
     ///   - timestamp: When the workout occurred
     init(
         id: UUID = UUID(),
-        type: String,
-        duration: TimeInterval,
+        title: String = "",
+        type: String = "",
+        duration: TimeInterval = 0,
         calories: Double = 0,
         source: String = "Manual",
         timestamp: Date = .now
     ) {
         self.id = id
+        self.title = title.isEmpty ? type : title
         self.type = type
         self.duration = duration
         self.calories = calories
         self.source = source
         self.timestamp = timestamp
+        self.startTime = timestamp
+    }
+    
+    /// Returns exercises sorted by orderIndex for consistent UI display
+    var sortedExercises: [WorkoutExercise] {
+        exercises.sorted { $0.orderIndex < $1.orderIndex }
+    }
+    
+    /// Adds a new exercise to the workout with the next available orderIndex
+    func addExercise(name: String, type: ExerciseType = .weight) -> WorkoutExercise {
+        let nextIndex = (exercises.map(\.orderIndex).max() ?? -1) + 1
+        let exercise = WorkoutExercise(name: name, type: type, orderIndex: nextIndex)
+        exercises.append(exercise)
+        return exercise
     }
 }
 

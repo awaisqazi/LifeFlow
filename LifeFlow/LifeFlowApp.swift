@@ -14,6 +14,8 @@ struct LifeFlowApp: App {
         let schema = Schema([
             DayLog.self,
             WorkoutSession.self,
+            WorkoutExercise.self,
+            ExerciseSet.self,
             Goal.self,
             DailyEntry.self,
         ])

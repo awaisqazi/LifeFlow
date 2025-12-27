@@ -13,6 +13,8 @@ enum UnitType: String, Codable, CaseIterable {
     case count
     case volume
     case time
+    case distance
+    case percentage
     
     var symbol: String {
         switch self {
@@ -21,6 +23,9 @@ enum UnitType: String, Codable, CaseIterable {
         case .count: return ""
         case .volume: return "oz"
         case .time: return "min"
+        case .distance: return "mi"
+        case .percentage: return "%"
         }
     }
 }
+

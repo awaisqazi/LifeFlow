@@ -10,13 +10,29 @@ import SwiftData
 
 @Model
 final class Goal {
+    /// Unique identifier for the goal
+    var id: UUID = UUID()
+    
     var title: String
     var targetAmount: Double
     var currentAmount: Double
     var startDate: Date
-    var deadline: Date
+    var deadline: Date?
     var unit: UnitType
     var type: GoalType
+    
+    // Enhanced tracking properties
+    /// Starting value for calculating progress percentage
+    var startValue: Double?
+    
+    /// Whether the goal has been archived
+    var isArchived: Bool = false
+    
+    /// Optional notes for the goal
+    var notes: String?
+    
+    /// Custom SF Symbol icon name
+    var iconName: String?
     
     @Relationship(deleteRule: .cascade) var entries: [DailyEntry] = []
     
@@ -25,10 +41,13 @@ final class Goal {
         targetAmount: Double,
         currentAmount: Double = 0,
         startDate: Date = .now,
-        deadline: Date = .now.addingTimeInterval(86400 * 30), // Default 30 days
+        deadline: Date? = .now.addingTimeInterval(86400 * 30), // Default 30 days
         unit: UnitType = .count,
-        type: GoalType = .targetValue
+        type: GoalType = .targetValue,
+        startValue: Double? = nil,
+        iconName: String? = nil
     ) {
+        self.id = UUID()
         self.title = title
         self.targetAmount = targetAmount
         self.currentAmount = currentAmount
@@ -36,12 +55,15 @@ final class Goal {
         self.deadline = deadline
         self.unit = unit
         self.type = type
+        self.startValue = startValue ?? currentAmount
+        self.isArchived = false
+        self.iconName = iconName
     }
     
     var dailyTarget: Double {
         let now = Date.now
-        // If deadline is passed or start date is in future, return 0 or remaining
-        guard deadline > now else { return 0 }
+        // If deadline is nil or passed, return 0
+        guard let deadline = deadline, deadline > now else { return 0 }
         
         let remainingAmount = targetAmount - currentAmount
         if remainingAmount <= 0 { return 0 }

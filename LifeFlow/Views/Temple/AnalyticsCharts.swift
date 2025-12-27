@@ -188,7 +188,7 @@ struct GoalProgressChart: View {
                 .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 5]))
                 
                 LineMark(
-                    x: .value("Date", goal.deadline),
+                    x: .value("Date", goal.deadline ?? Date()),
                     y: .value("Progress", goal.targetAmount),
                     series: .value("Type", "Ideal")
                 )
@@ -241,7 +241,7 @@ struct GoalProgressChart: View {
                 }
             }
             .frame(height: 180)
-            .chartXScale(domain: goal.startDate...goal.deadline)
+            .chartXScale(domain: goal.startDate...(goal.deadline ?? Date()))
             .chartYScale(domain: 0...goal.targetAmount)
         }
         .padding()
