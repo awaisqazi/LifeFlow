@@ -19,6 +19,7 @@ struct WorkoutSetupSheet: View {
     @State private var workoutTitle: String = ""
     @State private var selectedExercises: [WorkoutExercise] = []
     @State private var showExercisePicker: Bool = false
+    @State private var draggedExercise: WorkoutExercise?
     @State private var showSaveRoutineSheet: Bool = false
     
     let onStart: (WorkoutSession) -> Void
@@ -35,32 +36,83 @@ struct WorkoutSetupSheet: View {
     
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
+            ZStack {
+                LiquidBackgroundView(currentTab: .temple)
+                    .ignoresSafeArea()
+                
+                List {
                     // Workout title
-                    titleSection
+                    Section {
+                        titleSection
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 24, trailing: 20))
+                    .listRowSeparator(.hidden)
                     
                     // Favorites section (if any)
                     if !sortedRoutines.filter({ $0.isFavorite }).isEmpty {
-                        favoritesSection
+                        Section {
+                            favoritesSection
+                        }
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 24, trailing: 20))
+                        .listRowSeparator(.hidden)
                     }
                     
                     // Quick templates (built-in + saved)
-                    templatesSection
+                    Section {
+                        templatesSection
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 24, trailing: 20))
+                    .listRowSeparator(.hidden)
                     
                     // Selected exercises
                     if !selectedExercises.isEmpty {
-                        selectedExercisesSection
+                        Section {
+                            ForEach(selectedExercises) { exercise in
+                                ExerciseRow(
+                                    exercise: exercise,
+                                    onRemove: {
+                                        if let index = selectedExercises.firstIndex(where: { $0.id == exercise.id }) {
+                                            selectedExercises.remove(at: index)
+                                        }
+                                    },
+                                    onSetCountChange: { count in
+                                        let currentCount = exercise.sets.count
+                                        if count > currentCount {
+                                            for _ in 0..<(count - currentCount) {
+                                                _ = exercise.addSet()
+                                            }
+                                        } else if count < currentCount {
+                                            exercise.sets.removeLast(currentCount - count)
+                                        }
+                                    }
+                                )
+                                .listRowBackground(Color.clear)
+                                .listRowInsets(EdgeInsets(top: 6, leading: 20, bottom: 6, trailing: 20))
+                                .listRowSeparator(.hidden)
+                            }
+                            .onMove { indices, newOffset in
+                                selectedExercises.move(fromOffsets: indices, toOffset: newOffset)
+                            }
+                        } header: {
+                            exerciseHeader
+                        }
+                        .environment(\.editMode, .constant(.active))
                     }
                     
                     // Add exercise button
-                    addExerciseButton
-                    
-                    Spacer(minLength: 100)
+                    Section {
+                        addExerciseButton
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 16, leading: 20, bottom: 100, trailing: 20))
+                    .listRowSeparator(.hidden)
                 }
-                .padding(20)
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
             }
-            .background(Color.black.ignoresSafeArea())
             .navigationTitle("New Workout")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -178,61 +230,42 @@ struct WorkoutSetupSheet: View {
     
     // MARK: - Selected Exercises Section
     
-    private var selectedExercisesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("EXERCISES")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .tracking(1)
-                
-                Spacer()
-                
-                // Save as routine button
-                Button {
-                    showSaveRoutineSheet = true
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "bookmark.fill")
-                            .font(.caption)
-                        Text("Save")
-                            .font(.caption.weight(.semibold))
-                    }
-                    .foregroundStyle(.orange)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color.orange.opacity(0.15), in: Capsule())
+    private var exerciseHeader: some View {
+        HStack {
+            Text("EXERCISES")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .tracking(1)
+            
+            Spacer()
+            
+            // Save as routine button
+            Button {
+                showSaveRoutineSheet = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "bookmark.fill")
+                        .font(.caption)
+                    Text("Save")
+                        .font(.caption.weight(.semibold))
                 }
-                
-                Text("\(selectedExercises.count)")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.orange, in: Capsule())
+                .foregroundStyle(.orange)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.orange.opacity(0.15), in: Capsule())
             }
             
-            VStack(spacing: 8) {
-                ForEach(Array(selectedExercises.enumerated()), id: \.element.id) { index, exercise in
-                    ExerciseRow(
-                        exercise: exercise,
-                        onRemove: {
-                            selectedExercises.remove(at: index)
-                        },
-                        onSetCountChange: { count in
-                            let currentCount = exercise.sets.count
-                            if count > currentCount {
-                                for _ in 0..<(count - currentCount) {
-                                    _ = exercise.addSet()
-                                }
-                            } else if count < currentCount {
-                                exercise.sets.removeLast(currentCount - count)
-                            }
-                        }
-                    )
-                }
-            }
+            Text("\(selectedExercises.count)")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.orange, in: Capsule())
         }
+        .padding(.top, 10)
+        .padding(.horizontal, 20)
+        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0))
+        .textCase(nil)
     }
     
     // MARK: - Add Exercise Button
@@ -606,7 +639,8 @@ private struct ExerciseRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "line.3.horizontal")
-                .foregroundStyle(.secondary)
+                .font(.subheadline)
+                .foregroundStyle(.secondary.opacity(0.6))
             
             Image(systemName: exercise.type.icon)
                 .font(.callout)

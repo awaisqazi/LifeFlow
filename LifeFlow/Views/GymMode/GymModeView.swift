@@ -237,7 +237,10 @@ struct GymModeView: View {
                 onSkip: {
                     manager.skipRest()
                 },
-                onComplete: {}
+                onComplete: {},
+                onAddTime: { seconds in
+                    manager.addRestTime(seconds)
+                }
             )
         }
         .transition(.opacity)

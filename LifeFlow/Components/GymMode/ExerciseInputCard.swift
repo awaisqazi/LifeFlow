@@ -62,7 +62,7 @@ struct ExerciseInputCard: View {
             }
             .padding(20)
         }
-        .animation(.spring(response: 0.4), value: phase)
+        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: phase)
     }
     
     // MARK: - Header
@@ -130,7 +130,7 @@ struct ExerciseInputCard: View {
                         value: $weight,
                         unit: "lbs",
                         color: .orange,
-                        quickAdd: [5, 10, 25]
+                        increments: [2.5, 5, 10, 25]
                     )
                 }
             } else {
@@ -188,7 +188,7 @@ struct ExerciseInputCard: View {
                     value: $reps,
                     unit: "",
                     color: .green,
-                    quickAdd: [1, 5, 10]
+                    increments: [1, 5, 10]
                 )
             }
             
@@ -342,72 +342,101 @@ private struct CompactInput: View {
     @Binding var value: Double
     let unit: String
     let color: Color
-    let quickAdd: [Double]
+    let increments: [Double]
+    
+    @State private var selectedIncrement: Double
+    
+    init(value: Binding<Double>, unit: String, color: Color, increments: [Double]) {
+        self._value = value
+        self.unit = unit
+        self.color = color
+        self.increments = increments
+        // Initialize with the middle-ish increment or first available
+        self._selectedIncrement = State(initialValue: increments.count > 1 ? increments[1] : (increments.first ?? 1))
+    }
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 24) {
             // Main value with +/- controls
-            HStack(spacing: 24) {
+            HStack(spacing: 28) {
                 // Minus button
                 Button {
-                    if value >= 1 { value -= 1 }
-                    triggerHaptic()
+                    if value >= selectedIncrement {
+                        value -= selectedIncrement
+                    } else {
+                        value = 0
+                    }
+                    triggerHaptic(.light)
                 } label: {
                     Image(systemName: "minus")
-                        .font(.title2.weight(.semibold))
+                        .font(.title3.weight(.bold))
                         .foregroundStyle(color.opacity(0.8))
-                        .frame(width: 50, height: 50)
-                        .background(color.opacity(0.15), in: Circle())
+                        .frame(width: 54, height: 54)
+                        .background {
+                            if #available(iOS 26.0, *) {
+                                Circle()
+                                    .fill(.clear)
+                                    .glassEffect(.regular.interactive())
+                            } else {
+                                Circle()
+                                    .fill(.ultraThinMaterial)
+                            }
+                        }
+                        .overlay {
+                            Circle()
+                                .stroke(color.opacity(0.2), lineWidth: 1)
+                        }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(InteractingButtonStyle())
                 
                 // Value display
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(formattedValue)
-                        .font(.system(size: 48, weight: .bold, design: .rounded))
+                        .font(.system(size: 56, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
                         .contentTransition(.numericText())
                         .animation(.snappy, value: value)
                     
                     if !unit.isEmpty {
                         Text(unit)
-                            .font(.title3.weight(.medium))
+                            .font(.title2.weight(.semibold))
                             .foregroundStyle(.secondary)
                     }
                 }
-                .frame(minWidth: 100)
+                .frame(minWidth: 120)
                 
                 // Plus button
                 Button {
-                    value += 1
-                    triggerHaptic()
+                    value += selectedIncrement
+                    triggerHaptic(.medium)
                 } label: {
                     Image(systemName: "plus")
-                        .font(.title2.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 50, height: 50)
-                        .background(color, in: Circle())
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(.black)
+                        .frame(width: 54, height: 54)
+                        .background {
+                            if #available(iOS 26.0, *) {
+                                Circle()
+                                    .fill(color.opacity(0.5))
+                                    .glassEffect(.regular.interactive())
+                            } else {
+                                Circle()
+                                    .fill(color.gradient)
+                            }
+                        }
+                        .clipShape(Circle())
+                        .shadow(color: color.opacity(0.3), radius: 8, x: 0, y: 4)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(InteractingButtonStyle())
             }
             
-            // Quick add pills
-            HStack(spacing: 8) {
-                ForEach(quickAdd, id: \.self) { amount in
-                    Button {
-                        value += amount
-                        let impact = UIImpactFeedbackGenerator(style: .soft)
-                        impact.impactOccurred()
-                    } label: {
-                        Text("+\(formatAmount(amount))")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(color)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(color.opacity(0.12), in: Capsule())
-                    }
-                    .buttonStyle(.plain)
+            // Increment Selector (Native Segmented style)
+            Picker("Increment", selection: $selectedIncrement) {
+                ForEach(increments, id: \.self) { amount in
+                    Text(formatAmount(amount)).tag(amount)
                 }
             }
+            .pickerStyle(.segmented)
         }
     }
     
@@ -421,14 +450,14 @@ private struct CompactInput: View {
     
     private func formatAmount(_ amount: Double) -> String {
         if amount.truncatingRemainder(dividingBy: 1) == 0 {
-            return String(format: "%.0f", amount)
+            return String(format: "%.1f", amount).replacingOccurrences(of: ".0", with: "")
         } else {
             return String(format: "%.1f", amount)
         }
     }
     
-    private func triggerHaptic() {
-        let impact = UIImpactFeedbackGenerator(style: .light)
+    private func triggerHaptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
+        let impact = UIImpactFeedbackGenerator(style: style)
         impact.impactOccurred()
     }
 }
@@ -541,6 +570,15 @@ private struct StepperValue: View {
             }
             .buttonStyle(.plain)
         }
+    }
+}
+// MARK: - Interaction Styles
+
+private struct InteractingButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }
 

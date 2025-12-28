@@ -15,6 +15,7 @@ struct RestTimerView: View {
     let totalTime: TimeInterval
     let onSkip: () -> Void
     let onComplete: () -> Void
+    var onAddTime: ((TimeInterval) -> Void)? = nil
     
     @State private var pulseAnimation: Bool = false
     
@@ -61,10 +62,10 @@ struct RestTimerView: View {
             
             // Quick presets
             HStack(spacing: 12) {
-                PresetButton(seconds: 30, action: { setTime(30) })
-                PresetButton(seconds: 60, action: { setTime(60) })
-                PresetButton(seconds: 90, action: { setTime(90) })
-                PresetButton(seconds: 120, action: { setTime(120) })
+                PresetButton(seconds: 30, action: { addTime(30) })
+                PresetButton(seconds: 60, action: { addTime(60) })
+                PresetButton(seconds: 90, action: { addTime(90) })
+                PresetButton(seconds: 120, action: { addTime(120) })
             }
             
             // Skip button
@@ -111,8 +112,12 @@ struct RestTimerView: View {
         return String(format: "%d:%02d", minutes, seconds)
     }
     
-    private func setTime(_ seconds: TimeInterval) {
-        timeRemaining = seconds
+    private func addTime(_ seconds: TimeInterval) {
+        if let onAddTime = onAddTime {
+            onAddTime(seconds)
+        } else {
+            timeRemaining += seconds
+        }
         let impact = UIImpactFeedbackGenerator(style: .light)
         impact.impactOccurred()
     }

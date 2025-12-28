@@ -456,6 +456,31 @@ final class GymModeManager {
             }
     }
     
+    /// Add time to the current rest timer
+    /// - Parameter seconds: Seconds to add
+    func addRestTime(_ seconds: TimeInterval) {
+        restTimeRemaining += seconds
+        
+        // Update Live Activity if active
+        if isRestTimerActive {
+            let exerciseName = currentExercise?.name ?? "Rest"
+            let nextSet = currentSetIndex + 1
+            let totalSets = currentExercise?.sets.count ?? 3
+            
+            workoutLiveActivityManager.startRest(
+                exerciseName: exerciseName,
+                nextSet: nextSet,
+                totalSets: totalSets,
+                elapsedTime: Int(elapsedTime),
+                restEndTime: Date().addingTimeInterval(restTimeRemaining),
+                workoutStartDate: self.workoutStartTime ?? Date()
+            )
+        }
+        
+        let impact = UIImpactFeedbackGenerator(style: .light)
+        impact.impactOccurred()
+    }
+    
     /// Stop/skip the rest timer
     func stopRestTimer() {
         restTimerCancellable?.cancel()
