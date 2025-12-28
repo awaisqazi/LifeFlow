@@ -54,6 +54,7 @@
 		D9501C142F0079A200ED9FB6 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		D9501C4F2F00879100ED9FB6 /* HydrationWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HydrationWidgetExtension.entitlements; sourceTree = "<group>"; };
 		D9501C722F00B52700ED9FB6 /* GymWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = GymWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		D9501C942F00BB0300ED9FB6 /* GymWidgetsExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GymWidgetsExtension.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -101,6 +102,7 @@
 		D9501C892F00B57100ED9FB6 /* Exceptions for "LifeFlow" folder in "GymWidgetsExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Models/GymWorkoutAttributes.swift,
 				Models/RestTimerAttributes.swift,
 				Views/GymMode/RestTimerLiveActivity.swift,
 			);
@@ -168,6 +170,7 @@
 		D9501B512EFF213E00ED9FB6 = {
 			isa = PBXGroup;
 			children = (
+				D9501C942F00BB0300ED9FB6 /* GymWidgetsExtension.entitlements */,
 				D9501C4F2F00879100ED9FB6 /* HydrationWidgetExtension.entitlements */,
 				D9501B5C2EFF213E00ED9FB6 /* LifeFlow */,
 				D9501C162F0079A200ED9FB6 /* HydrationWidget */,
@@ -630,6 +633,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = GymWidgetsExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 3KZ25N2F2R;
@@ -637,6 +641,7 @@
 				INFOPLIST_FILE = GymWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = GymWidgets;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -660,6 +665,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = GymWidgetsExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 3KZ25N2F2R;
@@ -667,6 +673,7 @@
 				INFOPLIST_FILE = GymWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = GymWidgets;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
