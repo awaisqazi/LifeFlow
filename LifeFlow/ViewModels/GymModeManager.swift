@@ -1,0 +1,405 @@
+//
+//  GymModeManager.swift
+//  LifeFlow
+//
+//  Created by Fez Qazi on 12/27/25.
+//
+
+import Foundation
+import SwiftUI
+import SwiftData
+import Observation
+import Combine
+
+/// Manages the active workout state during Gym Mode.
+/// Handles exercise navigation, rest timer, screen wake lock, and superset flow.
+@Observable
+final class GymModeManager {
+    
+    // MARK: - Workout State
+    
+    /// The active workout session being tracked
+    private(set) var activeSession: WorkoutSession?
+    
+    /// Index of the currently active exercise
+    private(set) var currentExerciseIndex: Int = 0
+    
+    /// Index of the current set within the active exercise
+    private(set) var currentSetIndex: Int = 0
+    
+    /// Whether a workout is currently in progress
+    var isWorkoutActive: Bool { activeSession != nil }
+    
+    /// Elapsed time since workout started
+    private(set) var elapsedTime: TimeInterval = 0
+    
+    // MARK: - Rest Timer
+    
+    /// Whether the rest timer is currently running
+    private(set) var isRestTimerActive: Bool = false
+    
+    /// Remaining seconds on the rest timer
+    private(set) var restTimeRemaining: TimeInterval = 0
+    
+    /// Default rest duration in seconds
+    var defaultRestDuration: TimeInterval = 60
+    
+    // MARK: - Private Properties
+    
+    private var elapsedTimerCancellable: AnyCancellable?
+    private var restTimerCancellable: AnyCancellable?
+    private var workoutStartTime: Date?
+    
+    /// Manager for Live Activity (Dynamic Island) rest timer
+    private var liveActivityManager = LiveActivityManager()
+    
+    // MARK: - Initialization
+    
+    init() {}
+    
+    // MARK: - Workout Lifecycle
+    
+    /// Start a new workout session
+    /// - Parameter session: The workout session to start
+    func startWorkout(session: WorkoutSession) {
+        activeSession = session
+        currentExerciseIndex = 0
+        currentSetIndex = 0
+        workoutStartTime = Date()
+        elapsedTime = 0
+        
+        // Enable screen wake lock
+        UIApplication.shared.isIdleTimerDisabled = true
+        
+        // Start elapsed time timer
+        startElapsedTimer()
+    }
+    
+    /// End the current workout and return the completed session
+    /// - Returns: The completed workout session
+    func endWorkout() -> WorkoutSession? {
+        let completedSession = activeSession
+        
+        // Update session end time
+        activeSession?.endTime = Date()
+        activeSession?.duration = elapsedTime
+        
+        // Stop timers
+        stopElapsedTimer()
+        stopRestTimer()
+        
+        // Clean up all Live Activities
+        Task {
+            await liveActivityManager.endAllActivities()
+        }
+        
+        // Disable screen wake lock
+        UIApplication.shared.isIdleTimerDisabled = false
+        
+        // Reset state
+        activeSession = nil
+        currentExerciseIndex = 0
+        currentSetIndex = 0
+        elapsedTime = 0
+        
+        return completedSession
+    }
+    
+    // MARK: - Exercise Navigation
+    
+    /// Get the currently active exercise
+    var currentExercise: WorkoutExercise? {
+        guard let session = activeSession else { return nil }
+        let exercises = session.sortedExercises
+        guard currentExerciseIndex < exercises.count else { return nil }
+        return exercises[currentExerciseIndex]
+    }
+    
+    /// Get the current set for the active exercise
+    var currentSet: ExerciseSet? {
+        guard let exercise = currentExercise else { return nil }
+        let sets = exercise.sortedSets
+        guard currentSetIndex < sets.count else { return nil }
+        return sets[currentSetIndex]
+    }
+    
+    /// Complete the current set and advance to the next
+    /// - Parameters:
+    ///   - weight: Weight used (for weight training)
+    ///   - reps: Reps completed (for weight/calisthenics)
+    ///   - duration: Duration (for cardio)
+    func completeCurrentSet(
+        weight: Double? = nil,
+        reps: Int? = nil,
+        duration: TimeInterval? = nil,
+        speed: Double? = nil,
+        incline: Double? = nil
+    ) {
+        guard let set = currentSet else { return }
+        
+        // Update set data
+        set.weight = weight
+        set.reps = reps
+        set.duration = duration
+        set.speed = speed
+        set.incline = incline
+        set.isCompleted = true
+        
+        // Haptic feedback
+        let notification = UINotificationFeedbackGenerator()
+        notification.notificationOccurred(.success)
+        
+        // Advance to next set/exercise
+        advanceToNext()
+        
+        // Start rest timer (unless workout is complete)
+        if isWorkoutActive && !isWorkoutComplete {
+            startRestTimer(duration: defaultRestDuration)
+        }
+    }
+    
+    /// Whether all exercises and sets are complete
+    var isWorkoutComplete: Bool {
+        guard let session = activeSession else { return false }
+        let exercises = session.sortedExercises
+        
+        // Check if we've gone past all exercises
+        if currentExerciseIndex >= exercises.count {
+            return true
+        }
+        
+        return false
+    }
+    
+    /// Advance to the next set or exercise, handling supersets
+    private func advanceToNext() {
+        guard let session = activeSession else { return }
+        let exercises = session.sortedExercises
+        guard currentExerciseIndex < exercises.count else { return }
+        
+        let currentExercise = exercises[currentExerciseIndex]
+        
+        // Check if current exercise is part of a superset
+        if currentExercise.isSuperset, let groupID = currentExercise.supersetGroupID {
+            // Find all exercises in this superset group
+            let supersetExercises = exercises.filter { $0.supersetGroupID == groupID }
+            
+            // Find next exercise in superset
+            if let currentIndexInSuperset = supersetExercises.firstIndex(where: { $0.id == currentExercise.id }) {
+                let nextIndexInSuperset = currentIndexInSuperset + 1
+                
+                if nextIndexInSuperset < supersetExercises.count {
+                    // Move to next exercise in superset (same set number)
+                    if let globalIndex = exercises.firstIndex(where: { $0.id == supersetExercises[nextIndexInSuperset].id }) {
+                        currentExerciseIndex = globalIndex
+                    }
+                } else {
+                    // Completed all exercises in superset for this set
+                    // Move to next set of first exercise in superset
+                    currentSetIndex += 1
+                    
+                    // Check if we've completed all sets
+                    let firstExercise = supersetExercises[0]
+                    if currentSetIndex >= firstExercise.sets.count {
+                        // Move to next exercise group after superset
+                        moveToNextExerciseGroup(after: groupID, exercises: exercises)
+                    } else {
+                        // Go back to first exercise in superset
+                        if let globalIndex = exercises.firstIndex(where: { $0.id == firstExercise.id }) {
+                            currentExerciseIndex = globalIndex
+                        }
+                    }
+                }
+            }
+        } else {
+            // Regular exercise (not a superset)
+            let sets = currentExercise.sortedSets
+            
+            if currentSetIndex + 1 < sets.count {
+                // More sets remaining
+                currentSetIndex += 1
+            } else {
+                // Move to next exercise
+                currentExerciseIndex += 1
+                currentSetIndex = 0
+            }
+        }
+    }
+    
+    /// Move to the next exercise group after completing a superset
+    private func moveToNextExerciseGroup(after groupID: UUID, exercises: [WorkoutExercise]) {
+        // Find the last exercise in this superset group
+        if let lastSupersetIndex = exercises.lastIndex(where: { $0.supersetGroupID == groupID }) {
+            currentExerciseIndex = lastSupersetIndex + 1
+            currentSetIndex = 0
+        }
+    }
+    
+    // MARK: - Rest Timer
+    
+    /// Start the rest timer
+    /// - Parameter duration: Duration in seconds
+    func startRestTimer(duration: TimeInterval) {
+        restTimeRemaining = duration
+        isRestTimerActive = true
+        
+        // Start Live Activity for Dynamic Island
+        let exerciseName = currentExercise?.name ?? "Rest"
+        let nextSet = currentSetIndex + 1
+        liveActivityManager.startRestTimer(
+            exerciseName: exerciseName,
+            nextSetNumber: nextSet,
+            duration: Int(duration)
+        )
+        
+        restTimerCancellable?.cancel()
+        restTimerCancellable = Timer.publish(every: 1, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                
+                if self.restTimeRemaining > 0 {
+                    self.restTimeRemaining -= 1
+                    // Update Live Activity
+                    self.liveActivityManager.updateRestTimer(timeRemaining: Int(self.restTimeRemaining))
+                } else {
+                    self.stopRestTimer()
+                    // Haptic feedback when timer completes
+                    let notification = UINotificationFeedbackGenerator()
+                    notification.notificationOccurred(.warning)
+                }
+            }
+    }
+    
+    /// Stop/skip the rest timer
+    func stopRestTimer() {
+        restTimerCancellable?.cancel()
+        restTimerCancellable = nil
+        isRestTimerActive = false
+        restTimeRemaining = 0
+        
+        // End Live Activity
+        Task {
+            await liveActivityManager.endRestTimer()
+        }
+    }
+    
+    /// Skip the rest timer
+    func skipRest() {
+        stopRestTimer()
+        let impact = UIImpactFeedbackGenerator(style: .light)
+        impact.impactOccurred()
+    }
+    
+    // MARK: - Elapsed Time Timer
+    
+    private func startElapsedTimer() {
+        elapsedTimerCancellable?.cancel()
+        elapsedTimerCancellable = Timer.publish(every: 1, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                guard let self = self, let startTime = self.workoutStartTime else { return }
+                self.elapsedTime = Date().timeIntervalSince(startTime)
+            }
+    }
+    
+    private func stopElapsedTimer() {
+        elapsedTimerCancellable?.cancel()
+        elapsedTimerCancellable = nil
+    }
+    
+    // MARK: - Progressive Overload
+    
+    /// Fetch the previous session's data for a specific exercise
+    /// - Parameters:
+    ///   - exerciseName: Name of the exercise
+    ///   - modelContext: SwiftData model context
+    /// - Returns: The most recent set data for this exercise, if available
+    func getPreviousSetData(
+        for exerciseName: String,
+        setIndex: Int,
+        using modelContext: ModelContext
+    ) -> (weight: Double?, reps: Int?)? {
+        // Query for recent workout sessions containing this exercise
+        let descriptor = FetchDescriptor<WorkoutSession>(
+            predicate: #Predicate { session in
+                session.exercises.contains { exercise in
+                    exercise.name == exerciseName
+                }
+            },
+            sortBy: [SortDescriptor(\.startTime, order: .reverse)]
+        )
+        
+        do {
+            let sessions = try modelContext.fetch(descriptor)
+            
+            // Find the most recent session (excluding current)
+            for session in sessions {
+                if session.id == activeSession?.id { continue }
+                
+                if let exercise = session.exercises.first(where: { $0.name == exerciseName }) {
+                    let sets = exercise.sortedSets
+                    if setIndex < sets.count {
+                        let previousSet = sets[setIndex]
+                        return (previousSet.weight, previousSet.reps)
+                    }
+                }
+            }
+        } catch {
+            print("Error fetching previous set data: \(error)")
+        }
+        
+        return nil
+    }
+    
+    // MARK: - Superset Helpers
+    
+    /// Get exercises grouped by superset
+    /// - Returns: Array of exercise groups (single exercises or superset arrays)
+    func getExerciseGroups() -> [[WorkoutExercise]] {
+        guard let session = activeSession else { return [] }
+        let exercises = session.sortedExercises
+        
+        var groups: [[WorkoutExercise]] = []
+        var processedIDs: Set<UUID> = []
+        
+        for exercise in exercises {
+            if processedIDs.contains(exercise.id) { continue }
+            
+            if exercise.isSuperset, let groupID = exercise.supersetGroupID {
+                // Find all exercises in this superset
+                let supersetGroup = exercises.filter { $0.supersetGroupID == groupID }
+                groups.append(supersetGroup)
+                supersetGroup.forEach { processedIDs.insert($0.id) }
+            } else {
+                // Single exercise
+                groups.append([exercise])
+                processedIDs.insert(exercise.id)
+            }
+        }
+        
+        return groups
+    }
+    
+    // MARK: - Formatted Display
+    
+    /// Format elapsed time as MM:SS or HH:MM:SS
+    var formattedElapsedTime: String {
+        let hours = Int(elapsedTime) / 3600
+        let minutes = (Int(elapsedTime) % 3600) / 60
+        let seconds = Int(elapsedTime) % 60
+        
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            return String(format: "%02d:%02d", minutes, seconds)
+        }
+    }
+    
+    /// Format rest time remaining as MM:SS
+    var formattedRestTime: String {
+        let minutes = Int(restTimeRemaining) / 60
+        let seconds = Int(restTimeRemaining) % 60
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+}

@@ -13,6 +13,7 @@ import Observation
 
 /// Manages HealthKit integration for syncing workout data.
 /// Uses iOS 17+ async/await patterns for querying workout samples.
+/// iOS 26+: Supports live workout sessions with HKWorkoutSession and HKWorkoutBuilder.
 @Observable
 final class HealthKitManager {
     // MARK: - Published State
@@ -29,12 +30,44 @@ final class HealthKitManager {
     /// Last error encountered during operations
     private(set) var lastError: Error?
     
+    /// Whether a live workout session is currently active
+    private(set) var isLiveWorkoutActive: Bool = false
+    
+    /// Current heart rate during live workout (if available)
+    private(set) var currentHeartRate: Double?
+    
+    /// Active calories burned during current workout
+    private(set) var activeCalories: Double = 0
+    
     // MARK: - Private Properties
     
     private let healthStore = HKHealthStore()
     
-    /// The workout type we're interested in reading
+    /// The workout type we're interested in reading/writing
     private let workoutType = HKWorkoutType.workoutType()
+    
+    /// Types we want to read from HealthKit
+    private var typesToRead: Set<HKObjectType> {
+        [
+            workoutType,
+            HKQuantityType(.heartRate),
+            HKQuantityType(.activeEnergyBurned)
+        ]
+    }
+    
+    /// Types we want to write to HealthKit
+    private var typesToWrite: Set<HKSampleType> {
+        [
+            workoutType,
+            HKQuantityType(.activeEnergyBurned)
+        ]
+    }
+    
+    /// Active workout session (iOS 26+ on iPhone)
+    private var workoutSession: HKWorkoutSession?
+    
+    /// Workout builder for constructing the workout
+    private var workoutBuilder: HKWorkoutBuilder?
     
     // MARK: - Initialization
     
@@ -52,18 +85,111 @@ final class HealthKitManager {
         authorizationStatus = healthStore.authorizationStatus(for: workoutType)
     }
     
-    /// Request authorization to read workout data from HealthKit
+    /// Request authorization to read and write workout data from HealthKit
     func requestAuthorization() async throws {
         guard isAvailable else {
             throw HealthKitError.notAvailable
         }
         
-        let typesToRead: Set<HKObjectType> = [workoutType]
-        
-        try await healthStore.requestAuthorization(toShare: [], read: typesToRead)
+        try await healthStore.requestAuthorization(toShare: typesToWrite, read: typesToRead)
         
         // Update status after request
         checkAuthorizationStatus()
+    }
+    
+    // MARK: - Live Workout Session (iOS 26+)
+    
+    /// Start a live workout session
+    /// - Parameter activityType: The type of workout activity
+    @available(iOS 26.0, *)
+    func startLiveWorkout(activityType: HKWorkoutActivityType = .traditionalStrengthTraining) async throws {
+        guard isAvailable else {
+            throw HealthKitError.notAvailable
+        }
+        
+        // Create workout configuration
+        let configuration = HKWorkoutConfiguration()
+        configuration.activityType = activityType
+        configuration.locationType = .indoor
+        
+        // Create workout session
+        let session = try HKWorkoutSession(healthStore: healthStore, configuration: configuration)
+        workoutSession = session
+        
+        // Create workout builder
+        let builder = HKWorkoutBuilder(healthStore: healthStore, configuration: configuration, device: .local())
+        workoutBuilder = builder
+        
+        // Start the session
+        session.startActivity(with: Date())
+        
+        // Begin data collection
+        try await builder.beginCollection(at: Date())
+        
+        isLiveWorkoutActive = true
+        activeCalories = 0
+        currentHeartRate = nil
+    }
+    
+    /// Pause the live workout session
+    @available(iOS 26.0, *)
+    func pauseLiveWorkout() {
+        workoutSession?.pause()
+    }
+    
+    /// Resume the live workout session
+    @available(iOS 26.0, *)
+    func resumeLiveWorkout() {
+        workoutSession?.resume()
+    }
+    
+    /// End the live workout session and save to HealthKit
+    /// - Returns: The completed HKWorkout, if successful
+    @available(iOS 26.0, *)
+    func endLiveWorkout() async throws -> HKWorkout? {
+        guard let session = workoutSession, let builder = workoutBuilder else {
+            throw HealthKitError.noActiveSession
+        }
+        
+        // End the session
+        session.end()
+        
+        // End collection
+        try await builder.endCollection(at: Date())
+        
+        // Finish and save the workout
+        let workout = try await builder.finishWorkout()
+        
+        // Cleanup
+        workoutSession = nil
+        workoutBuilder = nil
+        isLiveWorkoutActive = false
+        
+        return workout
+    }
+    
+    /// Discard the current workout without saving
+    @available(iOS 26.0, *)
+    func discardLiveWorkout() async {
+        if let builder = workoutBuilder {
+            builder.discardWorkout()
+        }
+        
+        workoutSession?.end()
+        workoutSession = nil
+        workoutBuilder = nil
+        isLiveWorkoutActive = false
+    }
+    
+    /// Add a workout event (like a lap or segment marker)
+    @available(iOS 26.0, *)
+    func addWorkoutEvent(type: HKWorkoutEventType, date: Date = Date()) async throws {
+        guard let builder = workoutBuilder else {
+            throw HealthKitError.noActiveSession
+        }
+        
+        let event = HKWorkoutEvent(type: type, dateInterval: DateInterval(start: date, duration: 0), metadata: nil)
+        try await builder.addWorkoutEvents([event])
     }
     
     // MARK: - Fetching Workouts
@@ -245,6 +371,7 @@ extension HealthKitManager {
         case notAvailable
         case authorizationDenied
         case queryFailed(Error)
+        case noActiveSession
         
         var errorDescription: String? {
             switch self {
@@ -254,6 +381,8 @@ extension HealthKitManager {
                 return "Permission to access workout data was denied."
             case .queryFailed(let error):
                 return "Failed to fetch workouts: \(error.localizedDescription)"
+            case .noActiveSession:
+                return "No active workout session."
             }
         }
     }

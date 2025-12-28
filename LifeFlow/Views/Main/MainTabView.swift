@@ -13,6 +13,7 @@ import SwiftData
 struct MainTabView: View {
     @State private var selectedTab: LifeFlowTab = .flow
     @State private var showSuccessPulse: Bool = false
+    @State private var isGymModeActive: Bool = false
     
     var body: some View {
         ZStack {
@@ -25,16 +26,29 @@ struct MainTabView: View {
             // Tab Content
             TabContentView(selectedTab: selectedTab)
             
-            // Floating Tab Bar
-            VStack {
-                Spacer()
-                FloatingTabBar(selectedTab: $selectedTab)
+            // Floating Tab Bar (hidden during Gym Mode)
+            if !isGymModeActive {
+                VStack {
+                    Spacer()
+                    FloatingTabBar(selectedTab: $selectedTab)
+                }
             }
         }
         .preferredColorScheme(.dark)
         // Provide success pulse trigger to child views
         .environment(\.triggerSuccessPulse) {
             showSuccessPulse = true
+        }
+        // Provide Gym Mode enter/exit actions to child views
+        .environment(\.enterGymMode) {
+            isGymModeActive = true
+        }
+        .environment(\.exitGymMode) {
+            isGymModeActive = false
+        }
+        // Full-screen Gym Mode modal
+        .fullScreenCover(isPresented: $isGymModeActive) {
+            GymModeView()
         }
     }
 }
@@ -64,3 +78,4 @@ struct TabContentView: View {
     MainTabView()
         .modelContainer(for: DayLog.self, inMemory: true)
 }
+

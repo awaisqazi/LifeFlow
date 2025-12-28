@@ -13,6 +13,7 @@ import SwiftData
 /// The water surface tilts realistically as you physically tilt your phone.
 struct HydrationVesselCard: View {
     @Bindable var dayLog: DayLog
+    @Environment(\.modelContext) private var modelContext
     
     /// Environment action to trigger success pulse on the mesh gradient background
     @Environment(\.triggerSuccessPulse) private var triggerSuccessPulse
@@ -156,6 +157,7 @@ struct HydrationVesselCard: View {
                             dayLog.waterIntake -= 8
                             waterManager.triggerSplash(direction: .down)
                             triggerHaptic(style: .light)
+                            try? modelContext.save()
                             WidgetCenter.shared.reloadAllTimelines()
                         }
                     } label: {
@@ -176,6 +178,7 @@ struct HydrationVesselCard: View {
                             dayLog.waterIntake += 8
                             waterManager.triggerSplash(direction: .up)
                             triggerHaptic(style: .soft)
+                            try? modelContext.save()
                             WidgetCenter.shared.reloadAllTimelines()
                         }
                         
@@ -183,6 +186,7 @@ struct HydrationVesselCard: View {
                             dayLog.waterIntake += 16
                             waterManager.triggerSplash(direction: .up)
                             triggerHaptic(style: .medium)
+                            try? modelContext.save()
                             WidgetCenter.shared.reloadAllTimelines()
                         }
                     }
@@ -194,6 +198,7 @@ struct HydrationVesselCard: View {
                         dayLog.waterIntake += 8
                         waterManager.triggerSplash(direction: .up)
                         triggerHaptic(style: .soft)
+                        try? modelContext.save()
                         WidgetCenter.shared.reloadAllTimelines()
                     } label: {
                         Image(systemName: "plus")

@@ -39,7 +39,7 @@ struct LogWaterIntent: AppIntent {
             context.insert(dayLog)
         }
         
-        dayLog.waterIntake += amount
+        dayLog.waterIntake = max(0, dayLog.waterIntake + amount)
         
         try? context.save()
         

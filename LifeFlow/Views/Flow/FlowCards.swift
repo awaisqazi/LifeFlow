@@ -13,6 +13,7 @@ import SwiftData
 
 struct HydrationCard: View {
     @Bindable var dayLog: DayLog
+    @Environment(\.modelContext) private var modelContext
     
     var body: some View {
         GlassCard(cornerRadius: 16) {
@@ -46,6 +47,7 @@ struct HydrationCard: View {
                     Button {
                         if dayLog.waterIntake >= 8 {
                             dayLog.waterIntake -= 8
+                            try? modelContext.save()
                             WidgetCenter.shared.reloadAllTimelines()
                         }
                     } label: {
@@ -57,6 +59,7 @@ struct HydrationCard: View {
                     
                     Button {
                         dayLog.waterIntake += 8
+                        try? modelContext.save()
                         WidgetCenter.shared.reloadAllTimelines()
                     } label: {
                         Image(systemName: "plus")
@@ -80,6 +83,9 @@ struct GymCard: View {
     /// Environment action to trigger success pulse on the mesh gradient background
     @Environment(\.triggerSuccessPulse) private var triggerSuccessPulse
     
+    /// Environment action to enter Gym Mode
+    @Environment(\.enterGymMode) private var enterGymMode
+    
     @State private var offset: CGFloat = 0
     @State private var isDragging: Bool = false
     private let undoThreshold: CGFloat = -80
@@ -92,7 +98,7 @@ struct GymCard: View {
                     Spacer()
                     Button {
                         withAnimation {
-                            if let index = dayLog.workouts.lastIndex(where: { $0.source == "Flow" }) {
+                            if let index = dayLog.workouts.lastIndex(where: { $0.source == "Flow" || $0.source == "GymMode" }) {
                                 dayLog.workouts.remove(at: index)
                             } else if !dayLog.workouts.isEmpty {
                                 dayLog.workouts.removeLast()
@@ -138,7 +144,7 @@ struct GymCard: View {
                                 .font(.headline)
                                 .foregroundStyle(.green)
                         } else {
-                            Text("No workout yet")
+                            Text("Ready to train?")
                                 .font(.headline)
                                 .foregroundStyle(.primary)
                         }
@@ -146,31 +152,26 @@ struct GymCard: View {
                     
                     Spacer()
                     
-                    // Check In button (only when no workout)
+                    // Start Workout button (launches Gym Mode)
                     if !dayLog.hasWorkedOut {
                         Button {
-                            // Quick log: Add a generic 45 min workout
-                            let workout = WorkoutSession(
-                                type: "Quick Log",
-                                duration: 45 * 60,
-                                calories: 300,
-                                source: "Flow"
-                            )
-                            dayLog.workouts.append(workout)
-                            
-                            // Trigger celebratory success pulse
-                            triggerSuccessPulse()
+                            // Launch full Gym Mode experience
+                            enterGymMode()
                             
                             // Haptic feedback
-                            let notification = UINotificationFeedbackGenerator()
-                            notification.notificationOccurred(.success)
+                            let impact = UIImpactFeedbackGenerator(style: .medium)
+                            impact.impactOccurred()
                         } label: {
-                            Text("Check In")
-                                .font(.caption.weight(.bold))
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(Color.orange.opacity(0.2), in: Capsule())
-                                .foregroundStyle(.orange)
+                            HStack(spacing: 4) {
+                                Image(systemName: "flame.fill")
+                                    .font(.caption)
+                                Text("Start")
+                                    .font(.caption.weight(.bold))
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.orange.gradient, in: Capsule())
+                            .foregroundStyle(.white)
                         }
                     }
                 }
