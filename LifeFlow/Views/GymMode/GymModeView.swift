@@ -9,15 +9,23 @@ import SwiftUI
 import SwiftData
 
 /// Full-screen immersive workout experience.
-/// High contrast design with minimal liquid effects for gym visibility.
+/// Flexible navigation - tap any exercise to work on it in any order.
 struct GymModeView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     
+    /// Query for incomplete workouts to resume
+    @Query(filter: #Predicate<WorkoutSession> { session in
+        session.endTime == nil
+    }, sort: \WorkoutSession.startTime, order: .reverse) private var incompleteWorkouts: [WorkoutSession]
+    
     @State private var manager = GymModeManager()
-    @State private var showSetupSheet: Bool = true
+    @State private var showSetupSheet: Bool = false // Start false, will be set on appear
     @State private var showSummary: Bool = false
     @State private var showEndConfirmation: Bool = false
+    @State private var isEditMode: Bool = false
+    @State private var completedSession: WorkoutSession? = nil
+    @State private var hasCheckedForPausedWorkout: Bool = false
     
     // Current set input values
     @State private var currentWeight: Double = 0
@@ -41,32 +49,45 @@ struct GymModeView: View {
             }
         }
         .preferredColorScheme(.dark)
-        .sheet(isPresented: $showSetupSheet) {
+        .onAppear {
+            checkForPausedWorkout()
+        }
+        .sheet(isPresented: $showSetupSheet, onDismiss: {
+            // If setup was dismissed without starting, dismiss the full-screen cover
+            if !manager.isWorkoutActive {
+                dismiss()
+            }
+        }) {
             WorkoutSetupSheet { session in
                 manager.startWorkout(session: session)
                 loadCurrentSetDefaults()
             }
-            .interactiveDismissDisabled()
+            .interactiveDismissDisabled(false) // Allow dismiss with cancel
         }
-        .sheet(isPresented: $showSummary) {
-            if let session = manager.activeSession {
+        .sheet(isPresented: $showSummary, onDismiss: {
+            // After summary is dismissed, exit gym mode
+            dismiss()
+        }) {
+            if let session = completedSession {
                 GymWorkoutSummaryView(session: session) {
-                    // Save and dismiss
                     try? modelContext.save()
-                    dismiss()
+                    showSummary = false
                 }
             }
         }
-        .confirmationDialog("End Workout?", isPresented: $showEndConfirmation) {
-            Button("End & Save", role: .destructive) {
-                endWorkout()
+        .confirmationDialog("What would you like to do?", isPresented: $showEndConfirmation) {
+            Button("Pause & Continue Later") {
+                pauseWorkout()
             }
-            Button("Discard", role: .destructive) {
+            Button("End & Complete Workout", role: .destructive) {
+                endAndCompleteWorkout()
+            }
+            Button("Discard Workout", role: .destructive) {
                 discardWorkout()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Do you want to save this workout?")
+            Text("Your workout progress will be saved.")
         }
     }
     
@@ -77,42 +98,52 @@ struct GymModeView: View {
             // Header
             workoutHeader
             
-            // Exercise list
+            // Exercise list (tappable, reorderable)
             ScrollView {
                 LazyVStack(spacing: 12) {
-                    ForEach(manager.getExerciseGroups(), id: \.first?.id) { group in
-                        if group.count > 1 {
-                            // Superset
-                            SupersetCardStack(
-                                exercises: group,
-                                currentExerciseID: manager.currentExercise?.id,
-                                currentSetIndex: manager.currentSetIndex,
-                                onExerciseTap: { _ in }
-                            )
-                        } else if let exercise = group.first {
-                            // Single exercise
-                            SingleExerciseCard(
-                                exercise: exercise,
-                                currentSetIndex: manager.currentSetIndex,
-                                isActive: exercise.id == manager.currentExercise?.id,
-                                onTap: {}
-                            )
-                        }
+                    ForEach(manager.activeSession?.sortedExercises ?? [], id: \.id) { exercise in
+                        FlexibleExerciseCard(
+                            exercise: exercise,
+                            isActive: exercise.id == manager.currentExercise?.id,
+                            completedSets: manager.completedSetsCount(for: exercise),
+                            totalSets: exercise.sets.count,
+                            isEditMode: isEditMode,
+                            onTap: {
+                                if !isEditMode {
+                                    manager.selectExercise(exercise)
+                                    loadCurrentSetDefaults()
+                                }
+                            },
+                            onMoveUp: {
+                                if let index = manager.activeSession?.sortedExercises.firstIndex(where: { $0.id == exercise.id }),
+                                   index > 0 {
+                                    manager.moveExercise(from: index, to: index - 1)
+                                }
+                            },
+                            onMoveDown: {
+                                if let session = manager.activeSession,
+                                   let index = session.sortedExercises.firstIndex(where: { $0.id == exercise.id }),
+                                   index < session.exercises.count - 1 {
+                                    manager.moveExercise(from: index, to: index + 1)
+                                }
+                            }
+                        )
                     }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 16)
-                .padding(.bottom, 200) // Space for input card
+                .padding(.bottom, 220)
             }
             
             Spacer()
             
-            // Current exercise input panel
-            if let exercise = manager.currentExercise {
+            // Current exercise input panel (if not in edit mode)
+            if !isEditMode, let exercise = manager.currentExercise {
                 exerciseInputPanel(exercise: exercise)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .animation(.spring(response: 0.3), value: isEditMode)
     }
     
     // MARK: - Header
@@ -145,9 +176,17 @@ struct GymModeView: View {
             
             Spacer()
             
-            // Placeholder for symmetry
-            Color.clear
-                .frame(width: 44, height: 44)
+            // Edit/Done button
+            Button {
+                isEditMode.toggle()
+            } label: {
+                Text(isEditMode ? "Done" : "Edit")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(isEditMode ? .green : .secondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.white.opacity(0.1), in: Capsule())
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -186,9 +225,7 @@ struct GymModeView: View {
         ZStack {
             Color.black.opacity(0.7)
                 .ignoresSafeArea()
-                .onTapGesture {
-                    // Don't dismiss on tap
-                }
+                .onTapGesture {}
             
             RestTimerView(
                 isActive: .constant(manager.isRestTimerActive),
@@ -200,9 +237,7 @@ struct GymModeView: View {
                 onSkip: {
                     manager.skipRest()
                 },
-                onComplete: {
-                    // Timer completed naturally
-                }
+                onComplete: {}
             )
         }
         .transition(.opacity)
@@ -221,9 +256,8 @@ struct GymModeView: View {
         
         // Check if workout is complete
         if manager.isWorkoutComplete {
-            showSummary = true
+            endAndCompleteWorkout()
         } else {
-            // Load defaults for next set
             loadCurrentSetDefaults()
         }
     }
@@ -231,7 +265,6 @@ struct GymModeView: View {
     private func loadCurrentSetDefaults() {
         guard let exercise = manager.currentExercise else { return }
         
-        // Try to get previous data
         if let previousData = manager.getPreviousSetData(
             for: exercise.name,
             setIndex: manager.currentSetIndex,
@@ -240,7 +273,6 @@ struct GymModeView: View {
             currentWeight = previousData.weight ?? 0
             currentReps = Double(previousData.reps ?? 0)
         } else {
-            // Default values
             currentWeight = 0
             currentReps = 0
         }
@@ -250,14 +282,146 @@ struct GymModeView: View {
         currentIncline = 0
     }
     
-    private func endWorkout() {
-        let _ = manager.endWorkout()
+    /// Pause workout and return to flow - can continue later
+    private func pauseWorkout() {
+        // Pause the workout (keeps session incomplete for resume)
+        manager.pauseWorkout()
+        // Save to SwiftData
+        try? modelContext.save()
+        // Dismiss the full-screen cover to go back to Flow
+        dismiss()
+    }
+    
+    /// End workout completely and show summary
+    private func endAndCompleteWorkout() {
+        completedSession = manager.endWorkout()
+        try? modelContext.save()
         showSummary = true
     }
     
+    /// Discard workout without saving
     private func discardWorkout() {
+        if let session = manager.activeSession {
+            modelContext.delete(session)
+        }
         let _ = manager.endWorkout()
         dismiss()
+    }
+    
+    /// Check for a paused workout and resume it, or show setup sheet
+    private func checkForPausedWorkout() {
+        guard !hasCheckedForPausedWorkout else { return }
+        hasCheckedForPausedWorkout = true
+        
+        if let pausedSession = incompleteWorkouts.first {
+            // Resume the paused workout
+            manager.resumeWorkout(session: pausedSession)
+            loadCurrentSetDefaults()
+        } else {
+            // No paused workout, show setup sheet
+            showSetupSheet = true
+        }
+    }
+}
+
+// MARK: - Flexible Exercise Card
+
+private struct FlexibleExerciseCard: View {
+    let exercise: WorkoutExercise
+    let isActive: Bool
+    let completedSets: Int
+    let totalSets: Int
+    let isEditMode: Bool
+    let onTap: () -> Void
+    let onMoveUp: () -> Void
+    let onMoveDown: () -> Void
+    
+    private var isComplete: Bool {
+        completedSets >= totalSets
+    }
+    
+    private var progress: Double {
+        guard totalSets > 0 else { return 0 }
+        return Double(completedSets) / Double(totalSets)
+    }
+    
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 16) {
+                // Progress indicator
+                ZStack {
+                    Circle()
+                        .stroke(Color.white.opacity(0.1), lineWidth: 3)
+                    
+                    Circle()
+                        .trim(from: 0, to: progress)
+                        .stroke(
+                            isComplete ? Color.green : (isActive ? Color.orange : Color.white.opacity(0.5)),
+                            style: StrokeStyle(lineWidth: 3, lineCap: .round)
+                        )
+                        .rotationEffect(.degrees(-90))
+                    
+                    if isComplete {
+                        Image(systemName: "checkmark")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.green)
+                    } else {
+                        Text("\(completedSets)/\(totalSets)")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(isActive ? .orange : .secondary)
+                    }
+                }
+                .frame(width: 40, height: 40)
+                
+                // Exercise info
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(exercise.name)
+                        .font(.headline)
+                        .foregroundStyle(isComplete ? .secondary : .primary)
+                        .strikethrough(isComplete)
+                    
+                    Text(exercise.type.title)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+                
+                // Edit mode controls or active indicator
+                if isEditMode {
+                    HStack(spacing: 8) {
+                        Button(action: onMoveUp) {
+                            Image(systemName: "chevron.up")
+                                .font(.caption.weight(.bold))
+                                .frame(width: 32, height: 32)
+                                .background(Color.white.opacity(0.1), in: Circle())
+                        }
+                        
+                        Button(action: onMoveDown) {
+                            Image(systemName: "chevron.down")
+                                .font(.caption.weight(.bold))
+                                .frame(width: 32, height: 32)
+                                .background(Color.white.opacity(0.1), in: Circle())
+                        }
+                    }
+                } else if isActive && !isComplete {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.orange)
+                }
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(isActive && !isEditMode ? Color.orange.opacity(0.1) : Color.white.opacity(0.05))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(isActive && !isEditMode ? Color.orange.opacity(0.3) : Color.clear, lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isEditMode)
     }
 }
 

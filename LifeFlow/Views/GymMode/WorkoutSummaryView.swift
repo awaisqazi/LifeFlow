@@ -9,6 +9,7 @@ import SwiftUI
 import HealthKit
 
 /// Post-workout summary with stats and HealthKit save option.
+/// Tap exercises to see detailed set information.
 struct GymWorkoutSummaryView: View {
     @Environment(\.dismiss) private var dismiss
     
@@ -18,6 +19,7 @@ struct GymWorkoutSummaryView: View {
     @State private var saveToHealthKit: Bool = true
     @State private var isSaving: Bool = false
     @State private var healthKitManager = HealthKitManager()
+    @State private var expandedExerciseIDs: Set<UUID> = []
     
     var body: some View {
         NavigationStack {
@@ -32,7 +34,7 @@ struct GymWorkoutSummaryView: View {
                     Divider()
                         .background(Color.white.opacity(0.1))
                     
-                    // Exercise breakdown
+                    // Exercise breakdown with expandable details
                     exerciseBreakdown
                     
                     // HealthKit toggle
@@ -56,7 +58,6 @@ struct GymWorkoutSummaryView: View {
     
     private var celebrationHeader: some View {
         VStack(spacing: 16) {
-            // Trophy icon with animation
             ZStack {
                 Circle()
                     .fill(Color.green.opacity(0.15))
@@ -85,33 +86,10 @@ struct GymWorkoutSummaryView: View {
             GridItem(.flexible()),
             GridItem(.flexible())
         ], spacing: 16) {
-            StatCard(
-                title: "Duration",
-                value: formattedDuration,
-                icon: "clock.fill",
-                color: .blue
-            )
-            
-            StatCard(
-                title: "Exercises",
-                value: "\(session.exercises.count)",
-                icon: "dumbbell.fill",
-                color: .orange
-            )
-            
-            StatCard(
-                title: "Sets",
-                value: "\(totalSets)",
-                icon: "repeat",
-                color: .purple
-            )
-            
-            StatCard(
-                title: "Est. Calories",
-                value: "\(estimatedCalories)",
-                icon: "flame.fill",
-                color: .red
-            )
+            StatCard(title: "Duration", value: formattedDuration, icon: "clock.fill", color: .blue)
+            StatCard(title: "Exercises", value: "\(session.exercises.count)", icon: "dumbbell.fill", color: .orange)
+            StatCard(title: "Sets", value: "\(totalCompletedSets)/\(totalSets)", icon: "repeat", color: .purple)
+            StatCard(title: "Est. Calories", value: "\(estimatedCalories)", icon: "flame.fill", color: .red)
         }
     }
     
@@ -119,14 +97,34 @@ struct GymWorkoutSummaryView: View {
     
     private var exerciseBreakdown: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("EXERCISE BREAKDOWN")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .tracking(1)
+            HStack {
+                Text("EXERCISE BREAKDOWN")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .tracking(1)
+                
+                Spacer()
+                
+                Text("Tap to see details")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
             
             VStack(spacing: 8) {
-                ForEach(session.exercises, id: \.id) { exercise in
-                    ExerciseSummaryRow(exercise: exercise)
+                ForEach(session.sortedExercises, id: \.id) { exercise in
+                    ExpandableExerciseCard(
+                        exercise: exercise,
+                        isExpanded: expandedExerciseIDs.contains(exercise.id),
+                        onToggle: {
+                            withAnimation(.spring(response: 0.3)) {
+                                if expandedExerciseIDs.contains(exercise.id) {
+                                    expandedExerciseIDs.remove(exercise.id)
+                                } else {
+                                    expandedExerciseIDs.insert(exercise.id)
+                                }
+                            }
+                        }
+                    )
                 }
             }
         }
@@ -210,10 +208,12 @@ struct GymWorkoutSummaryView: View {
         session.exercises.reduce(0) { $0 + $1.sets.count }
     }
     
+    private var totalCompletedSets: Int {
+        session.exercises.reduce(0) { $0 + $1.sets.filter(\.isCompleted).count }
+    }
+    
     private var estimatedCalories: Int {
-        // Rough estimate: ~5 calories per set for strength training
-        let setsCalories = totalSets * 5
-        // Plus ~3 calories per minute of workout
+        let setsCalories = totalCompletedSets * 5
         let durationCalories = Int(session.duration / 60) * 3
         return setsCalories + durationCalories
     }
@@ -224,19 +224,15 @@ struct GymWorkoutSummaryView: View {
         isSaving = true
         
         Task {
-            // Update session with estimated calories
             session.calories = Double(estimatedCalories)
             
-            // Save to HealthKit if enabled
             if saveToHealthKit {
-                // Note: Full HealthKit save would use the live workout session
-                // For now, we just mark as complete
+                // HealthKit save would go here
             }
             
             await MainActor.run {
                 isSaving = false
                 onDone()
-                dismiss()
             }
         }
     }
@@ -270,55 +266,83 @@ private struct StatCard: View {
     }
 }
 
-// MARK: - Exercise Summary Row
+// MARK: - Expandable Exercise Card
 
-private struct ExerciseSummaryRow: View {
+private struct ExpandableExerciseCard: View {
     let exercise: WorkoutExercise
+    let isExpanded: Bool
+    let onToggle: () -> Void
+    
+    private var completedSets: [ExerciseSet] {
+        exercise.sortedSets.filter(\.isCompleted)
+    }
     
     var body: some View {
-        HStack(spacing: 12) {
-            // Icon
-            Image(systemName: exercise.type.icon)
-                .font(.callout)
-                .foregroundStyle(colorForType(exercise.type))
-                .frame(width: 32, height: 32)
-                .background(colorForType(exercise.type).opacity(0.15), in: Circle())
-            
-            // Name
-            Text(exercise.name)
-                .font(.subheadline.weight(.medium))
-            
-            Spacer()
-            
-            // Best set (if weight training)
-            if let bestSet = bestSet {
-                Text(bestSet)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.green)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.green.opacity(0.15), in: Capsule())
+        VStack(spacing: 0) {
+            // Header row (always visible)
+            Button(action: onToggle) {
+                HStack(spacing: 12) {
+                    // Icon
+                    Image(systemName: exercise.type.icon)
+                        .font(.callout)
+                        .foregroundStyle(colorForType(exercise.type))
+                        .frame(width: 32, height: 32)
+                        .background(colorForType(exercise.type).opacity(0.15), in: Circle())
+                    
+                    // Name
+                    Text(exercise.name)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.primary)
+                    
+                    Spacer()
+                    
+                    // Best set badge
+                    if let bestSet = bestSetString {
+                        Text(bestSet)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.green)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.green.opacity(0.15), in: Capsule())
+                    }
+                    
+                    // Set count
+                    Text("\(completedSets.count)/\(exercise.sets.count)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    
+                    // Expand indicator
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(12)
             }
+            .buttonStyle(.plain)
             
-            // Set count
-            Text("\(exercise.sets.filter(\.isCompleted).count)/\(exercise.sets.count) sets")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            // Expanded detail view
+            if isExpanded {
+                Divider()
+                    .background(Color.white.opacity(0.1))
+                
+                VStack(spacing: 8) {
+                    ForEach(Array(exercise.sortedSets.enumerated()), id: \.element.id) { index, set in
+                        SetDetailRow(setNumber: index + 1, set: set, exerciseType: exercise.type)
+                    }
+                }
+                .padding(12)
+                .background(Color.white.opacity(0.02))
+            }
         }
-        .padding(12)
         .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
     }
     
-    private var bestSet: String? {
-        let completedSets = exercise.sets.filter(\.isCompleted)
-        
-        // Find set with highest weight
-        if let best = completedSets.max(by: { ($0.weight ?? 0) < ($1.weight ?? 0) }),
-           let weight = best.weight, let reps = best.reps {
-            return "\(Int(weight))×\(reps)"
+    private var bestSetString: String? {
+        guard let best = completedSets.max(by: { ($0.weight ?? 0) * Double($0.reps ?? 0) < ($1.weight ?? 0) * Double($1.reps ?? 0) }),
+              let weight = best.weight, let reps = best.reps else {
+            return nil
         }
-        
-        return nil
+        return "\(Int(weight))×\(reps)"
     }
     
     private func colorForType(_ type: ExerciseType) -> Color {
@@ -331,9 +355,124 @@ private struct ExerciseSummaryRow: View {
     }
 }
 
+// MARK: - Set Detail Row
+
+private struct SetDetailRow: View {
+    let setNumber: Int
+    let set: ExerciseSet
+    let exerciseType: ExerciseType
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Set number with completion indicator
+            ZStack {
+                Circle()
+                    .fill(set.isCompleted ? Color.green.opacity(0.2) : Color.white.opacity(0.1))
+                    .frame(width: 28, height: 28)
+                
+                if set.isCompleted {
+                    Image(systemName: "checkmark")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.green)
+                } else {
+                    Text("\(setNumber)")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            Text("Set \(setNumber)")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(set.isCompleted ? .primary : .secondary)
+            
+            Spacer()
+            
+            // Set details based on type
+            if set.isCompleted {
+                setDetails
+            } else {
+                Text("Not completed")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var setDetails: some View {
+        switch exerciseType {
+        case .weight:
+            HStack(spacing: 8) {
+                if let weight = set.weight {
+                    Label("\(Int(weight)) lbs", systemImage: "scalemass.fill")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.orange)
+                }
+                
+                if let reps = set.reps {
+                    Label("\(reps) reps", systemImage: "arrow.counterclockwise")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.blue)
+                }
+            }
+            
+        case .cardio:
+            HStack(spacing: 8) {
+                if let duration = set.duration {
+                    Label(formatDuration(duration), systemImage: "clock.fill")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.green)
+                }
+                
+                if let speed = set.speed {
+                    Label("\(speed, specifier: "%.1f") mph", systemImage: "speedometer")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.cyan)
+                }
+            }
+            
+        case .calisthenics:
+            if let reps = set.reps {
+                Label("\(reps) reps", systemImage: "figure.strengthtraining.traditional")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.blue)
+            }
+            
+        case .flexibility:
+            if let duration = set.duration {
+                Label(formatDuration(duration), systemImage: "timer")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.purple)
+            }
+        }
+    }
+    
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        let mins = Int(seconds) / 60
+        let secs = Int(seconds) % 60
+        return mins > 0 ? "\(mins)m \(secs)s" : "\(secs)s"
+    }
+}
+
 #Preview {
     let session = WorkoutSession(title: "Push Day", type: "Strength Training")
     session.duration = 45 * 60
+    
+    // Add sample exercises
+    let benchPress = WorkoutExercise(name: "Bench Press", type: .weight)
+    let set1 = benchPress.addSet()
+    set1.weight = 135
+    set1.reps = 10
+    set1.isCompleted = true
+    let set2 = benchPress.addSet()
+    set2.weight = 155
+    set2.reps = 8
+    set2.isCompleted = true
+    let set3 = benchPress.addSet()
+    set3.weight = 175
+    set3.reps = 6
+    set3.isCompleted = true
+    session.exercises.append(benchPress)
     
     return GymWorkoutSummaryView(session: session, onDone: {})
 }

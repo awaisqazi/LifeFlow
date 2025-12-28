@@ -10,6 +10,9 @@
 		D9501C132F0079A200ED9FB6 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D9501C122F0079A200ED9FB6 /* WidgetKit.framework */; };
 		D9501C152F0079A200ED9FB6 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D9501C142F0079A200ED9FB6 /* SwiftUI.framework */; };
 		D9501C242F0079A300ED9FB6 /* HydrationWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D9501C102F0079A200ED9FB6 /* HydrationWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		D9501C732F00B52700ED9FB6 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D9501C122F0079A200ED9FB6 /* WidgetKit.framework */; };
+		D9501C742F00B52700ED9FB6 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D9501C142F0079A200ED9FB6 /* SwiftUI.framework */; };
+		D9501C832F00B52700ED9FB6 /* GymWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D9501C722F00B52700ED9FB6 /* GymWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -20,6 +23,13 @@
 			remoteGlobalIDString = D9501C0F2F0079A200ED9FB6;
 			remoteInfo = HydrationWidgetExtension;
 		};
+		D9501C812F00B52700ED9FB6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D9501B522EFF213E00ED9FB6 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D9501C712F00B52700ED9FB6;
+			remoteInfo = GymWidgetsExtension;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -29,6 +39,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
+				D9501C832F00B52700ED9FB6 /* GymWidgetsExtension.appex in Embed Foundation Extensions */,
 				D9501C242F0079A300ED9FB6 /* HydrationWidgetExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
@@ -42,6 +53,7 @@
 		D9501C122F0079A200ED9FB6 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		D9501C142F0079A200ED9FB6 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		D9501C4F2F00879100ED9FB6 /* HydrationWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HydrationWidgetExtension.entitlements; sourceTree = "<group>"; };
+		D9501C722F00B52700ED9FB6 /* GymWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = GymWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -79,6 +91,21 @@
 			);
 			target = D9501C0F2F0079A200ED9FB6 /* HydrationWidgetExtension */;
 		};
+		D9501C842F00B52700ED9FB6 /* Exceptions for "GymWidgets" folder in "GymWidgetsExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = D9501C712F00B52700ED9FB6 /* GymWidgetsExtension */;
+		};
+		D9501C892F00B57100ED9FB6 /* Exceptions for "LifeFlow" folder in "GymWidgetsExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Models/RestTimerAttributes.swift,
+				Views/GymMode/RestTimerLiveActivity.swift,
+			);
+			target = D9501C712F00B52700ED9FB6 /* GymWidgetsExtension */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -86,6 +113,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				D9501C362F0083C200ED9FB6 /* Exceptions for "LifeFlow" folder in "HydrationWidgetExtension" target */,
+				D9501C892F00B57100ED9FB6 /* Exceptions for "LifeFlow" folder in "GymWidgetsExtension" target */,
 			);
 			path = LifeFlow;
 			sourceTree = "<group>";
@@ -96,6 +124,14 @@
 				D9501C252F0079A300ED9FB6 /* Exceptions for "HydrationWidget" folder in "HydrationWidgetExtension" target */,
 			);
 			path = HydrationWidget;
+			sourceTree = "<group>";
+		};
+		D9501C752F00B52700ED9FB6 /* GymWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				D9501C842F00B52700ED9FB6 /* Exceptions for "GymWidgets" folder in "GymWidgetsExtension" target */,
+			);
+			path = GymWidgets;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -117,6 +153,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D9501C6F2F00B52700ED9FB6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D9501C742F00B52700ED9FB6 /* SwiftUI.framework in Frameworks */,
+				D9501C732F00B52700ED9FB6 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -126,6 +171,7 @@
 				D9501C4F2F00879100ED9FB6 /* HydrationWidgetExtension.entitlements */,
 				D9501B5C2EFF213E00ED9FB6 /* LifeFlow */,
 				D9501C162F0079A200ED9FB6 /* HydrationWidget */,
+				D9501C752F00B52700ED9FB6 /* GymWidgets */,
 				D9501C112F0079A200ED9FB6 /* Frameworks */,
 				D9501B5B2EFF213E00ED9FB6 /* Products */,
 			);
@@ -136,6 +182,7 @@
 			children = (
 				D9501B5A2EFF213E00ED9FB6 /* LifeFlow.app */,
 				D9501C102F0079A200ED9FB6 /* HydrationWidgetExtension.appex */,
+				D9501C722F00B52700ED9FB6 /* GymWidgetsExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -165,6 +212,7 @@
 			);
 			dependencies = (
 				D9501C232F0079A300ED9FB6 /* PBXTargetDependency */,
+				D9501C822F00B52700ED9FB6 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				D9501B5C2EFF213E00ED9FB6 /* LifeFlow */,
@@ -198,6 +246,28 @@
 			productReference = D9501C102F0079A200ED9FB6 /* HydrationWidgetExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		D9501C712F00B52700ED9FB6 /* GymWidgetsExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D9501C852F00B52700ED9FB6 /* Build configuration list for PBXNativeTarget "GymWidgetsExtension" */;
+			buildPhases = (
+				D9501C6E2F00B52700ED9FB6 /* Sources */,
+				D9501C6F2F00B52700ED9FB6 /* Frameworks */,
+				D9501C702F00B52700ED9FB6 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				D9501C752F00B52700ED9FB6 /* GymWidgets */,
+			);
+			name = GymWidgetsExtension;
+			packageProductDependencies = (
+			);
+			productName = GymWidgetsExtension;
+			productReference = D9501C722F00B52700ED9FB6 /* GymWidgetsExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -212,6 +282,9 @@
 						CreatedOnToolsVersion = 26.1.1;
 					};
 					D9501C0F2F0079A200ED9FB6 = {
+						CreatedOnToolsVersion = 26.1.1;
+					};
+					D9501C712F00B52700ED9FB6 = {
 						CreatedOnToolsVersion = 26.1.1;
 					};
 				};
@@ -232,6 +305,7 @@
 			targets = (
 				D9501B592EFF213E00ED9FB6 /* LifeFlow */,
 				D9501C0F2F0079A200ED9FB6 /* HydrationWidgetExtension */,
+				D9501C712F00B52700ED9FB6 /* GymWidgetsExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -245,6 +319,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		D9501C0E2F0079A200ED9FB6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D9501C702F00B52700ED9FB6 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -268,6 +349,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D9501C6E2F00B52700ED9FB6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -275,6 +363,11 @@
 			isa = PBXTargetDependency;
 			target = D9501C0F2F0079A200ED9FB6 /* HydrationWidgetExtension */;
 			targetProxy = D9501C222F0079A300ED9FB6 /* PBXContainerItemProxy */;
+		};
+		D9501C822F00B52700ED9FB6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D9501C712F00B52700ED9FB6 /* GymWidgetsExtension */;
+			targetProxy = D9501C812F00B52700ED9FB6 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -532,6 +625,66 @@
 			};
 			name = Release;
 		};
+		D9501C862F00B52700ED9FB6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3KZ25N2F2R;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GymWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = GymWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fez.LifeFlow.GymWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		D9501C872F00B52700ED9FB6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3KZ25N2F2R;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GymWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = GymWidgets;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fez.LifeFlow.GymWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -558,6 +711,15 @@
 			buildConfigurations = (
 				D9501C272F0079A300ED9FB6 /* Debug */,
 				D9501C282F0079A300ED9FB6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D9501C852F00B52700ED9FB6 /* Build configuration list for PBXNativeTarget "GymWidgetsExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D9501C862F00B52700ED9FB6 /* Debug */,
+				D9501C872F00B52700ED9FB6 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

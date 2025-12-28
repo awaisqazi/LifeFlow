@@ -11,7 +11,13 @@ import SwiftUI
 @main
 struct GymWidgetsBundle: WidgetBundle {
     var body: some Widget {
+        // Home Screen Widget
         GymWidgets()
+        
+        // Control Center Widget
         GymWidgetsControl()
+        
+        // Live Activity for active workouts
+        GymWorkoutLiveActivity()
     }
 }

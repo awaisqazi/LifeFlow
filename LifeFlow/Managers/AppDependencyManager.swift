@@ -24,6 +24,7 @@ final class AppDependencyManager {
             ExerciseSet.self,
             Goal.self,
             DailyEntry.self,
+            WorkoutRoutine.self,
         ])
         
         // Use the shared App Group container

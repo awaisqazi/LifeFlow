@@ -9,16 +9,29 @@ import SwiftUI
 import SwiftData
 
 /// Pre-workout configuration sheet.
-/// Allows selection of exercises, templates, and superset groupings.
+/// Shows favorite routines first, then quick templates.
 struct WorkoutSetupSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     
+    @Query(sort: \WorkoutRoutine.createdAt, order: .reverse) private var savedRoutines: [WorkoutRoutine]
+    
     @State private var workoutTitle: String = ""
     @State private var selectedExercises: [WorkoutExercise] = []
     @State private var showExercisePicker: Bool = false
+    @State private var showSaveRoutineSheet: Bool = false
     
     let onStart: (WorkoutSession) -> Void
+    
+    /// Favorite routines sorted first
+    private var sortedRoutines: [WorkoutRoutine] {
+        savedRoutines.sorted { a, b in
+            if a.isFavorite == b.isFavorite {
+                return (a.lastUsedAt ?? a.createdAt) > (b.lastUsedAt ?? b.createdAt)
+            }
+            return a.isFavorite && !b.isFavorite
+        }
+    }
     
     var body: some View {
         NavigationStack {
@@ -27,7 +40,12 @@ struct WorkoutSetupSheet: View {
                     // Workout title
                     titleSection
                     
-                    // Quick templates
+                    // Favorites section (if any)
+                    if !sortedRoutines.filter({ $0.isFavorite }).isEmpty {
+                        favoritesSection
+                    }
+                    
+                    // Quick templates (built-in + saved)
                     templatesSection
                     
                     // Selected exercises
@@ -61,6 +79,9 @@ struct WorkoutSetupSheet: View {
                     selectedExercises.append(contentsOf: exercises)
                 }
             }
+            .sheet(isPresented: $showSaveRoutineSheet) {
+                SaveRoutineSheet(exercises: selectedExercises, workoutTitle: workoutTitle)
+            }
         }
         .preferredColorScheme(.dark)
     }
@@ -81,6 +102,38 @@ struct WorkoutSetupSheet: View {
         }
     }
     
+    // MARK: - Favorites Section
+    
+    private var favoritesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "star.fill")
+                    .font(.caption)
+                    .foregroundStyle(.yellow)
+                Text("FAVORITES")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .tracking(1)
+            }
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(sortedRoutines.filter { $0.isFavorite }) { routine in
+                        SavedRoutineButton(routine: routine) {
+                            loadRoutine(routine)
+                        } onToggleFavorite: {
+                            routine.isFavorite.toggle()
+                            try? modelContext.save()
+                        } onDelete: {
+                            modelContext.delete(routine)
+                            try? modelContext.save()
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
     // MARK: - Templates Section
     
     private var templatesSection: some View {
@@ -92,6 +145,20 @@ struct WorkoutSetupSheet: View {
             
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
+                    // Saved routines (non-favorites)
+                    ForEach(sortedRoutines.filter { !$0.isFavorite }) { routine in
+                        SavedRoutineButton(routine: routine) {
+                            loadRoutine(routine)
+                        } onToggleFavorite: {
+                            routine.isFavorite.toggle()
+                            try? modelContext.save()
+                        } onDelete: {
+                            modelContext.delete(routine)
+                            try? modelContext.save()
+                        }
+                    }
+                    
+                    // Built-in templates
                     TemplateButton(title: "Push Day", icon: "arrow.up.circle.fill", color: .orange) {
                         loadTemplate(.push)
                     }
@@ -121,6 +188,22 @@ struct WorkoutSetupSheet: View {
                 
                 Spacer()
                 
+                // Save as routine button
+                Button {
+                    showSaveRoutineSheet = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "bookmark.fill")
+                            .font(.caption)
+                        Text("Save")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.orange.opacity(0.15), in: Capsule())
+                }
+                
                 Text("\(selectedExercises.count)")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.white)
@@ -137,7 +220,6 @@ struct WorkoutSetupSheet: View {
                             selectedExercises.remove(at: index)
                         },
                         onSetCountChange: { count in
-                            // Add sets to the exercise
                             let currentCount = exercise.sets.count
                             if count > currentCount {
                                 for _ in 0..<(count - currentCount) {
@@ -209,20 +291,17 @@ struct WorkoutSetupSheet: View {
     // MARK: - Actions
     
     private func startWorkout() {
-        // Create workout session
         let session = WorkoutSession(
             title: workoutTitle.isEmpty ? "Workout" : workoutTitle,
             type: "Strength Training"
         )
         
-        // Add exercises
         for (index, exercise) in selectedExercises.enumerated() {
             exercise.orderIndex = index
             exercise.session = session
             session.exercises.append(exercise)
         }
         
-        // Insert into model context
         modelContext.insert(session)
         
         dismiss()
@@ -233,11 +312,92 @@ struct WorkoutSetupSheet: View {
         workoutTitle = template.title
         selectedExercises = template.exercises.map { name in
             let exercise = WorkoutExercise(name: name, type: .weight)
-            // Add 3 default sets
             _ = exercise.addSet()
             _ = exercise.addSet()
             _ = exercise.addSet()
             return exercise
+        }
+    }
+    
+    private func loadRoutine(_ routine: WorkoutRoutine) {
+        workoutTitle = routine.name
+        selectedExercises = routine.exercises.map { routineExercise in
+            let exercise = WorkoutExercise(name: routineExercise.name, type: routineExercise.exerciseType)
+            for _ in 0..<routineExercise.setCount {
+                _ = exercise.addSet()
+            }
+            return exercise
+        }
+        
+        // Update last used
+        routine.lastUsedAt = Date()
+        try? modelContext.save()
+    }
+}
+
+// MARK: - Saved Routine Button
+
+private struct SavedRoutineButton: View {
+    let routine: WorkoutRoutine
+    let onTap: () -> Void
+    let onToggleFavorite: () -> Void
+    let onDelete: () -> Void
+    
+    @State private var showActions: Bool = false
+    
+    private var color: Color {
+        switch routine.color {
+        case "blue": return .blue
+        case "green": return .green
+        case "purple": return .purple
+        case "red": return .red
+        case "cyan": return .cyan
+        default: return .orange
+        }
+    }
+    
+    var body: some View {
+        Button(action: onTap) {
+            VStack(spacing: 8) {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: routine.icon)
+                        .font(.title2)
+                        .foregroundStyle(color)
+                    
+                    if routine.isFavorite {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.yellow)
+                            .offset(x: 8, y: -4)
+                    }
+                }
+                
+                Text(routine.name)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+            .frame(width: 90, height: 80)
+            .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
+            .overlay {
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(color.opacity(0.3), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button {
+                onToggleFavorite()
+            } label: {
+                Label(routine.isFavorite ? "Remove from Favorites" : "Add to Favorites",
+                      systemImage: routine.isFavorite ? "star.slash" : "star.fill")
+            }
+            
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
         }
     }
 }
@@ -272,6 +432,168 @@ private struct TemplateButton: View {
     }
 }
 
+// MARK: - Save Routine Sheet
+
+private struct SaveRoutineSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    
+    let exercises: [WorkoutExercise]
+    let workoutTitle: String
+    
+    @State private var routineName: String = ""
+    @State private var selectedIcon: String = "dumbbell.fill"
+    @State private var selectedColor: String = "orange"
+    @State private var isFavorite: Bool = false
+    
+    private let icons = ["dumbbell.fill", "figure.strengthtraining.traditional", "figure.run", "flame.fill", "bolt.fill", "heart.fill"]
+    private let colors = ["orange", "blue", "green", "purple", "red", "cyan"]
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 24) {
+                // Name input
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("ROUTINE NAME")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .tracking(1)
+                    
+                    TextField("e.g. My Push Day", text: $routineName)
+                        .font(.title3.weight(.semibold))
+                        .padding(16)
+                        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+                }
+                
+                // Icon picker
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("ICON")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .tracking(1)
+                    
+                    HStack(spacing: 12) {
+                        ForEach(icons, id: \.self) { icon in
+                            Button {
+                                selectedIcon = icon
+                            } label: {
+                                Image(systemName: icon)
+                                    .font(.title2)
+                                    .foregroundStyle(selectedIcon == icon ? .white : .secondary)
+                                    .frame(width: 44, height: 44)
+                                    .background(selectedIcon == icon ? Color.orange : Color.white.opacity(0.1), in: Circle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                
+                // Color picker
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("COLOR")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .tracking(1)
+                    
+                    HStack(spacing: 12) {
+                        ForEach(colors, id: \.self) { colorName in
+                            let color = colorFromName(colorName)
+                            Button {
+                                selectedColor = colorName
+                            } label: {
+                                Circle()
+                                    .fill(color)
+                                    .frame(width: 36, height: 36)
+                                    .overlay {
+                                        if selectedColor == colorName {
+                                            Image(systemName: "checkmark")
+                                                .font(.caption.weight(.bold))
+                                                .foregroundStyle(.white)
+                                        }
+                                    }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                
+                // Favorite toggle
+                Toggle(isOn: $isFavorite) {
+                    HStack {
+                        Image(systemName: "star.fill")
+                            .foregroundStyle(.yellow)
+                        Text("Add to Favorites")
+                    }
+                }
+                .padding(16)
+                .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+                
+                // Exercise preview
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("EXERCISES (\(exercises.count))")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .tracking(1)
+                    
+                    Text(exercises.map { $0.name }.joined(separator: ", "))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+                
+                Spacer()
+            }
+            .padding(20)
+            .background(Color.black.ignoresSafeArea())
+            .navigationTitle("Save Routine")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { saveRoutine() }
+                        .disabled(routineName.isEmpty)
+                }
+            }
+            .onAppear {
+                routineName = workoutTitle.isEmpty ? "" : workoutTitle
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+    
+    private func saveRoutine() {
+        let routineExercises = exercises.map { exercise in
+            RoutineExercise(name: exercise.name, type: exercise.type, setCount: exercise.sets.count)
+        }
+        
+        let routine = WorkoutRoutine(
+            name: routineName,
+            icon: selectedIcon,
+            color: selectedColor,
+            exercises: routineExercises
+        )
+        routine.isFavorite = isFavorite
+        
+        modelContext.insert(routine)
+        try? modelContext.save()
+        
+        dismiss()
+    }
+    
+    private func colorFromName(_ name: String) -> Color {
+        switch name {
+        case "blue": return .blue
+        case "green": return .green
+        case "purple": return .purple
+        case "red": return .red
+        case "cyan": return .cyan
+        default: return .orange
+        }
+    }
+}
+
 // MARK: - Exercise Row
 
 private struct ExerciseRow: View {
@@ -283,25 +605,21 @@ private struct ExerciseRow: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            // Drag handle (future: for reordering)
             Image(systemName: "line.3.horizontal")
                 .foregroundStyle(.secondary)
             
-            // Exercise icon
             Image(systemName: exercise.type.icon)
                 .font(.callout)
                 .foregroundStyle(colorForType(exercise.type))
                 .frame(width: 32, height: 32)
                 .background(colorForType(exercise.type).opacity(0.15), in: Circle())
             
-            // Exercise name
             Text(exercise.name)
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(.primary)
             
             Spacer()
             
-            // Set count stepper
             HStack(spacing: 4) {
                 Button {
                     if setCount > 1 {
@@ -334,7 +652,6 @@ private struct ExerciseRow: View {
                 .buttonStyle(.plain)
             }
             
-            // Remove button
             Button(action: onRemove) {
                 Image(systemName: "xmark")
                     .font(.caption.weight(.bold))
@@ -364,10 +681,7 @@ private struct ExerciseRow: View {
 // MARK: - Workout Templates
 
 private enum WorkoutTemplate {
-    case push
-    case pull
-    case legs
-    case fullBody
+    case push, pull, legs, fullBody
     
     var title: String {
         switch self {
@@ -426,7 +740,6 @@ private struct ExercisePickerSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Type filter
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         TypeFilterChip(type: nil, selectedType: $selectedType, label: "All")
@@ -440,7 +753,6 @@ private struct ExercisePickerSheet: View {
                 
                 Divider()
                 
-                // Exercise list
                 List {
                     ForEach(filteredExercises, id: \.self) { name in
                         Button {
@@ -469,9 +781,7 @@ private struct ExercisePickerSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
+                    Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add (\(selectedNames.count))") {
@@ -499,9 +809,7 @@ private struct TypeFilterChip: View {
     @Binding var selectedType: ExerciseType?
     let label: String
     
-    private var isSelected: Bool {
-        type == selectedType
-    }
+    private var isSelected: Bool { type == selectedType }
     
     var body: some View {
         Button {
@@ -520,5 +828,5 @@ private struct TypeFilterChip: View {
 
 #Preview {
     WorkoutSetupSheet { _ in }
-        .modelContainer(for: WorkoutSession.self, inMemory: true)
+        .modelContainer(for: [WorkoutSession.self, WorkoutRoutine.self], inMemory: true)
 }

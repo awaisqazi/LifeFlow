@@ -53,6 +53,9 @@ final class GymModeManager {
     /// Manager for Live Activity (Dynamic Island) rest timer
     private var liveActivityManager = LiveActivityManager()
     
+    /// Manager for workout Live Activity
+    private var workoutLiveActivityManager = GymWorkoutLiveActivityManager()
+    
     // MARK: - Initialization
     
     init() {}
@@ -73,6 +76,42 @@ final class GymModeManager {
         
         // Start elapsed time timer
         startElapsedTimer()
+        
+        // Start Live Activity
+        let firstExercise = session.sortedExercises.first?.name ?? "Workout"
+        workoutLiveActivityManager.startWorkout(
+            workoutTitle: session.title,
+            totalExercises: session.exercises.count,
+            exerciseName: firstExercise
+        )
+    }
+    
+    /// Resume a paused workout session
+    /// - Parameter session: The workout session to resume
+    func resumeWorkout(session: WorkoutSession) {
+        activeSession = session
+        
+        // Use the already accumulated duration from the session
+        elapsedTime = session.duration
+        
+        // Find the first exercise with incomplete sets
+        let exercises = session.sortedExercises
+        for (index, exercise) in exercises.enumerated() {
+            let incompleteSets = exercise.sortedSets.filter { !$0.isCompleted }
+            if !incompleteSets.isEmpty {
+                currentExerciseIndex = index
+                // Find the first incomplete set in this exercise
+                currentSetIndex = getNextIncompleteSetIndex(for: exercise)
+                break
+            }
+        }
+        
+        // Enable screen wake lock
+        UIApplication.shared.isIdleTimerDisabled = true
+        
+        // Resume elapsed time timer
+        workoutStartTime = Date()
+        startElapsedTimer()
     }
     
     /// End the current workout and return the completed session
@@ -91,6 +130,7 @@ final class GymModeManager {
         // Clean up all Live Activities
         Task {
             await liveActivityManager.endAllActivities()
+            await workoutLiveActivityManager.endAllActivities()
         }
         
         // Disable screen wake lock
@@ -103,6 +143,33 @@ final class GymModeManager {
         elapsedTime = 0
         
         return completedSession
+    }
+    
+    /// Pause the workout (stops timers but keeps session in incomplete state for resume)
+    func pauseWorkout() {
+        guard let session = activeSession else { return }
+        
+        // Save the current elapsed time to the session (but don't set endTime)
+        session.duration = elapsedTime
+        
+        // Stop timers
+        stopElapsedTimer()
+        stopRestTimer()
+        
+        // Clean up Live Activities
+        Task {
+            await liveActivityManager.endAllActivities()
+            await workoutLiveActivityManager.endAllActivities()
+        }
+        
+        // Disable screen wake lock
+        UIApplication.shared.isIdleTimerDisabled = false
+        
+        // Reset manager state (but session remains in SwiftData without endTime)
+        activeSession = nil
+        currentExerciseIndex = 0
+        currentSetIndex = 0
+        elapsedTime = 0
     }
     
     // MARK: - Exercise Navigation
@@ -121,6 +188,78 @@ final class GymModeManager {
         let sets = exercise.sortedSets
         guard currentSetIndex < sets.count else { return nil }
         return sets[currentSetIndex]
+    }
+    
+    // MARK: - Flexible Exercise Selection
+    
+    /// Select a specific exercise to work on (allows any order)
+    /// - Parameter exercise: The exercise to select
+    func selectExercise(_ exercise: WorkoutExercise) {
+        guard let session = activeSession else { return }
+        let exercises = session.sortedExercises
+        
+        if let index = exercises.firstIndex(where: { $0.id == exercise.id }) {
+            currentExerciseIndex = index
+            // Find the next incomplete set for this exercise
+            currentSetIndex = getNextIncompleteSetIndex(for: exercise)
+            
+            // Haptic feedback
+            let impact = UIImpactFeedbackGenerator(style: .light)
+            impact.impactOccurred()
+        }
+    }
+    
+    /// Get the index of the next incomplete set for an exercise
+    func getNextIncompleteSetIndex(for exercise: WorkoutExercise) -> Int {
+        let sets = exercise.sortedSets
+        for (index, set) in sets.enumerated() {
+            if !set.isCompleted {
+                return index
+            }
+        }
+        // All sets complete, return the last set index
+        return max(0, sets.count - 1)
+    }
+    
+    /// Move an exercise to a new position
+    /// - Parameters:
+    ///   - fromIndex: Original index
+    ///   - toIndex: Target index
+    func moveExercise(from fromIndex: Int, to toIndex: Int) {
+        guard let session = activeSession else { return }
+        var exercises = session.sortedExercises
+        guard fromIndex < exercises.count, toIndex < exercises.count else { return }
+        
+        let exercise = exercises.remove(at: fromIndex)
+        exercises.insert(exercise, at: toIndex)
+        
+        // Update order indices
+        for (index, ex) in exercises.enumerated() {
+            ex.orderIndex = index
+        }
+        
+        // Update current index if needed
+        if currentExerciseIndex == fromIndex {
+            currentExerciseIndex = toIndex
+        } else if currentExerciseIndex > fromIndex && currentExerciseIndex <= toIndex {
+            currentExerciseIndex -= 1
+        } else if currentExerciseIndex < fromIndex && currentExerciseIndex >= toIndex {
+            currentExerciseIndex += 1
+        }
+        
+        // Haptic feedback
+        let impact = UIImpactFeedbackGenerator(style: .medium)
+        impact.impactOccurred()
+    }
+    
+    /// Check if an exercise has any incomplete sets
+    func hasIncompleteSets(_ exercise: WorkoutExercise) -> Bool {
+        exercise.sets.contains { !$0.isCompleted }
+    }
+    
+    /// Get completed sets count for an exercise
+    func completedSetsCount(for exercise: WorkoutExercise) -> Int {
+        exercise.sets.filter { $0.isCompleted }.count
     }
     
     /// Complete the current set and advance to the next
@@ -246,10 +385,21 @@ final class GymModeManager {
         // Start Live Activity for Dynamic Island
         let exerciseName = currentExercise?.name ?? "Rest"
         let nextSet = currentSetIndex + 1
+        let totalSets = currentExercise?.sets.count ?? 3
+        
         liveActivityManager.startRestTimer(
             exerciseName: exerciseName,
             nextSetNumber: nextSet,
             duration: Int(duration)
+        )
+        
+        // Update workout Live Activity to show rest state
+        workoutLiveActivityManager.startRest(
+            exerciseName: exerciseName,
+            nextSet: nextSet,
+            totalSets: totalSets,
+            elapsedTime: Int(elapsedTime),
+            restTime: Int(duration)
         )
         
         restTimerCancellable?.cancel()
@@ -262,6 +412,15 @@ final class GymModeManager {
                     self.restTimeRemaining -= 1
                     // Update Live Activity
                     self.liveActivityManager.updateRestTimer(timeRemaining: Int(self.restTimeRemaining))
+                    
+                    // Also update workout Live Activity
+                    self.workoutLiveActivityManager.updateRest(
+                        exerciseName: exerciseName,
+                        nextSet: nextSet,
+                        totalSets: totalSets,
+                        elapsedTime: Int(self.elapsedTime),
+                        restTimeRemaining: Int(self.restTimeRemaining)
+                    )
                 } else {
                     self.stopRestTimer()
                     // Haptic feedback when timer completes

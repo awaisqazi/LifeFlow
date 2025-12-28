@@ -79,6 +79,7 @@ struct HydrationCard: View {
 
 struct GymCard: View {
     @Bindable var dayLog: DayLog
+    @Environment(\.modelContext) private var modelContext
     
     /// Environment action to trigger success pulse on the mesh gradient background
     @Environment(\.triggerSuccessPulse) private var triggerSuccessPulse
@@ -86,19 +87,69 @@ struct GymCard: View {
     /// Environment action to enter Gym Mode
     @Environment(\.enterGymMode) private var enterGymMode
     
+    /// Query for incomplete workouts (paused sessions)
+    @Query(filter: #Predicate<WorkoutSession> { session in
+        session.endTime == nil
+    }, sort: \WorkoutSession.startTime, order: .reverse) private var incompleteWorkouts: [WorkoutSession]
+    
+    /// Query for today's completed workouts
+    @Query(filter: #Predicate<WorkoutSession> { session in
+        session.endTime != nil
+    }, sort: \WorkoutSession.startTime, order: .reverse) private var completedWorkouts: [WorkoutSession]
+    
     @State private var offset: CGFloat = 0
     @State private var isDragging: Bool = false
+    @State private var showWorkoutDetailSheet: Bool = false
     private let undoThreshold: CGFloat = -80
+    
+    /// Check if there's a paused workout to continue
+    private var pausedWorkout: WorkoutSession? {
+        incompleteWorkouts.first
+    }
+    
+    private var hasPausedWorkout: Bool {
+        pausedWorkout != nil
+    }
+    
+    /// Get today's completed workout session
+    private var todaysCompletedWorkout: WorkoutSession? {
+        let calendar = Calendar.current
+        return completedWorkouts.first { calendar.isDateInToday($0.startTime) }
+    }
+    
+    private var statusColor: Color {
+        if dayLog.hasWorkedOut {
+            return .green
+        } else if hasPausedWorkout {
+            return .yellow
+        } else {
+            return .orange
+        }
+    }
+    
+    private var statusIcon: String {
+        if dayLog.hasWorkedOut {
+            return "checkmark"
+        } else if hasPausedWorkout {
+            return "pause.circle.fill"
+        } else {
+            return "figure.strengthtraining.traditional"
+        }
+    }
     
     var body: some View {
         ZStack(alignment: .trailing) {
             // Undo background (revealed on swipe)
-            if dayLog.hasWorkedOut {
+            if dayLog.hasWorkedOut || hasPausedWorkout {
                 HStack {
                     Spacer()
                     Button {
                         withAnimation {
-                            if let index = dayLog.workouts.lastIndex(where: { $0.source == "Flow" || $0.source == "GymMode" }) {
+                            if hasPausedWorkout, let paused = pausedWorkout {
+                                // Delete paused workout
+                                modelContext.delete(paused)
+                                try? modelContext.save()
+                            } else if let index = dayLog.workouts.lastIndex(where: { $0.source == "Flow" || $0.source == "GymMode" }) {
                                 dayLog.workouts.remove(at: index)
                             } else if !dayLog.workouts.isEmpty {
                                 dayLog.workouts.removeLast()
@@ -125,12 +176,12 @@ struct GymCard: View {
                     // Icon / Status
                     ZStack {
                         Circle()
-                            .fill(dayLog.hasWorkedOut ? .green.opacity(0.15) : .orange.opacity(0.15))
+                            .fill(statusColor.opacity(0.15))
                             .frame(width: 50, height: 50)
                         
-                        Image(systemName: dayLog.hasWorkedOut ? "checkmark" : "figure.strengthtraining.traditional")
+                        Image(systemName: statusIcon)
                             .font(.title2)
-                            .foregroundStyle(dayLog.hasWorkedOut ? .green : .orange)
+                            .foregroundStyle(statusColor)
                     }
                     
                     // Content
@@ -143,6 +194,10 @@ struct GymCard: View {
                             Text("Workout Logged")
                                 .font(.headline)
                                 .foregroundStyle(.green)
+                        } else if hasPausedWorkout {
+                            Text("Workout Paused")
+                                .font(.headline)
+                                .foregroundStyle(.yellow)
                         } else {
                             Text("Ready to train?")
                                 .font(.headline)
@@ -152,13 +207,47 @@ struct GymCard: View {
                     
                     Spacer()
                     
-                    // Start Workout button (launches Gym Mode)
-                    if !dayLog.hasWorkedOut {
+                    // Button based on state
+                    if dayLog.hasWorkedOut {
+                        // Show Completed with details button
                         Button {
-                            // Launch full Gym Mode experience
+                            showWorkoutDetailSheet = true
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.caption)
+                                Text("Completed")
+                                    .font(.caption.weight(.bold))
+                                Image(systemName: "info.circle")
+                                    .font(.caption2)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.green.gradient, in: Capsule())
+                            .foregroundStyle(.white)
+                        }
+                    } else if hasPausedWorkout {
+                        // Continue button
+                        Button {
                             enterGymMode()
-                            
-                            // Haptic feedback
+                            let impact = UIImpactFeedbackGenerator(style: .medium)
+                            impact.impactOccurred()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "play.fill")
+                                    .font(.caption)
+                                Text("Continue")
+                                    .font(.caption.weight(.bold))
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.yellow.gradient, in: Capsule())
+                            .foregroundStyle(.black)
+                        }
+                    } else {
+                        // Start button
+                        Button {
+                            enterGymMode()
                             let impact = UIImpactFeedbackGenerator(style: .medium)
                             impact.impactOccurred()
                         } label: {
@@ -179,7 +268,7 @@ struct GymCard: View {
             }
             .offset(x: offset)
             .gesture(
-                dayLog.hasWorkedOut ?
+                (dayLog.hasWorkedOut || hasPausedWorkout) ?
                 DragGesture()
                     .onChanged { gesture in
                         isDragging = true
@@ -192,11 +281,19 @@ struct GymCard: View {
                         isDragging = false
                         withAnimation(.spring(response: 0.3)) {
                             if offset < undoThreshold {
-                                // Trigger undo
-                                if let index = dayLog.workouts.lastIndex(where: { $0.source == "Flow" }) {
-                                    dayLog.workouts.remove(at: index)
-                                } else if !dayLog.workouts.isEmpty {
-                                    dayLog.workouts.removeLast()
+                                // Delete paused workout or undo completed
+                                if hasPausedWorkout, let paused = pausedWorkout {
+                                    modelContext.delete(paused)
+                                    try? modelContext.save()
+                                } else if let todayWorkout = todaysCompletedWorkout {
+                                    modelContext.delete(todayWorkout)
+                                    // Also remove from dayLog
+                                    if let index = dayLog.workouts.lastIndex(where: { $0.source == "Flow" || $0.source == "GymMode" }) {
+                                        dayLog.workouts.remove(at: index)
+                                    } else if !dayLog.workouts.isEmpty {
+                                        dayLog.workouts.removeLast()
+                                    }
+                                    try? modelContext.save()
                                 }
                                 let impact = UIImpactFeedbackGenerator(style: .medium)
                                 impact.impactOccurred()
@@ -213,10 +310,16 @@ struct GymCard: View {
                     Button(role: .destructive) {
                         withAnimation {
                             // Remove the most recent Flow workout
-                            if let index = dayLog.workouts.lastIndex(where: { $0.source == "Flow" }) {
+                            if let index = dayLog.workouts.lastIndex(where: { $0.source == "Flow" || $0.source == "GymMode" }) {
                                 dayLog.workouts.remove(at: index)
                             } else if !dayLog.workouts.isEmpty {
                                 dayLog.workouts.removeLast()
+                            }
+                            
+                            // Also delete from WorkoutSession
+                            if let todayWorkout = todaysCompletedWorkout {
+                                modelContext.delete(todayWorkout)
+                                try? modelContext.save()
                             }
                             
                             let impact = UIImpactFeedbackGenerator(style: .medium)
@@ -225,6 +328,12 @@ struct GymCard: View {
                     } label: {
                         Label("Undo Workout", systemImage: "arrow.uturn.backward")
                     }
+                }
+            }
+            .sheet(isPresented: $showWorkoutDetailSheet) {
+                if let workout = todaysCompletedWorkout {
+                    WorkoutDetailModal(workout: workout)
+                        .presentationDetents([.medium, .large])
                 }
             }
         }

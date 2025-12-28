@@ -17,9 +17,15 @@ struct TempleView: View {
     @Query(sort: \DayLog.date, order: .reverse) private var allLogs: [DayLog]
     @Query(sort: \Goal.deadline, order: .forward) private var goals: [Goal]
     
+    /// Query for completed workouts (with endTime set)
+    @Query(filter: #Predicate<WorkoutSession> { session in
+        session.endTime != nil
+    }, sort: \WorkoutSession.startTime, order: .reverse) private var completedWorkouts: [WorkoutSession]
+    
     @State private var selectedScope: TimeScope = .week
     @State private var healthKitWorkouts: [WorkoutSession] = []
     @State private var showingHealthKitAlert = false
+    @State private var selectedWorkoutForDetail: WorkoutSession? = nil
     
     private let healthKitManager = HealthKitManager()
     
@@ -98,6 +104,23 @@ struct TempleView: View {
                 }
                 .padding(.horizontal)
                 
+                // Recent Workouts Section
+                if !completedWorkouts.isEmpty {
+                    RecentWorkoutsSection(
+                        workouts: Array(completedWorkouts.prefix(5)),
+                        onWorkoutTap: { workout in
+                            selectedWorkoutForDetail = workout
+                        },
+                        onWorkoutDelete: { workout in
+                            modelContext.delete(workout)
+                            try? modelContext.save()
+                            let impact = UIImpactFeedbackGenerator(style: .medium)
+                            impact.impactOccurred()
+                        }
+                    )
+                    .padding(.horizontal)
+                }
+                
                 // Goal Progress Visualization Section
                 if !goals.isEmpty {
                     VStack(alignment: .leading, spacing: 16) {
@@ -132,6 +155,10 @@ struct TempleView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(healthKitManager.lastError?.localizedDescription ?? "Unable to sync with HealthKit")
+        }
+        .sheet(item: $selectedWorkoutForDetail) { workout in
+            WorkoutDetailModal(workout: workout)
+                .presentationDetents([.medium, .large])
         }
     }
     
@@ -333,6 +360,345 @@ struct StatPill: View {
     }
 }
 
+// MARK: - Recent Workouts Section
+
+struct RecentWorkoutsSection: View {
+    let workouts: [WorkoutSession]
+    let onWorkoutTap: (WorkoutSession) -> Void
+    let onWorkoutDelete: (WorkoutSession) -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.title2)
+                    .foregroundStyle(.cyan)
+                
+                Text("Recent Workouts")
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                
+                Spacer()
+                
+                Text("\(workouts.count)")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.cyan, in: Capsule())
+            }
+            
+            ForEach(workouts) { workout in
+                SwipeableWorkoutCard(
+                    workout: workout,
+                    onTap: { onWorkoutTap(workout) },
+                    onDelete: { onWorkoutDelete(workout) }
+                )
+            }
+        }
+    }
+}
+
+// MARK: - Swipeable Workout Card
+
+struct SwipeableWorkoutCard: View {
+    let workout: WorkoutSession
+    let onTap: () -> Void
+    let onDelete: () -> Void
+    
+    @State private var offset: CGFloat = 0
+    private let deleteThreshold: CGFloat = -80
+    
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            // Delete background
+            HStack {
+                Spacer()
+                Button(action: onDelete) {
+                    Image(systemName: "trash.fill")
+                        .font(.title2)
+                        .foregroundStyle(.white)
+                        .frame(width: 70)
+                        .frame(maxHeight: .infinity)
+                }
+                .background(Color.red)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+            }
+            .opacity(offset < -20 ? 1 : 0)
+            
+            RecentWorkoutCard(workout: workout)
+                .offset(x: offset)
+                .gesture(
+                    DragGesture()
+                        .onChanged { gesture in
+                            if gesture.translation.width < 0 {
+                                offset = gesture.translation.width
+                            }
+                        }
+                        .onEnded { gesture in
+                            withAnimation(.spring(response: 0.3)) {
+                                if offset < deleteThreshold {
+                                    onDelete()
+                                }
+                                offset = 0
+                            }
+                        }
+                )
+                .onTapGesture(perform: onTap)
+        }
+    }
+}
+
+// MARK: - Recent Workout Card
+
+struct RecentWorkoutCard: View {
+    let workout: WorkoutSession
+    
+    private var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "E, MMM d"
+        return formatter.string(from: workout.startTime)
+    }
+    
+    private var formattedDuration: String {
+        let mins = Int(workout.duration) / 60
+        return "\(mins)m"
+    }
+    
+    private var exerciseCount: Int {
+        workout.exercises.count
+    }
+    
+    private var completedSetsCount: Int {
+        workout.exercises.reduce(0) { $0 + $1.sets.filter(\.isCompleted).count }
+    }
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Icon
+            ZStack {
+                Circle()
+                    .fill(Color.orange.opacity(0.15))
+                    .frame(width: 44, height: 44)
+                
+                Image(systemName: "figure.strengthtraining.traditional")
+                    .font(.title3)
+                    .foregroundStyle(.orange)
+            }
+            
+            // Info
+            VStack(alignment: .leading, spacing: 4) {
+                Text(workout.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                
+                HStack(spacing: 8) {
+                    Text(formattedDate)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    
+                    Text("•")
+                        .foregroundStyle(.secondary)
+                    
+                    Text("\(exerciseCount) exercises")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    
+                    Text("•")
+                        .foregroundStyle(.secondary)
+                    
+                    Text("\(completedSetsCount) sets")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            Spacer()
+            
+            // Duration and chevron
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(formattedDuration)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.cyan)
+                
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+// MARK: - Workout Detail Modal
+
+struct WorkoutDetailModal: View {
+    let workout: WorkoutSession
+    @Environment(\.dismiss) private var dismiss
+    
+    private var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, MMMM d"
+        return formatter.string(from: workout.startTime)
+    }
+    
+    private var formattedDuration: String {
+        let hours = Int(workout.duration) / 3600
+        let mins = (Int(workout.duration) % 3600) / 60
+        return hours > 0 ? "\(hours)h \(mins)m" : "\(mins)m"
+    }
+    
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Stats header
+                    HStack(spacing: 16) {
+                        StatBubble(icon: "clock.fill", value: formattedDuration, label: "Duration", color: .cyan)
+                        StatBubble(icon: "dumbbell.fill", value: "\(workout.exercises.count)", label: "Exercises", color: .orange)
+                        StatBubble(icon: "flame.fill", value: "\(Int(workout.calories))", label: "Calories", color: .red)
+                    }
+                    .padding(.horizontal)
+                    
+                    Divider()
+                        .padding(.horizontal)
+                    
+                    // Exercises list
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("EXERCISES")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .tracking(1)
+                            .padding(.horizontal)
+                        
+                        ForEach(workout.sortedExercises) { exercise in
+                            ExerciseDetailCard(exercise: exercise)
+                        }
+                    }
+                }
+                .padding(.vertical)
+            }
+            .background(Color.black.ignoresSafeArea())
+            .navigationTitle(workout.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+}
+
+// MARK: - Stat Bubble
+
+private struct StatBubble: View {
+    let icon: String
+    let value: String
+    let label: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundStyle(color)
+            
+            Text(value)
+                .font(.headline)
+                .foregroundStyle(.primary)
+            
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+// MARK: - Exercise Detail Card
+
+private struct ExerciseDetailCard: View {
+    let exercise: WorkoutExercise
+    
+    private var completedSets: [ExerciseSet] {
+        exercise.sortedSets.filter(\.isCompleted)
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header
+            HStack {
+                Image(systemName: exercise.type.icon)
+                    .font(.callout)
+                    .foregroundStyle(colorForType(exercise.type))
+                    .frame(width: 28, height: 28)
+                    .background(colorForType(exercise.type).opacity(0.15), in: Circle())
+                
+                Text(exercise.name)
+                    .font(.subheadline.weight(.semibold))
+                
+                Spacer()
+                
+                Text("\(completedSets.count)/\(exercise.sets.count) sets")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            
+            // Sets list
+            if !completedSets.isEmpty {
+                VStack(spacing: 6) {
+                    ForEach(Array(completedSets.enumerated()), id: \.element.id) { index, set in
+                        HStack {
+                            Text("Set \(index + 1)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            
+                            Spacer()
+                            
+                            // Weight and reps
+                            if let weight = set.weight, let reps = set.reps {
+                                Text("\(Int(weight)) lbs × \(reps) reps")
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(.primary)
+                            } else if let reps = set.reps {
+                                Text("\(reps) reps")
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(.primary)
+                            } else if let duration = set.duration {
+                                Text("\(Int(duration / 60))m")
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(.primary)
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 8))
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal)
+    }
+    
+    private func colorForType(_ type: ExerciseType) -> Color {
+        switch type {
+        case .weight: return .orange
+        case .cardio: return .green
+        case .calisthenics: return .blue
+        case .flexibility: return .purple
+        }
+    }
+}
+
 #Preview {
     ZStack {
         LiquidBackgroundView()
@@ -341,3 +707,4 @@ struct StatPill: View {
     .modelContainer(for: [DayLog.self, WorkoutSession.self, Goal.self], inMemory: true)
     .preferredColorScheme(.dark)
 }
+
