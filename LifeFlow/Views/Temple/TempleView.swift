@@ -473,24 +473,68 @@ struct RecentWorkoutCard: View {
         workout.exercises.reduce(0) { $0 + $1.sets.filter(\.isCompleted).count }
     }
     
+    /// Whether this workout was synced from Apple Health
+    private var isFromHealthKit: Bool {
+        workout.source == "HealthKit"
+    }
+    
+    /// Source indicator color
+    private var sourceColor: Color {
+        isFromHealthKit ? .pink : .cyan
+    }
+    
+    /// Source indicator icon
+    private var sourceIcon: String {
+        isFromHealthKit ? "heart.fill" : "figure.run"
+    }
+    
+    /// Source label text
+    private var sourceLabel: String {
+        isFromHealthKit ? "Health" : "LifeFlow"
+    }
+    
     var body: some View {
         HStack(spacing: 12) {
-            // Icon
-            ZStack {
-                Circle()
-                    .fill(Color.orange.opacity(0.15))
-                    .frame(width: 44, height: 44)
+            // Icon with source indicator overlay
+            ZStack(alignment: .bottomTrailing) {
+                ZStack {
+                    Circle()
+                        .fill(Color.orange.opacity(0.15))
+                        .frame(width: 44, height: 44)
+                    
+                    Image(systemName: "figure.strengthtraining.traditional")
+                        .font(.title3)
+                        .foregroundStyle(.orange)
+                }
                 
-                Image(systemName: "figure.strengthtraining.traditional")
-                    .font(.title3)
-                    .foregroundStyle(.orange)
+                // Small source indicator badge
+                ZStack {
+                    Circle()
+                        .fill(sourceColor)
+                        .frame(width: 16, height: 16)
+                    
+                    Image(systemName: sourceIcon)
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+                .offset(x: 4, y: 4)
             }
             
             // Info
             VStack(alignment: .leading, spacing: 4) {
-                Text(workout.title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
+                HStack(spacing: 6) {
+                    Text(workout.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    
+                    // Source label pill
+                    Text(sourceLabel)
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(sourceColor)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(sourceColor.opacity(0.15), in: Capsule())
+                }
                 
                 HStack(spacing: 8) {
                     Text(formattedDate)
@@ -528,6 +572,16 @@ struct RecentWorkoutCard: View {
         }
         .padding(12)
         .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            // Subtle left edge accent for HealthKit workouts
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(
+                    isFromHealthKit 
+                        ? LinearGradient(colors: [.pink.opacity(0.4), .pink.opacity(0.1)], startPoint: .leading, endPoint: .trailing)
+                        : LinearGradient(colors: [.clear, .clear], startPoint: .leading, endPoint: .trailing),
+                    lineWidth: 1
+                )
+        )
     }
 }
 
