@@ -25,18 +25,33 @@ final class GymWorkoutLiveActivityManager {
     ///   - workoutTitle: Name of the workout (e.g., "Push Day")
     ///   - totalExercises: Total number of exercises
     ///   - exerciseName: First exercise name
-    func startWorkout(workoutTitle: String, totalExercises: Int, exerciseName: String) {
-        // Check if Live Activities are supported
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
-            print("Live Activities are not enabled")
+    ///   - workoutStartDate: Start date of the session
+    func startWorkout(workoutTitle: String, totalExercises: Int, exerciseName: String, workoutStartDate: Date) {
+        // Check authorization status first
+        let authInfo = ActivityAuthorizationInfo()
+        print("🏋️ Live Activity - areActivitiesEnabled: \(authInfo.areActivitiesEnabled)")
+        print("🏋️ Live Activity - frequentPushesEnabled: \(authInfo.frequentPushesEnabled)")
+        
+        guard authInfo.areActivitiesEnabled else {
+            print("❌ Live Activities are not enabled on this device")
             return
         }
         
-        // End any existing activity
+        // End any existing activity synchronously
         Task {
-            await endWorkout()
+            await endAllActivities()
+            await MainActor.run {
+                startActivityAfterCleanup(
+                    workoutTitle: workoutTitle,
+                    totalExercises: totalExercises,
+                    exerciseName: exerciseName,
+                    workoutStartDate: workoutStartDate
+                )
+            }
         }
-        
+    }
+    
+    private func startActivityAfterCleanup(workoutTitle: String, totalExercises: Int, exerciseName: String, workoutStartDate: Date) {
         // Create attributes and initial state
         let attributes = GymWorkoutAttributes(
             workoutTitle: workoutTitle,
@@ -48,8 +63,11 @@ final class GymWorkoutLiveActivityManager {
             currentSet: 1,
             totalSets: 3,
             elapsedTime: 0,
+            workoutStartDate: workoutStartDate,
             isResting: false
         )
+        
+        print("🏋️ Starting Live Activity with title: \(workoutTitle), exercise: \(exerciseName)")
         
         let content = ActivityContent(state: initialState, staleDate: nil)
         
@@ -60,9 +78,11 @@ final class GymWorkoutLiveActivityManager {
                 pushType: nil
             )
             currentActivity = activity
-            print("Started Workout Live Activity: \(activity.id)")
+            print("✅ Started Workout Live Activity: \(activity.id)")
+            print("✅ Activity state: \(activity.activityState)")
         } catch {
-            print("Failed to start Workout Live Activity: \(error.localizedDescription)")
+            print("❌ Failed to start Workout Live Activity: \(error)")
+            print("❌ Error description: \(error.localizedDescription)")
         }
     }
     
@@ -74,7 +94,8 @@ final class GymWorkoutLiveActivityManager {
     ///   - currentSet: Current set number
     ///   - totalSets: Total sets for exercise
     ///   - elapsedTime: Total elapsed workout time in seconds
-    func updateWorkout(exerciseName: String, currentSet: Int, totalSets: Int, elapsedTime: Int) {
+    ///   - workoutStartDate: Current session start date
+    func updateWorkout(exerciseName: String, currentSet: Int, totalSets: Int, elapsedTime: Int, workoutStartDate: Date) {
         guard let activity = currentActivity else { return }
         
         let updatedState = GymWorkoutAttributes.ContentState(
@@ -82,6 +103,7 @@ final class GymWorkoutLiveActivityManager {
             currentSet: currentSet,
             totalSets: totalSets,
             elapsedTime: elapsedTime,
+            workoutStartDate: workoutStartDate,
             isResting: false
         )
         
@@ -98,8 +120,9 @@ final class GymWorkoutLiveActivityManager {
     ///   - nextSet: Next set number
     ///   - totalSets: Total sets
     ///   - elapsedTime: Elapsed workout time
-    ///   - restTime: Rest time remaining in seconds
-    func startRest(exerciseName: String, nextSet: Int, totalSets: Int, elapsedTime: Int, restTime: Int) {
+    ///   - restEndTime: When the rest timer ends
+    ///   - workoutStartDate: Current session start date
+    func startRest(exerciseName: String, nextSet: Int, totalSets: Int, elapsedTime: Int, restEndTime: Date, workoutStartDate: Date) {
         guard let activity = currentActivity else { return }
         
         let restState = GymWorkoutAttributes.ContentState(
@@ -107,34 +130,10 @@ final class GymWorkoutLiveActivityManager {
             currentSet: nextSet,
             totalSets: totalSets,
             elapsedTime: elapsedTime,
+            workoutStartDate: workoutStartDate,
             isResting: true,
-            restTimeRemaining: restTime
-        )
-        
-        let content = ActivityContent(state: restState, staleDate: nil)
-        
-        Task {
-            await activity.update(content)
-        }
-    }
-    
-    /// Update rest timer countdown
-    /// - Parameters:
-    ///   - exerciseName: Current exercise
-    ///   - nextSet: Next set number
-    ///   - totalSets: Total sets
-    ///   - elapsedTime: Elapsed workout time
-    ///   - restTimeRemaining: Seconds remaining in rest
-    func updateRest(exerciseName: String, nextSet: Int, totalSets: Int, elapsedTime: Int, restTimeRemaining: Int) {
-        guard let activity = currentActivity else { return }
-        
-        let restState = GymWorkoutAttributes.ContentState(
-            exerciseName: exerciseName,
-            currentSet: nextSet,
-            totalSets: totalSets,
-            elapsedTime: elapsedTime,
-            isResting: true,
-            restTimeRemaining: restTimeRemaining
+            restTimeRemaining: Int(restEndTime.timeIntervalSinceNow),
+            restEndTime: restEndTime
         )
         
         let content = ActivityContent(state: restState, staleDate: nil)
@@ -145,8 +144,14 @@ final class GymWorkoutLiveActivityManager {
     }
     
     /// End rest and resume workout
-    func endRest(exerciseName: String, currentSet: Int, totalSets: Int, elapsedTime: Int) {
-        updateWorkout(exerciseName: exerciseName, currentSet: currentSet, totalSets: totalSets, elapsedTime: elapsedTime)
+    func endRest(exerciseName: String, currentSet: Int, totalSets: Int, elapsedTime: Int, workoutStartDate: Date) {
+        updateWorkout(
+            exerciseName: exerciseName,
+            currentSet: currentSet,
+            totalSets: totalSets,
+            elapsedTime: elapsedTime,
+            workoutStartDate: workoutStartDate
+        )
     }
     
     // MARK: - End Activity

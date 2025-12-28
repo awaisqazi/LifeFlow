@@ -26,11 +26,17 @@ public struct GymWorkoutAttributes: ActivityAttributes {
         /// Elapsed workout time in seconds
         public var elapsedTime: Int
         
+        /// Start date of the workout (for native count-up timer)
+        public var workoutStartDate: Date
+        
         /// Is rest timer active
         public var isResting: Bool
         
         /// Rest time remaining (if resting)
         public var restTimeRemaining: Int
+        
+        /// End date of the rest timer (for native countdown timer)
+        public var restEndTime: Date?
         
         /// Formatted elapsed time (MM:SS or H:MM:SS)
         public var formattedElapsedTime: String {
@@ -57,15 +63,19 @@ public struct GymWorkoutAttributes: ActivityAttributes {
             currentSet: Int,
             totalSets: Int,
             elapsedTime: Int,
+            workoutStartDate: Date = Date(),
             isResting: Bool = false,
-            restTimeRemaining: Int = 0
+            restTimeRemaining: Int = 0,
+            restEndTime: Date? = nil
         ) {
             self.exerciseName = exerciseName
             self.currentSet = currentSet
             self.totalSets = totalSets
             self.elapsedTime = elapsedTime
+            self.workoutStartDate = workoutStartDate
             self.isResting = isResting
             self.restTimeRemaining = restTimeRemaining
+            self.restEndTime = restEndTime
         }
     }
     

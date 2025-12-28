@@ -50,10 +50,7 @@ final class GymModeManager {
     private var restTimerCancellable: AnyCancellable?
     private var workoutStartTime: Date?
     
-    /// Manager for Live Activity (Dynamic Island) rest timer
-    private var liveActivityManager = LiveActivityManager()
-    
-    /// Manager for workout Live Activity
+    /// Manager for workout Live Activity (handles progress and rest)
     private var workoutLiveActivityManager = GymWorkoutLiveActivityManager()
     
     // MARK: - Initialization
@@ -65,6 +62,8 @@ final class GymModeManager {
     /// Start a new workout session
     /// - Parameter session: The workout session to start
     func startWorkout(session: WorkoutSession) {
+        print("🔥 GymModeManager.startWorkout called with session: \(session.title)")
+        
         activeSession = session
         currentExerciseIndex = 0
         currentSetIndex = 0
@@ -79,10 +78,12 @@ final class GymModeManager {
         
         // Start Live Activity
         let firstExercise = session.sortedExercises.first?.name ?? "Workout"
+        print("🔥 Calling workoutLiveActivityManager.startWorkout...")
         workoutLiveActivityManager.startWorkout(
             workoutTitle: session.title,
             totalExercises: session.exercises.count,
-            exerciseName: firstExercise
+            exerciseName: firstExercise,
+            workoutStartDate: workoutStartTime ?? Date()
         )
     }
     
@@ -110,8 +111,19 @@ final class GymModeManager {
         UIApplication.shared.isIdleTimerDisabled = true
         
         // Resume elapsed time timer
-        workoutStartTime = Date()
+        // Adjust start time to account for already elapsed time
+        workoutStartTime = Date().addingTimeInterval(-elapsedTime)
         startElapsedTimer()
+        
+        // Resume Live Activity
+        if let currentEx = currentExercise {
+            workoutLiveActivityManager.startWorkout(
+                workoutTitle: session.title,
+                totalExercises: session.exercises.count,
+                exerciseName: currentEx.name,
+                workoutStartDate: workoutStartTime ?? Date()
+            )
+        }
     }
     
     /// End the current workout and return the completed session
@@ -129,7 +141,6 @@ final class GymModeManager {
         
         // Clean up all Live Activities
         Task {
-            await liveActivityManager.endAllActivities()
             await workoutLiveActivityManager.endAllActivities()
         }
         
@@ -158,7 +169,6 @@ final class GymModeManager {
         
         // Clean up Live Activities
         Task {
-            await liveActivityManager.endAllActivities()
             await workoutLiveActivityManager.endAllActivities()
         }
         
@@ -202,6 +212,15 @@ final class GymModeManager {
             currentExerciseIndex = index
             // Find the next incomplete set for this exercise
             currentSetIndex = getNextIncompleteSetIndex(for: exercise)
+            
+            // Synchronize Live Activity
+            workoutLiveActivityManager.updateWorkout(
+                exerciseName: exercise.name,
+                currentSet: currentSetIndex + 1,
+                totalSets: exercise.sets.count,
+                elapsedTime: Int(elapsedTime),
+                workoutStartDate: self.workoutStartTime ?? Date()
+            )
             
             // Haptic feedback
             let impact = UIImpactFeedbackGenerator(style: .light)
@@ -316,15 +335,15 @@ final class GymModeManager {
         let exercises = session.sortedExercises
         guard currentExerciseIndex < exercises.count else { return }
         
-        let currentExercise = exercises[currentExerciseIndex]
+        let exerciseToAdvance = exercises[currentExerciseIndex]
         
         // Check if current exercise is part of a superset
-        if currentExercise.isSuperset, let groupID = currentExercise.supersetGroupID {
+        if exerciseToAdvance.isSuperset, let groupID = exerciseToAdvance.supersetGroupID {
             // Find all exercises in this superset group
             let supersetExercises = exercises.filter { $0.supersetGroupID == groupID }
             
             // Find next exercise in superset
-            if let currentIndexInSuperset = supersetExercises.firstIndex(where: { $0.id == currentExercise.id }) {
+            if let currentIndexInSuperset = supersetExercises.firstIndex(where: { $0.id == exerciseToAdvance.id }) {
                 let nextIndexInSuperset = currentIndexInSuperset + 1
                 
                 if nextIndexInSuperset < supersetExercises.count {
@@ -352,9 +371,9 @@ final class GymModeManager {
             }
         } else {
             // Regular exercise (not a superset)
-            let sets = currentExercise.sortedSets
+            let currentSets = exerciseToAdvance.sortedSets
             
-            if currentSetIndex + 1 < sets.count {
+            if currentSetIndex + 1 < currentSets.count {
                 // More sets remaining
                 currentSetIndex += 1
             } else {
@@ -363,14 +382,35 @@ final class GymModeManager {
                 currentSetIndex = 0
             }
         }
+        
+        // Update Live Activity immediately after advancing
+        if let newExercise = self.currentExercise {
+            workoutLiveActivityManager.updateWorkout(
+                exerciseName: newExercise.name,
+                currentSet: currentSetIndex + 1,
+                totalSets: newExercise.sets.count,
+                elapsedTime: Int(elapsedTime),
+                workoutStartDate: self.workoutStartTime ?? Date()
+            )
+        }
     }
     
     /// Move to the next exercise group after completing a superset
     private func moveToNextExerciseGroup(after groupID: UUID, exercises: [WorkoutExercise]) {
-        // Find the last exercise in this superset group
         if let lastSupersetIndex = exercises.lastIndex(where: { $0.supersetGroupID == groupID }) {
             currentExerciseIndex = lastSupersetIndex + 1
             currentSetIndex = 0
+            
+            // Update Live Activity
+            if let nextExercise = self.currentExercise {
+                workoutLiveActivityManager.updateWorkout(
+                    exerciseName: nextExercise.name,
+                    currentSet: currentSetIndex + 1,
+                    totalSets: nextExercise.sets.count,
+                    elapsedTime: Int(elapsedTime),
+                    workoutStartDate: self.workoutStartTime ?? Date()
+                )
+            }
         }
     }
     
@@ -382,24 +422,18 @@ final class GymModeManager {
         restTimeRemaining = duration
         isRestTimerActive = true
         
-        // Start Live Activity for Dynamic Island
+        // Update workout Live Activity to show rest state
         let exerciseName = currentExercise?.name ?? "Rest"
         let nextSet = currentSetIndex + 1
         let totalSets = currentExercise?.sets.count ?? 3
         
-        liveActivityManager.startRestTimer(
-            exerciseName: exerciseName,
-            nextSetNumber: nextSet,
-            duration: Int(duration)
-        )
-        
-        // Update workout Live Activity to show rest state
         workoutLiveActivityManager.startRest(
             exerciseName: exerciseName,
             nextSet: nextSet,
             totalSets: totalSets,
             elapsedTime: Int(elapsedTime),
-            restTime: Int(duration)
+            restEndTime: Date().addingTimeInterval(duration),
+            workoutStartDate: self.workoutStartTime ?? Date()
         )
         
         restTimerCancellable?.cancel()
@@ -410,17 +444,9 @@ final class GymModeManager {
                 
                 if self.restTimeRemaining > 0 {
                     self.restTimeRemaining -= 1
-                    // Update Live Activity
-                    self.liveActivityManager.updateRestTimer(timeRemaining: Int(self.restTimeRemaining))
                     
-                    // Also update workout Live Activity
-                    self.workoutLiveActivityManager.updateRest(
-                        exerciseName: exerciseName,
-                        nextSet: nextSet,
-                        totalSets: totalSets,
-                        elapsedTime: Int(self.elapsedTime),
-                        restTimeRemaining: Int(self.restTimeRemaining)
-                    )
+                    // No longer updating Live Activity every second for rest.
+                    // The native timer handles the countdown on-device.
                 } else {
                     self.stopRestTimer()
                     // Haptic feedback when timer completes
@@ -437,9 +463,15 @@ final class GymModeManager {
         isRestTimerActive = false
         restTimeRemaining = 0
         
-        // End Live Activity
-        Task {
-            await liveActivityManager.endRestTimer()
+        // Resume normal workout state in Live Activity
+        if let currentActiveExercise = self.currentExercise {
+            workoutLiveActivityManager.endRest(
+                exerciseName: currentActiveExercise.name,
+                currentSet: currentSetIndex + 1,
+                totalSets: currentActiveExercise.sets.count,
+                elapsedTime: Int(elapsedTime),
+                workoutStartDate: self.workoutStartTime ?? Date()
+            )
         }
     }
     
@@ -459,6 +491,9 @@ final class GymModeManager {
             .sink { [weak self] _ in
                 guard let self = self, let startTime = self.workoutStartTime else { return }
                 self.elapsedTime = Date().timeIntervalSince(startTime)
+                
+                // No longer updating Live Activity every second.
+                // The native timer handles the count-up on-device.
             }
     }
     

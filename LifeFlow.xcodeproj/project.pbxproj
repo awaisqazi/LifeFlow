@@ -103,8 +103,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Models/GymWorkoutAttributes.swift,
-				Models/RestTimerAttributes.swift,
-				Views/GymMode/RestTimerLiveActivity.swift,
 			);
 			target = D9501C712F00B52700ED9FB6 /* GymWidgetsExtension */;
 		};
@@ -509,6 +507,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "LifeFlow uses your workout data to track your daily momentum.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "LifeFlow saves your manual workouts to Apple Health";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -544,6 +543,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "LifeFlow uses your workout data to track your daily momentum.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "LifeFlow saves your manual workouts to Apple Health";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -640,6 +640,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = GymWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = GymWidgets;
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -672,6 +673,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = GymWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = GymWidgets;
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
