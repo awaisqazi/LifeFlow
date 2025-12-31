@@ -130,7 +130,7 @@ struct ExerciseInputCard: View {
                         value: $weight,
                         unit: "lbs",
                         color: .orange,
-                        increments: [2.5, 5, 10, 25]
+                        increments: [1, 2.5, 5, 10, 25]
                     )
                 }
             } else {

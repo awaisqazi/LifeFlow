@@ -265,19 +265,34 @@ struct GymModeView: View {
         }
     }
     
+    /// Tracks the last exercise we loaded defaults for, to detect exercise changes
+    @State private var lastLoadedExerciseId: UUID?
+    
     private func loadCurrentSetDefaults() {
         guard let exercise = manager.currentExercise else { return }
         
-        if let previousData = manager.getPreviousSetData(
-            for: exercise.name,
-            setIndex: manager.currentSetIndex,
-            using: modelContext
-        ) {
-            currentWeight = previousData.weight ?? 0
-            currentReps = Double(previousData.reps ?? 0)
-        } else {
-            currentWeight = 0
+        // Check if we're on the same exercise or switching to a new one
+        let isSameExercise = lastLoadedExerciseId == exercise.id
+        lastLoadedExerciseId = exercise.id
+        
+        // If same exercise and we already have a weight, keep it
+        // This allows the weight to carry over between sets
+        if isSameExercise && currentWeight > 0 {
+            // Keep current weight, just reset reps for the new set
             currentReps = 0
+        } else {
+            // New exercise - try to load from previous session or reset
+            if let previousData = manager.getPreviousSetData(
+                for: exercise.name,
+                setIndex: manager.currentSetIndex,
+                using: modelContext
+            ) {
+                currentWeight = previousData.weight ?? 0
+                currentReps = Double(previousData.reps ?? 0)
+            } else {
+                currentWeight = 0
+                currentReps = 0
+            }
         }
         
         currentDuration = 0
