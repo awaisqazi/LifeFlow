@@ -98,14 +98,8 @@ struct GymModeView: View {
         .preferredColorScheme(.dark)
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: showEndConfirmation)
         .onAppear {
-            // Check if the shared manager already has an active workout
-            if manager.isWorkoutActive {
-                // Workout is running, show current state (no sheet needed)
-                loadCurrentSetDefaults()
-            } else {
-                // No active workout, check for paused sessions or show setup
-                checkForPausedWorkout()
-            }
+            // Check for potential resume even if active, or show setup sheet
+            checkForPausedWorkout()
         }
         .sheet(isPresented: $showSetupSheet, onDismiss: {
             // If setup was dismissed without starting, dismiss the full-screen cover

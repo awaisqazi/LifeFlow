@@ -8,6 +8,41 @@
 
 import SwiftUI
 import WidgetKit
+import AppIntents
+
+// MARK: - Shared Styles
+
+/// A reusable glassmorphic modifier for the LifeFlow aesthetic
+struct LiquidGlassModifier: ViewModifier {
+    var cornerRadius: CGFloat = 20
+    var borderColor: Color = .white.opacity(0.15)
+    
+    func body(content: Content) -> some View {
+        content
+            .background(.ultraThinMaterial)
+            .background(
+                // Subtle inner glow
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .fill(LinearGradient(
+                        colors: [.white.opacity(0.05), .clear],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ))
+            )
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .stroke(borderColor, lineWidth: 0.5)
+            )
+            .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 10)
+    }
+}
+
+extension View {
+    func liquidGlassStyle(cornerRadius: CGFloat = 20) -> some View {
+        self.modifier(LiquidGlassModifier(cornerRadius: cornerRadius))
+    }
+}
 
 struct GymWidgetEntryView: View {
     var entry: WorkoutEntry
@@ -213,177 +248,271 @@ private struct MediumWidgetView: View {
 
 // MARK: - Large Widget
 
+// MARK: - Large Widget Components
+
+struct HeroExerciseCard: View {
+    let state: WorkoutWidgetState
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(state.isResting ? "REST PERIOD" : (state.isPaused ? "PAUSED" : "ACTIVE EXERCISE"))
+                    .font(.system(size: 10, weight: .black))
+                    .foregroundStyle(state.isResting ? .cyan : (state.isPaused ? .secondary : .orange))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        state.isResting ? Color.cyan.opacity(0.1) : 
+                        (state.isPaused ? Color.secondary.opacity(0.1) : Color.orange.opacity(0.1)), 
+                        in: Capsule()
+                    )
+                
+                Spacer()
+                
+                if state.isResting {
+                    if let restEnd = state.restEndTime {
+                        Text(restEnd, style: .timer)
+                            .font(.system(.title3, design: .monospaced, weight: .bold))
+                            .foregroundStyle(.cyan)
+                    }
+                } else {
+                    Text("\(state.currentSet) / \(state.totalSets)")
+                        .font(.system(.subheadline, design: .monospaced, weight: .bold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            Text(state.exerciseName)
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+            
+            // Progress Bar
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.1))
+                    
+                    Capsule()
+                        .fill(state.isResting ? Color.cyan : Color.orange)
+                        .frame(width: geo.size.width * (Double(state.currentSet) / Double(max(state.totalSets, 1))))
+                }
+            }
+            .frame(height: 6)
+            
+            // Interactive Controls
+            HStack(spacing: 12) {
+                if state.isResting {
+                    Button(intent: AddRestTimeIntent(seconds: 30)) {
+                        Label("+30s", systemImage: "plus.circle.fill")
+                            .font(.caption.weight(.bold))
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.cyan)
+                    
+                    Button(intent: SkipRestIntent()) {
+                        Label("Skip", systemImage: "forward.end.fill")
+                            .font(.caption.weight(.bold))
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.white)
+                } else if state.isPaused {
+                     Button(intent: ResumeWorkoutIntent()) {
+                        Label("Resume", systemImage: "play.fill")
+                            .font(.caption.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.green)
+                } else {
+                    Button(intent: PauseWorkoutIntent()) {
+                         Label("Pause", systemImage: "pause.fill")
+                            .font(.caption.weight(.bold))
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.white)
+                    
+                    Spacer()
+                    
+                    Button(intent: AddRepsIntent(count: 1)) {
+                        Label("Log Set", systemImage: "checkmark.circle.fill")
+                            .font(.caption.weight(.bold))
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                }
+            }
+            .padding(.top, 4)
+        }
+        .padding(20)
+        .liquidGlassStyle(cornerRadius: 24)
+    }
+}
+
+struct SecondaryExerciseRow: View {
+    let title: String
+    let exercise: String
+    let details: String
+    let isCompleted: Bool
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(isCompleted ? Color.green : Color.white.opacity(0.1))
+                .frame(width: 8, height: 8)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title.uppercased())
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.secondary)
+                
+                Text(exercise)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .lineLimit(1)
+            }
+            
+            Spacer()
+            
+            Text(details)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+}
+
 private struct LargeWidgetView: View {
     let state: WorkoutWidgetState
     
     var body: some View {
-        if state.isActive {
-            Link(destination: URL(string: "lifeflow://gym")!) {
-                VStack(spacing: 0) {
+        Stack {
+            if state.isActive {
+                VStack(spacing: 16) {
                     // Header
                     HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(state.workoutTitle.uppercased())
-                                .font(.caption.weight(.black))
-                                .foregroundStyle(state.isPaused ? Color.secondary : Color.orange)
-                            
-                            HStack(spacing: 4) {
-                                Text("Exercise \(state.currentExerciseIndex) of \(state.totalExercises)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                if state.isPaused {
-                                    Text("• PAUSED")
-                                        .font(.caption2.weight(.bold))
-                                        .foregroundStyle(Color.secondary)
-                                }
-                            }
+                        Label {
+                            Text(state.workoutTitle)
+                                .font(.system(.headline, design: .rounded, weight: .bold))
+                        } icon: {
+                            Image(systemName: "figure.strengthtraining.traditional")
                         }
+                        .foregroundStyle(.white)
                         
                         Spacer()
                         
-                        // Timer
-                        VStack(alignment: .trailing, spacing: 0) {
-                            if state.isPaused {
-                                Text(state.pausedDisplayTime ?? "--:--")
-                                    .font(.system(size: 24, weight: .bold, design: .rounded).monospacedDigit())
-                                    .foregroundStyle(.secondary)
-                                Text("PAUSED")
-                                    .font(.system(size: 8, weight: .black))
-                                    .foregroundStyle(.secondary.opacity(0.7))
-                            } else if state.isResting, let restEnd = state.restEndTime {
-                                Text(restEnd, style: .timer)
-                                    .font(.system(size: 24, weight: .bold, design: .rounded).monospacedDigit())
-                                    .foregroundStyle(.cyan)
-                                Text("REST")
-                                    .font(.system(size: 8, weight: .black))
-                                    .foregroundStyle(.cyan.opacity(0.7))
-                            } else {
-                                Text(state.workoutStartDate, style: .timer)
-                                    .font(.system(size: 24, weight: .bold, design: .rounded).monospacedDigit())
-                                    .foregroundStyle(.green)
-                                Text("ELAPSED")
-                                    .font(.system(size: 8, weight: .black))
-                                    .foregroundStyle(.secondary)
-                            }
+                        // Live Indicator
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(Color.green)
+                                .frame(width: 6, height: 6)
+                            Text("LIVE")
+                                .font(.system(size: 10, weight: .black))
+                                .foregroundStyle(.green)
                         }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.green.opacity(0.1), in: Capsule())
                     }
-                    .padding()
                     
-                    Spacer()
+                    // Hero Card
+                    HeroExerciseCard(state: state)
                     
-                    // Exercise Flow
-                    VStack(spacing: 12) {
-                        // Previous exercise
-                        if let previous = state.previousExerciseName {
-                            HStack {
-                                Image(systemName: state.previousIsComplete ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(state.previousIsComplete ? Color.green : Color.secondary.opacity(0.5))
-                                Text(previous)
-                                    .font(.subheadline)
-                                    .foregroundStyle(state.previousIsComplete ? Color.secondary : Color.secondary.opacity(0.5))
-                                    .strikethrough(state.previousIsComplete, color: .secondary)
-                                Spacer()
-                                Text("\(state.previousSetsCompleted)/\(state.previousTotalSets)")
-                                    .font(.caption.weight(.bold).monospacedDigit())
-                                    .foregroundStyle(state.previousIsComplete ? Color.green : Color.secondary.opacity(0.5))
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(state.previousIsComplete ? Color.green.opacity(0.05) : Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 10))
+                    // Secondary Info Grid
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                        if let prev = state.previousExerciseName {
+                            SecondaryExerciseRow(
+                                title: "Completed",
+                                exercise: prev,
+                                details: "\(state.previousSetsCompleted) Sets",
+                                isCompleted: true
+                            )
                         }
                         
-                        // Current exercise (highlighted)
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("CURRENT")
-                                    .font(.system(size: 9, weight: .black))
-                                    .foregroundStyle(state.isResting ? .cyan : .orange)
-                                
-                                Text(state.exerciseName)
-                                    .font(.title2.weight(.bold))
-                                    .lineLimit(1)
-                            }
-                            
-                            Spacer()
-                            
-                            // Set indicator
-                            VStack(spacing: 0) {
-                                Text("\(state.currentSet)")
-                                    .font(.title.weight(.bold))
-                                    .foregroundStyle(state.isResting ? .cyan : .primary)
-                                Text("of \(state.totalSets)")
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                            }
-                            .frame(width: 50)
-                        }
-                        .padding()
-                        .background(
-                            RoundedRectangle(cornerRadius: 14)
-                                .fill(state.isResting ? Color.cyan.opacity(0.1) : Color.white.opacity(0.08))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 14)
-                                        .stroke(state.isResting ? Color.cyan.opacity(0.3) : Color.white.opacity(0.1), lineWidth: 1)
-                                )
-                        )
-                        
-                        // Next exercise (if any)
                         if let next = state.nextExerciseName {
-                            HStack {
-                                Image(systemName: "arrow.right.circle")
-                                    .foregroundStyle(.tertiary)
-                                Text(next)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.tertiary)
-                                Spacer()
-                                Text("\(state.nextSetsCompleted)/\(state.nextTotalSets)")
-                                    .font(.caption.weight(.bold).monospacedDigit())
-                                    .foregroundStyle(.tertiary)
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 10))
+                            SecondaryExerciseRow(
+                                title: "Up Next",
+                                exercise: next,
+                                details: "\(state.nextTotalSets) Sets",
+                                isCompleted: false
+                            )
                         }
                     }
-                    .padding(.horizontal)
-                    
-                    Spacer()
                 }
-            }
-        } else {
-            // Idle view
-            Link(destination: URL(string: "lifeflow://gym")!) {
-                VStack(spacing: 20) {
+                .padding()
+            } else {
+                // Empty State with Call to Action
+                VStack(spacing: 24) {
                     Spacer()
                     
-                    Image(systemName: "figure.strengthtraining.traditional")
+                    Image(systemName: "dumbbell.fill")
                         .font(.system(size: 60))
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(LinearGradient(colors: [.orange, .pink], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .shadow(color: .orange.opacity(0.3), radius: 20)
                     
                     VStack(spacing: 8) {
-                        Text("Ready to Train?")
-                            .font(.title2.weight(.bold))
-                        Text("Tap to start tracking your workout")
+                        Text("Start Training")
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                        
+                        Text("Tap to launch your workout session")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
                     
-                    // Visual hint
-                    HStack(spacing: 8) {
-                        Image(systemName: "hand.tap.fill")
-                            .foregroundStyle(.orange)
-                        Text("Tap to begin")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
+                    Button(intent: StartWorkoutIntent()) {
+                        Text("Begin Workout")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(Color.orange.opacity(0.1), in: Capsule())
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                    .clipShape(Capsule())
                     
                     Spacer()
                 }
-                .padding()
+                .padding(30)
+                .liquidGlassStyle()
             }
         }
+        .containerBackground(for: .widget) {
+            // Liquid Mesh Background approximation
+            ZStack {
+                Color.black // Base
+                
+                // Deep fluid gradients
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.1, green: 0.0, blue: 0.3), // Deep purple
+                        Color(red: 0.0, green: 0.1, blue: 0.3)  // Deep teal
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                
+                // Accents
+                GeometryReader { geo in
+                    Circle()
+                        .fill(Color.orange.opacity(0.3))
+                        .blur(radius: 60)
+                        .offset(x: -geo.size.width/4, y: -geo.size.height/4)
+                    
+                    Circle()
+                        .fill(Color.cyan.opacity(0.2))
+                        .blur(radius: 50)
+                        .offset(x: geo.size.width/3, y: geo.size.height/3)
+                }
+            }
+        }
+    }
+    
+    // Helper Stack to handle older iOS versions if needed, though containerBackground implies iOS 17+
+    // Using simple ViewBuilder to conditionalize could be better but sticking to direct body for now
+    func Stack<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        content()
     }
 }

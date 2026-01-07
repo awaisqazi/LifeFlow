@@ -101,3 +101,43 @@ struct SkipRestIntent: AppIntent {
         return .result()
     }
 }
+
+// MARK: - Pause Workout Intent
+
+struct PauseWorkoutIntent: AppIntent {
+    static var title: LocalizedStringResource = "Pause Workout"
+    static var description = IntentDescription("Pauses the current active workout.")
+
+    func perform() async throws -> some IntentResult {
+        var state = WorkoutWidgetState.load()
+        state.isPaused = true
+        state.save()
+        return .result()
+    }
+}
+
+// MARK: - Resume Workout Intent
+
+struct ResumeWorkoutIntent: AppIntent {
+    static var title: LocalizedStringResource = "Resume Workout"
+    static var description = IntentDescription("Resumes the paused workout.")
+
+    func perform() async throws -> some IntentResult {
+        var state = WorkoutWidgetState.load()
+        state.isPaused = false
+        state.save()
+        return .result()
+    }
+}
+
+// MARK: - Skip Exercise Intent
+
+struct SkipExerciseIntent: AppIntent {
+    static var title: LocalizedStringResource = "Skip Exercise"
+    static var description = IntentDescription("Skips the current exercise set.")
+
+    func perform() async throws -> some IntentResult {
+        WidgetCenter.shared.reloadTimelines(ofKind: "GymWidgets")
+        return .result()
+    }
+}
