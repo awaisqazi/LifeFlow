@@ -19,6 +19,12 @@ struct GymModeView: View {
         session.endTime == nil
     }, sort: \WorkoutSession.startTime, order: .reverse) private var incompleteWorkouts: [WorkoutSession]
     
+    /// Filter for only today's incomplete workouts (ignore stale sessions from previous days)
+    private var todaysIncompleteWorkouts: [WorkoutSession] {
+        let calendar = Calendar.current
+        return incompleteWorkouts.filter { calendar.isDateInToday($0.startTime) }
+    }
+    
     @Environment(\.gymModeManager) private var manager
     @State private var showSetupSheet: Bool = false // Start false, will be set on appear
     @State private var showSummary: Bool = false
@@ -46,8 +52,51 @@ struct GymModeView: View {
             if manager.isRestTimerActive {
                 restTimerOverlay
             }
+            
+            // Custom Action Menu Overlay
+            if showEndConfirmation {
+                ZStack {
+                    // Blur background
+                    Color.black.opacity(0.4)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                showEndConfirmation = false
+                            }
+                        }
+                    
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .ignoresSafeArea()
+                        .opacity(0.8)
+                    
+                    WorkoutActionMenu(
+                        onPause: {
+                            showEndConfirmation = false
+                            pauseWorkout()
+                        },
+                        onEnd: {
+                            showEndConfirmation = false
+                            endAndCompleteWorkout()
+                        },
+                        onDiscard: {
+                            showEndConfirmation = false
+                            discardWorkout()
+                        },
+                        onCancel: {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                showEndConfirmation = false
+                            }
+                        }
+                    )
+                    .transition(.move(edge: .bottom).combined(with: .scale(scale: 0.9)).combined(with: .opacity))
+                }
+                .transition(.opacity)
+                .zIndex(100)
+            }
         }
         .preferredColorScheme(.dark)
+        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: showEndConfirmation)
         .onAppear {
             // Check if the shared manager already has an active workout
             if manager.isWorkoutActive {
@@ -80,20 +129,6 @@ struct GymModeView: View {
                     showSummary = false
                 }
             }
-        }
-        .confirmationDialog("What would you like to do?", isPresented: $showEndConfirmation) {
-            Button("Pause & Continue Later") {
-                pauseWorkout()
-            }
-            Button("End & Complete Workout", role: .destructive) {
-                endAndCompleteWorkout()
-            }
-            Button("Discard Workout", role: .destructive) {
-                discardWorkout()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Your workout progress will be saved.")
         }
     }
     
@@ -158,7 +193,9 @@ struct GymModeView: View {
         HStack {
             // End button
             Button {
-                showEndConfirmation = true
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                    showEndConfirmation = true
+                }
             } label: {
                 Image(systemName: "xmark")
                     .font(.headline.weight(.bold))
@@ -177,7 +214,7 @@ struct GymModeView: View {
                 
                 Text(manager.formattedElapsedTime)
                     .font(.title3.weight(.bold).monospacedDigit())
-                    .foregroundStyle(.green)
+                    .foregroundStyle(manager.isPaused ? .orange : .green)
             }
             
             Spacer()
@@ -327,20 +364,26 @@ struct GymModeView: View {
     private func discardWorkout() {
         if let session = manager.activeSession {
             modelContext.delete(session)
+            try? modelContext.save() // Persist the deletion
         }
         let _ = manager.endWorkout()
         dismiss()
     }
     
-    /// Check for a paused workout and resume it, or show setup sheet
     private func checkForPausedWorkout() {
-        // If the manager already has an active workout, skip setup
+        // If the manager already has an active workout, ensure it's running
         if manager.isWorkoutActive {
+            // We are entering the active workout view, so we must ensure the timer is running.
+            // Explicitly continue even if we think we are already running (it's idempotent)
+            // to catch cases where the timer might have stopped.
+            if let session = manager.activeSession {
+                manager.resumeWorkout(session: session)
+            }
             loadCurrentSetDefaults()
             return
         }
         
-        if let pausedSession = incompleteWorkouts.first {
+        if let pausedSession = todaysIncompleteWorkouts.first {
             // Resume the paused workout
             manager.resumeWorkout(session: pausedSession)
             loadCurrentSetDefaults()

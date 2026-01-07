@@ -79,7 +79,19 @@ struct GymWidgets: Widget {
         currentSet: 2,
         totalSets: 4,
         workoutStartDate: Date().addingTimeInterval(-300),
-        restEndTime: nil
+        restEndTime: nil,
+        pauseRequested: false,
+        isPaused: false,
+        pausedDisplayTime: nil,
+        previousExerciseName: "Warm Up",
+        previousSetsCompleted: 3,
+        previousTotalSets: 3,
+        previousIsComplete: true,
+        nextExerciseName: "Incline Press",
+        nextSetsCompleted: 0,
+        nextTotalSets: 3,
+        totalExercises: 5,
+        currentExerciseIndex: 2
     ))
 }
 
@@ -93,6 +105,44 @@ struct GymWidgets: Widget {
         currentSet: 2,
         totalSets: 4,
         workoutStartDate: Date().addingTimeInterval(-300),
-        restEndTime: Date().addingTimeInterval(45)
+        restEndTime: Date().addingTimeInterval(45),
+        pauseRequested: false,
+        isPaused: false,
+        pausedDisplayTime: nil,
+        previousExerciseName: "Warm Up",
+        previousSetsCompleted: 3,
+        previousTotalSets: 3,
+        previousIsComplete: true,
+        nextExerciseName: "Incline Press",
+        nextSetsCompleted: 0,
+        nextTotalSets: 3,
+        totalExercises: 5,
+        currentExerciseIndex: 2
+    ))
+}
+
+#Preview(as: .systemLarge) {
+    GymWidgets()
+} timeline: {
+    WorkoutEntry(date: .now, state: WorkoutWidgetState(
+        isActive: true,
+        workoutTitle: "Full Body",
+        exerciseName: "Squat",
+        currentSet: 2,
+        totalSets: 3,
+        workoutStartDate: Date().addingTimeInterval(-600),
+        restEndTime: nil,
+        pauseRequested: false,
+        isPaused: true,
+        pausedDisplayTime: "10:00",
+        previousExerciseName: "Bench Press",
+        previousSetsCompleted: 3,
+        previousTotalSets: 3,
+        previousIsComplete: true,
+        nextExerciseName: "Deadlift",
+        nextSetsCompleted: 1,
+        nextTotalSets: 3,
+        totalExercises: 6,
+        currentExerciseIndex: 3
     ))
 }

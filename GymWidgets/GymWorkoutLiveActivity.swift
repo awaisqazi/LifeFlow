@@ -103,29 +103,38 @@ struct GymWorkoutLiveActivity: Widget {
                     .padding(.bottom, 8)
                 }
             } compactLeading: {
-                HStack(spacing: 4) {
-                    Image(systemName: context.state.isResting ? "timer" : "dumbbell.fill")
-                        .foregroundStyle(context.state.isResting ? .cyan : .orange)
-                    
-                    if context.state.isResting, let restEndTime = context.state.restEndTime {
-                        Text(restEndTime, style: .timer)
-                            .font(.caption.weight(.bold).monospacedDigit())
-                            .foregroundStyle(.cyan)
-                    }
+                // Timer on the left
+                if context.state.isResting, let restEndTime = context.state.restEndTime {
+                    Text(restEndTime, style: .timer)
+                        .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
+                        .foregroundStyle(.cyan)
+                } else {
+                    Text(context.state.workoutStartDate, style: .timer)
+                        .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
+                        .foregroundStyle(.green)
                 }
             } compactTrailing: {
-                if !context.state.isResting {
-                    Text(context.state.workoutStartDate, style: .timer)
-                        .font(.caption.weight(.bold).monospacedDigit())
-                        .foregroundStyle(.green)
-                } else {
-                    Image(systemName: "circle.fill")
-                        .font(.system(size: 6))
+                // Dynamic icon on the right edge
+                if context.state.isResting {
+                    Image(systemName: "timer")
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.cyan)
+                } else {
+                    Image(systemName: context.state.exerciseIcon)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.orange)
                 }
             } minimal: {
-                Image(systemName: "dumbbell.fill")
-                    .foregroundStyle(.orange)
+                // Dynamic icon in minimal view
+                if context.state.isResting {
+                    Image(systemName: "timer")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.cyan)
+                } else {
+                    Image(systemName: context.state.exerciseIcon)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.orange)
+                }
             }
         }
     }
@@ -157,25 +166,30 @@ private struct LockScreenView: View {
             .padding(.horizontal, 16)
             .padding(.top, 12)
             
-            HStack(spacing: 20) {
-                // Left - Status Visual
+            HStack(spacing: 16) {
+                // Left - Static State Indicator (no animation needed)
                 ZStack {
+                    // Background circle with state-based color
                     Circle()
-                        .stroke(context.state.isResting ? Color.cyan.opacity(0.2) : Color.green.opacity(0.2), lineWidth: 4)
-                        .frame(width: 60, height: 60)
+                        .fill(context.state.isResting ? 
+                              Color.cyan.opacity(0.15) : 
+                              Color.green.opacity(0.15))
+                        .frame(width: 64, height: 64)
                     
+                    // Border ring
                     Circle()
-                        .trim(from: 0, to: CGFloat(context.state.currentSet) / CGFloat(context.state.totalSets))
-                        .stroke(context.state.isResting ? Color.cyan : Color.green, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                        .frame(width: 60, height: 60)
-                        .rotationEffect(.degrees(-90))
+                        .stroke(context.state.isResting ? Color.cyan : Color.green, lineWidth: 3)
+                        .frame(width: 64, height: 64)
                     
-                    VStack(spacing: -2) {
-                        Text("\(context.state.currentSet)")
-                            .font(.title2.weight(.bold))
-                        Text("SET")
-                            .font(.system(size: 8, weight: .black))
-                            .foregroundStyle(.secondary)
+                    // State icon + set info
+                    VStack(spacing: 2) {
+                        Image(systemName: context.state.isResting ? "timer" : "dumbbell.fill")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundStyle(context.state.isResting ? .cyan : .green)
+                        
+                        Text("\(context.state.currentSet)/\(context.state.totalSets)")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundStyle(.primary)
                     }
                 }
                 
@@ -206,29 +220,24 @@ private struct LockScreenView: View {
                             .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
                             .foregroundStyle(.cyan)
                             .shadow(color: Color.cyan.opacity(0.2), radius: 10)
+                            .multilineTextAlignment(.trailing)
                     } else {
                         Text(context.state.workoutStartDate, style: .timer)
                             .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
                             .foregroundStyle(.primary)
                             .shadow(color: Color.white.opacity(0.2), radius: 10)
+                            .multilineTextAlignment(.trailing)
                     }
                     
                     Text(context.state.isResting ? "REST TIMER" : "TOTAL TIME")
                         .font(.system(size: 8, weight: .black))
                         .foregroundStyle(.secondary)
                 }
+                .frame(alignment: .trailing)
             }
             .padding(16)
         }
-        .background {
-            RoundedRectangle(cornerRadius: 24)
-                .fill(.ultraThinMaterial)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 24)
-                        .strokeBorder(.white.opacity(0.1), lineWidth: 0.5)
-                }
-        }
-        .padding(.horizontal)
+        // Note: Removed custom background - iOS provides the Live Activity container automatically
     }
 }
 

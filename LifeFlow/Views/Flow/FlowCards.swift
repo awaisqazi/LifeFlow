@@ -97,14 +97,20 @@ struct GymCard: View {
         session.endTime != nil
     }, sort: \WorkoutSession.startTime, order: .reverse) private var completedWorkouts: [WorkoutSession]
     
+    /// Filter for only today's incomplete workouts (ignore stale sessions from previous days)
+    private var todaysIncompleteWorkouts: [WorkoutSession] {
+        let calendar = Calendar.current
+        return incompleteWorkouts.filter { calendar.isDateInToday($0.startTime) }
+    }
+    
     @State private var offset: CGFloat = 0
     @State private var isDragging: Bool = false
     @State private var showWorkoutDetailSheet: Bool = false
     private let undoThreshold: CGFloat = -80
     
-    /// Check if there's a paused workout to continue
+    /// Check if there's a paused workout to continue (only from today)
     private var pausedWorkout: WorkoutSession? {
-        incompleteWorkouts.first
+        todaysIncompleteWorkouts.first
     }
     
     private var hasPausedWorkout: Bool {

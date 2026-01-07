@@ -16,6 +16,9 @@ struct LifeFlowApp: App {
     
     /// Controls whether GymModeView is presented (for deep linking)
     @State private var showGymMode: Bool = false
+    
+    /// Scene phase for handling app lifecycle events
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -27,6 +30,12 @@ struct LifeFlowApp: App {
                     GymModeView()
                 }
                 .environment(\.gymModeManager, AppDependencyManager.shared.gymModeManager)
+                .onChange(of: scenePhase) { _, newPhase in
+                    if newPhase == .active {
+                        // Check for pending actions from Live Activity intents
+                        AppDependencyManager.shared.gymModeManager.checkForWidgetActions()
+                    }
+                }
         }
         .modelContainer(sharedModelContainer)
     }

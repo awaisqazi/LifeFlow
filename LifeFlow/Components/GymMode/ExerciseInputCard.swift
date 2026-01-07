@@ -162,7 +162,7 @@ struct ExerciseInputCard: View {
     // MARK: - Active Phase (Reps)
     
     private var activePhaseView: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 20) {
             // Show weight being used (if applicable)
             if exercise.type == .weight && weight > 0 {
                 HStack(spacing: 8) {
@@ -176,6 +176,17 @@ struct ExerciseInputCard: View {
                 .padding(.vertical, 8)
                 .background(Color.orange.opacity(0.15), in: Capsule())
             }
+            
+            // Instructional message
+            VStack(spacing: 4) {
+                Text("Do your set now!")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(.primary)
+                Text("Log your reps when finished")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 8)
             
             // Reps input
             VStack(spacing: 12) {

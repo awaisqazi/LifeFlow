@@ -19,6 +19,22 @@ struct WorkoutWidgetState: Codable {
     var totalSets: Int
     var workoutStartDate: Date   // For Text(date, style: .timer) count-up
     var restEndTime: Date?       // For Text(date, style: .timer) countdown
+    var pauseRequested: Bool     // Flag set by Live Activity intent to request pause
+    var isPaused: Bool           // Whether the workout is currently paused
+    var pausedDisplayTime: String? // Static time string to show when paused (e.g. "12:45")
+    
+    // Exercise flow for large widget
+    var previousExerciseName: String?
+    var previousSetsCompleted: Int
+    var previousTotalSets: Int
+    var previousIsComplete: Bool
+    
+    var nextExerciseName: String?
+    var nextSetsCompleted: Int
+    var nextTotalSets: Int
+    
+    var totalExercises: Int
+    var currentExerciseIndex: Int
     
     /// Default idle state
     static var idle: WorkoutWidgetState {
@@ -29,7 +45,19 @@ struct WorkoutWidgetState: Codable {
             currentSet: 0,
             totalSets: 0,
             workoutStartDate: Date(),
-            restEndTime: nil
+            restEndTime: nil,
+            pauseRequested: false,
+            isPaused: false,
+            pausedDisplayTime: nil,
+            previousExerciseName: nil,
+            previousSetsCompleted: 0,
+            previousTotalSets: 0,
+            previousIsComplete: false,
+            nextExerciseName: nil,
+            nextSetsCompleted: 0,
+            nextTotalSets: 0,
+            totalExercises: 0,
+            currentExerciseIndex: 0
         )
     }
     

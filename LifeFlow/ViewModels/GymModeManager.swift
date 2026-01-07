@@ -31,6 +31,9 @@ final class GymModeManager {
     /// Whether a workout is currently in progress
     var isWorkoutActive: Bool { activeSession != nil }
     
+    /// Whether the active workout is currently paused
+    private(set) var isPaused: Bool = false
+    
     /// Elapsed time since workout started
     private(set) var elapsedTime: TimeInterval = 0
     
@@ -47,7 +50,7 @@ final class GymModeManager {
     
     // MARK: - Private Properties
     
-    private var elapsedTimerCancellable: AnyCancellable?
+    private var elapsedTimer: Timer?
     private var restTimerCancellable: AnyCancellable?
     private var workoutStartTime: Date?
     
@@ -58,10 +61,64 @@ final class GymModeManager {
     
     init() {}
     
+    // MARK: - Live Activity Intent Handling
+    
+    /// Check for and handle pending actions from Live Activity intents.
+    /// Call this when the app becomes active to sync widget actions with app state.
+    func checkForWidgetActions() {
+        let widgetState = WorkoutWidgetState.load()
+        
+        // Handle pause request
+        if widgetState.pauseRequested && isWorkoutActive {
+            // Clear the flag first
+            var updatedState = widgetState
+            updatedState.pauseRequested = false
+            updatedState.save()
+            
+            // Execute the pause
+            pauseWorkout()
+            return
+        }
+        
+        // Handle skip rest (widget cleared restEndTime while we're still resting)
+        if isRestTimerActive && widgetState.restEndTime == nil {
+            // Widget intent skipped the rest, sync app state
+            stopRestTimer()
+        }
+    }
+    
     // MARK: - Widget Sync
     
     /// Sync current workout state to widget via App Group UserDefaults
     private func syncWidgetState() {
+        let exercises = activeSession?.sortedExercises ?? []
+        
+        // Previous exercise info
+        var previousExercise: String? = nil
+        var previousSetsCompleted = 0
+        var previousTotalSets = 0
+        var previousIsComplete = false
+        
+        if currentExerciseIndex > 0 {
+            let prevEx = exercises[currentExerciseIndex - 1]
+            previousExercise = prevEx.name
+            previousTotalSets = prevEx.sets.count
+            previousSetsCompleted = prevEx.sets.filter { $0.isCompleted }.count
+            previousIsComplete = previousSetsCompleted == previousTotalSets && previousTotalSets > 0
+        }
+        
+        // Next exercise info
+        var nextExercise: String? = nil
+        var nextSetsCompleted = 0
+        var nextTotalSets = 0
+        
+        if currentExerciseIndex + 1 < exercises.count {
+            let nextEx = exercises[currentExerciseIndex + 1]
+            nextExercise = nextEx.name
+            nextTotalSets = nextEx.sets.count
+            nextSetsCompleted = nextEx.sets.filter { $0.isCompleted }.count
+        }
+        
         let state = WorkoutWidgetState(
             isActive: isWorkoutActive,
             workoutTitle: activeSession?.title ?? "Workout",
@@ -69,7 +126,19 @@ final class GymModeManager {
             currentSet: currentSetIndex + 1,
             totalSets: currentExercise?.sets.count ?? 0,
             workoutStartDate: workoutStartTime ?? Date(),
-            restEndTime: isRestTimerActive ? Date().addingTimeInterval(restTimeRemaining) : nil
+            restEndTime: isRestTimerActive ? Date().addingTimeInterval(restTimeRemaining) : nil,
+            pauseRequested: false,
+            isPaused: isPaused,
+            pausedDisplayTime: isPaused ? formattedElapsedTime : nil,
+            previousExerciseName: previousExercise,
+            previousSetsCompleted: previousSetsCompleted,
+            previousTotalSets: previousTotalSets,
+            previousIsComplete: previousIsComplete,
+            nextExerciseName: nextExercise,
+            nextSetsCompleted: nextSetsCompleted,
+            nextTotalSets: nextTotalSets,
+            totalExercises: exercises.count,
+            currentExerciseIndex: currentExerciseIndex + 1
         )
         state.save()
     }
@@ -86,6 +155,7 @@ final class GymModeManager {
         currentSetIndex = 0
         workoutStartTime = Date()
         elapsedTime = 0
+        isPaused = false
         
         // Enable screen wake lock
         UIApplication.shared.isIdleTimerDisabled = true
@@ -110,7 +180,14 @@ final class GymModeManager {
     /// Resume a paused workout session
     /// - Parameter session: The workout session to resume
     func resumeWorkout(session: WorkoutSession) {
+        // If it's already active, just continue
+        if activeSession?.id == session.id {
+            continueWorkout()
+            return
+        }
+        
         activeSession = session
+        isPaused = false
         
         // Use the already accumulated duration from the session
         elapsedTime = session.duration
@@ -133,6 +210,40 @@ final class GymModeManager {
         // Resume elapsed time timer
         // Adjust start time to account for already elapsed time
         workoutStartTime = Date().addingTimeInterval(-elapsedTime)
+        startElapsedTimer()
+        
+        // Resume Live Activity
+        if let currentEx = currentExercise {
+            workoutLiveActivityManager.startWorkout(
+                workoutTitle: session.title,
+                totalExercises: session.exercises.count,
+                exerciseName: currentEx.name,
+                workoutStartDate: workoutStartTime ?? Date()
+            )
+        }
+        
+        // Sync to widget
+        syncWidgetState()
+    }
+    
+    /// Continue the current active workout from a paused state
+    func continueWorkout() {
+        guard let session = activeSession else { return }
+        isPaused = false
+        
+        // SAFETY: If our local elapsed time seems to have been reset (0) but the session has data,
+        // trust the session's duration. The session.duration is saved on pause.
+        if elapsedTime < 1.0 && session.duration > 0 {
+            elapsedTime = session.duration
+        }
+        
+        // Adjust start time to account for already elapsed time
+        workoutStartTime = Date().addingTimeInterval(-elapsedTime)
+        
+        // Enable screen wake lock
+        UIApplication.shared.isIdleTimerDisabled = true
+        
+        // Restart timer
         startElapsedTimer()
         
         // Resume Live Activity
@@ -186,6 +297,8 @@ final class GymModeManager {
     func pauseWorkout() {
         guard let session = activeSession else { return }
         
+        isPaused = true
+        
         // Save the current elapsed time to the session (but don't set endTime)
         session.duration = elapsedTime
         
@@ -201,14 +314,8 @@ final class GymModeManager {
         // Disable screen wake lock
         UIApplication.shared.isIdleTimerDisabled = false
         
-        // Reset manager state (but session remains in SwiftData without endTime)
-        activeSession = nil
-        currentExerciseIndex = 0
-        currentSetIndex = 0
-        elapsedTime = 0
-        
-        // Clear widget state (paused workout shows as idle)
-        WorkoutWidgetState.clear()
+        // Sync to widget - important to do this while activeSession is still here
+        syncWidgetState()
     }
     
     // MARK: - Exercise Navigation
@@ -250,6 +357,9 @@ final class GymModeManager {
                 elapsedTime: Int(elapsedTime),
                 workoutStartDate: self.workoutStartTime ?? Date()
             )
+            
+            // Sync widget state with new exercise selection
+            syncWidgetState()
             
             // Haptic feedback
             let impact = UIImpactFeedbackGenerator(style: .light)
@@ -474,6 +584,14 @@ final class GymModeManager {
             .sink { [weak self] _ in
                 guard let self = self else { return }
                 
+                // Check if widget intent skipped the rest
+                let widgetState = WorkoutWidgetState.load()
+                if widgetState.restEndTime == nil {
+                    // Widget skipped rest - sync to app
+                    self.stopRestTimer()
+                    return
+                }
+                
                 if self.restTimeRemaining > 0 {
                     self.restTimeRemaining -= 1
                     
@@ -548,21 +666,24 @@ final class GymModeManager {
     // MARK: - Elapsed Time Timer
     
     private func startElapsedTimer() {
-        elapsedTimerCancellable?.cancel()
-        elapsedTimerCancellable = Timer.publish(every: 1, on: .main, in: .common)
-            .autoconnect()
-            .sink { [weak self] _ in
-                guard let self = self, let startTime = self.workoutStartTime else { return }
-                self.elapsedTime = Date().timeIntervalSince(startTime)
-                
-                // No longer updating Live Activity every second.
-                // The native timer handles the count-up on-device.
-            }
+        print("⏱️ GymModeManager: Starting elapsed timer...")
+        stopElapsedTimer()
+        let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self = self, let startTime = self.workoutStartTime else { return }
+            self.elapsedTime = Date().timeIntervalSince(startTime)
+            print("⏱️ Tick: \(self.elapsedTime)")
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        elapsedTimer = timer
+        print("⏱️ GymModeManager: Timer scheduled.")
     }
     
     private func stopElapsedTimer() {
-        elapsedTimerCancellable?.cancel()
-        elapsedTimerCancellable = nil
+        if elapsedTimer != nil {
+            print("⏱️ GymModeManager: Stopping elapsed timer.")
+        }
+        elapsedTimer?.invalidate()
+        elapsedTimer = nil
     }
     
     // MARK: - Progressive Overload

@@ -17,6 +17,9 @@ public struct GymWorkoutAttributes: ActivityAttributes {
         /// Current exercise name
         public var exerciseName: String
         
+        /// SF Symbol name for the current exercise type
+        public var exerciseIcon: String
+        
         /// Current set number (e.g., 2)
         public var currentSet: Int
         
@@ -60,6 +63,7 @@ public struct GymWorkoutAttributes: ActivityAttributes {
         
         public init(
             exerciseName: String,
+            exerciseIcon: String = "dumbbell.fill",
             currentSet: Int,
             totalSets: Int,
             elapsedTime: Int,
@@ -69,6 +73,7 @@ public struct GymWorkoutAttributes: ActivityAttributes {
             restEndTime: Date? = nil
         ) {
             self.exerciseName = exerciseName
+            self.exerciseIcon = exerciseIcon
             self.currentSet = currentSet
             self.totalSets = totalSets
             self.elapsedTime = elapsedTime
