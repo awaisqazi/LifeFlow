@@ -10,6 +10,7 @@ import SwiftUI
 import SwiftData
 import Observation
 import Combine
+import WidgetKit
 
 /// Manages the active workout state during Gym Mode.
 /// Handles exercise navigation, rest timer, screen wake lock, and superset flow.
@@ -57,6 +58,22 @@ final class GymModeManager {
     
     init() {}
     
+    // MARK: - Widget Sync
+    
+    /// Sync current workout state to widget via App Group UserDefaults
+    private func syncWidgetState() {
+        let state = WorkoutWidgetState(
+            isActive: isWorkoutActive,
+            workoutTitle: activeSession?.title ?? "Workout",
+            exerciseName: currentExercise?.name ?? "Ready",
+            currentSet: currentSetIndex + 1,
+            totalSets: currentExercise?.sets.count ?? 0,
+            workoutStartDate: workoutStartTime ?? Date(),
+            restEndTime: isRestTimerActive ? Date().addingTimeInterval(restTimeRemaining) : nil
+        )
+        state.save()
+    }
+    
     // MARK: - Workout Lifecycle
     
     /// Start a new workout session
@@ -85,6 +102,9 @@ final class GymModeManager {
             exerciseName: firstExercise,
             workoutStartDate: workoutStartTime ?? Date()
         )
+        
+        // Sync to widget
+        syncWidgetState()
     }
     
     /// Resume a paused workout session
@@ -124,6 +144,9 @@ final class GymModeManager {
                 workoutStartDate: workoutStartTime ?? Date()
             )
         }
+        
+        // Sync to widget
+        syncWidgetState()
     }
     
     /// End the current workout and return the completed session
@@ -153,6 +176,9 @@ final class GymModeManager {
         currentSetIndex = 0
         elapsedTime = 0
         
+        // Clear widget state
+        WorkoutWidgetState.clear()
+        
         return completedSession
     }
     
@@ -180,6 +206,9 @@ final class GymModeManager {
         currentExerciseIndex = 0
         currentSetIndex = 0
         elapsedTime = 0
+        
+        // Clear widget state (paused workout shows as idle)
+        WorkoutWidgetState.clear()
     }
     
     // MARK: - Exercise Navigation
@@ -436,6 +465,9 @@ final class GymModeManager {
             workoutStartDate: self.workoutStartTime ?? Date()
         )
         
+        // Sync rest state to widget
+        syncWidgetState()
+        
         restTimerCancellable?.cancel()
         restTimerCancellable = Timer.publish(every: 1, on: .main, in: .common)
             .autoconnect()
@@ -475,6 +507,9 @@ final class GymModeManager {
                 restEndTime: Date().addingTimeInterval(restTimeRemaining),
                 workoutStartDate: self.workoutStartTime ?? Date()
             )
+            
+            // Sync updated rest time to widget
+            syncWidgetState()
         }
         
         let impact = UIImpactFeedbackGenerator(style: .light)
@@ -498,6 +533,9 @@ final class GymModeManager {
                 workoutStartDate: self.workoutStartTime ?? Date()
             )
         }
+        
+        // Sync to widget (rest ended)
+        syncWidgetState()
     }
     
     /// Skip the rest timer

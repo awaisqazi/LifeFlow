@@ -103,6 +103,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Models/GymWorkoutAttributes.swift,
+				Models/WorkoutWidgetState.swift,
 			);
 			target = D9501C712F00B52700ED9FB6 /* GymWidgetsExtension */;
 		};
@@ -639,7 +640,7 @@
 				DEVELOPMENT_TEAM = 3KZ25N2F2R;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = GymWidgets/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = GymWidgets;
+				INFOPLIST_KEY_CFBundleDisplayName = "Workout Live Activity";
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
@@ -672,7 +673,7 @@
 				DEVELOPMENT_TEAM = 3KZ25N2F2R;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = GymWidgets/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = GymWidgets;
+				INFOPLIST_KEY_CFBundleDisplayName = "Workout Live Activity";
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;

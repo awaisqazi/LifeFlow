@@ -2,87 +2,97 @@
 //  GymWidgets.swift
 //  GymWidgets
 //
-//  Created by Fez Qazi on 12/27/25.
+//  Workout widgets for home screen - shows active workout status.
 //
 
 import WidgetKit
 import SwiftUI
 
-struct Provider: AppIntentTimelineProvider {
-    func placeholder(in context: Context) -> SimpleEntry {
-        SimpleEntry(date: Date(), configuration: ConfigurationAppIntent())
-    }
+// MARK: - Timeline Entry
 
-    func snapshot(for configuration: ConfigurationAppIntent, in context: Context) async -> SimpleEntry {
-        SimpleEntry(date: Date(), configuration: configuration)
+struct WorkoutEntry: TimelineEntry {
+    let date: Date
+    let state: WorkoutWidgetState
+}
+
+// MARK: - Timeline Provider
+
+struct WorkoutTimelineProvider: TimelineProvider {
+    func placeholder(in context: Context) -> WorkoutEntry {
+        WorkoutEntry(date: Date(), state: .idle)
     }
     
-    func timeline(for configuration: ConfigurationAppIntent, in context: Context) async -> Timeline<SimpleEntry> {
-        var entries: [SimpleEntry] = []
-
-        // Generate a timeline consisting of five entries an hour apart, starting from the current date.
-        let currentDate = Date()
-        for hourOffset in 0 ..< 5 {
-            let entryDate = Calendar.current.date(byAdding: .hour, value: hourOffset, to: currentDate)!
-            let entry = SimpleEntry(date: entryDate, configuration: configuration)
-            entries.append(entry)
-        }
-
-        return Timeline(entries: entries, policy: .atEnd)
+    func getSnapshot(in context: Context, completion: @escaping (WorkoutEntry) -> Void) {
+        let state = WorkoutWidgetState.load()
+        let entry = WorkoutEntry(date: Date(), state: state)
+        completion(entry)
     }
-
-//    func relevances() async -> WidgetRelevances<ConfigurationAppIntent> {
-//        // Generate a list containing the contexts this widget is relevant in.
-//    }
-}
-
-struct SimpleEntry: TimelineEntry {
-    let date: Date
-    let configuration: ConfigurationAppIntent
-}
-
-struct GymWidgetsEntryView : View {
-    var entry: Provider.Entry
-
-    var body: some View {
-        VStack {
-            Text("Time:")
-            Text(entry.date, style: .time)
-
-            Text("Favorite Emoji:")
-            Text(entry.configuration.favoriteEmoji)
+    
+    func getTimeline(in context: Context, completion: @escaping (Timeline<WorkoutEntry>) -> Void) {
+        let state = WorkoutWidgetState.load()
+        let entry = WorkoutEntry(date: Date(), state: state)
+        
+        // If workout is active, reload more frequently
+        // Otherwise, reload in 15 minutes or when app triggers it
+        let reloadDate: Date
+        if state.isActive {
+            // Active workout: check every 30 seconds for state changes
+            reloadDate = Date().addingTimeInterval(30)
+        } else {
+            // Idle: reload less frequently
+            reloadDate = Date().addingTimeInterval(900) // 15 mins
         }
+        
+        let timeline = Timeline(entries: [entry], policy: .after(reloadDate))
+        completion(timeline)
     }
 }
+
+// MARK: - Widget Definition
 
 struct GymWidgets: Widget {
     let kind: String = "GymWidgets"
-
-    var body: some WidgetConfiguration {
-        AppIntentConfiguration(kind: kind, intent: ConfigurationAppIntent.self, provider: Provider()) { entry in
-            GymWidgetsEntryView(entry: entry)
-                .containerBackground(.fill.tertiary, for: .widget)
-        }
-    }
-}
-
-extension ConfigurationAppIntent {
-    fileprivate static var smiley: ConfigurationAppIntent {
-        let intent = ConfigurationAppIntent()
-        intent.favoriteEmoji = "😀"
-        return intent
-    }
     
-    fileprivate static var starEyes: ConfigurationAppIntent {
-        let intent = ConfigurationAppIntent()
-        intent.favoriteEmoji = "🤩"
-        return intent
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: WorkoutTimelineProvider()) { entry in
+            GymWidgetEntryView(entry: entry)
+                .containerBackground(for: .widget) {
+                    Color.black
+                }
+        }
+        .configurationDisplayName("Workout")
+        .description("Track your active workout or start a new one.")
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
+
+// MARK: - Preview
 
 #Preview(as: .systemSmall) {
     GymWidgets()
 } timeline: {
-    SimpleEntry(date: .now, configuration: .smiley)
-    SimpleEntry(date: .now, configuration: .starEyes)
+    WorkoutEntry(date: .now, state: .idle)
+    WorkoutEntry(date: .now, state: WorkoutWidgetState(
+        isActive: true,
+        workoutTitle: "Push Day",
+        exerciseName: "Bench Press",
+        currentSet: 2,
+        totalSets: 4,
+        workoutStartDate: Date().addingTimeInterval(-300),
+        restEndTime: nil
+    ))
+}
+
+#Preview(as: .systemMedium) {
+    GymWidgets()
+} timeline: {
+    WorkoutEntry(date: .now, state: WorkoutWidgetState(
+        isActive: true,
+        workoutTitle: "Push Day",
+        exerciseName: "Bench Press",
+        currentSet: 2,
+        totalSets: 4,
+        workoutStartDate: Date().addingTimeInterval(-300),
+        restEndTime: Date().addingTimeInterval(45)
+    ))
 }

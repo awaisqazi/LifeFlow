@@ -1,0 +1,75 @@
+//
+//  WorkoutWidgetState.swift
+//  LifeFlow
+//
+//  Shared state model for workout widget.
+//  Must have target membership for BOTH LifeFlow AND GymWidgetsExtension.
+//
+
+import Foundation
+import WidgetKit
+
+/// Shared workout state between main app and widget extension.
+/// Uses App Group UserDefaults for communication.
+struct WorkoutWidgetState: Codable {
+    var isActive: Bool
+    var workoutTitle: String
+    var exerciseName: String
+    var currentSet: Int
+    var totalSets: Int
+    var workoutStartDate: Date   // For Text(date, style: .timer) count-up
+    var restEndTime: Date?       // For Text(date, style: .timer) countdown
+    
+    /// Default idle state
+    static var idle: WorkoutWidgetState {
+        WorkoutWidgetState(
+            isActive: false,
+            workoutTitle: "",
+            exerciseName: "",
+            currentSet: 0,
+            totalSets: 0,
+            workoutStartDate: Date(),
+            restEndTime: nil
+        )
+    }
+    
+    /// Whether currently in rest period
+    var isResting: Bool {
+        if let restEnd = restEndTime {
+            return restEnd > Date()
+        }
+        return false
+    }
+}
+
+// MARK: - App Group Storage
+
+extension WorkoutWidgetState {
+    private static let appGroupID = "group.com.Fez.LifeFlow"
+    private static let storageKey = "workoutWidgetState"
+    
+    /// Save state to App Group UserDefaults and trigger widget reload
+    func save() {
+        guard let defaults = UserDefaults(suiteName: Self.appGroupID) else { return }
+        
+        if let encoded = try? JSONEncoder().encode(self) {
+            defaults.set(encoded, forKey: Self.storageKey)
+            WidgetCenter.shared.reloadTimelines(ofKind: "GymWidgets")
+        }
+    }
+    
+    /// Load state from App Group UserDefaults
+    static func load() -> WorkoutWidgetState {
+        guard let defaults = UserDefaults(suiteName: appGroupID),
+              let data = defaults.data(forKey: storageKey),
+              let state = try? JSONDecoder().decode(WorkoutWidgetState.self, from: data) else {
+            return .idle
+        }
+        return state
+    }
+    
+    /// Clear state (called when workout ends)
+    static func clear() {
+        WorkoutWidgetState.idle.save()
+    }
+}
