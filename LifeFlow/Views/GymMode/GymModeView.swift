@@ -19,13 +19,12 @@ struct GymModeView: View {
         session.endTime == nil
     }, sort: \WorkoutSession.startTime, order: .reverse) private var incompleteWorkouts: [WorkoutSession]
     
-    @State private var manager = GymModeManager()
+    @Environment(\.gymModeManager) private var manager
     @State private var showSetupSheet: Bool = false // Start false, will be set on appear
     @State private var showSummary: Bool = false
     @State private var showEndConfirmation: Bool = false
     @State private var isEditMode: Bool = false
     @State private var completedSession: WorkoutSession? = nil
-    @State private var hasCheckedForPausedWorkout: Bool = false
     
     // Current set input values
     @State private var currentWeight: Double = 0
@@ -50,7 +49,14 @@ struct GymModeView: View {
         }
         .preferredColorScheme(.dark)
         .onAppear {
-            checkForPausedWorkout()
+            // Check if the shared manager already has an active workout
+            if manager.isWorkoutActive {
+                // Workout is running, show current state (no sheet needed)
+                loadCurrentSetDefaults()
+            } else {
+                // No active workout, check for paused sessions or show setup
+                checkForPausedWorkout()
+            }
         }
         .sheet(isPresented: $showSetupSheet, onDismiss: {
             // If setup was dismissed without starting, dismiss the full-screen cover
@@ -328,8 +334,11 @@ struct GymModeView: View {
     
     /// Check for a paused workout and resume it, or show setup sheet
     private func checkForPausedWorkout() {
-        guard !hasCheckedForPausedWorkout else { return }
-        hasCheckedForPausedWorkout = true
+        // If the manager already has an active workout, skip setup
+        if manager.isWorkoutActive {
+            loadCurrentSetDefaults()
+            return
+        }
         
         if let pausedSession = incompleteWorkouts.first {
             // Resume the paused workout

@@ -26,6 +26,7 @@ struct LifeFlowApp: App {
                 .fullScreenCover(isPresented: $showGymMode) {
                     GymModeView()
                 }
+                .environment(\.gymModeManager, AppDependencyManager.shared.gymModeManager)
         }
         .modelContainer(sharedModelContainer)
     }

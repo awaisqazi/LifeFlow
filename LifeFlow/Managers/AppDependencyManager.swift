@@ -15,6 +15,9 @@ final class AppDependencyManager {
     
     let sharedModelContainer: ModelContainer
     
+    /// Shared GymModeManager instance that persists across view lifecycle
+    let gymModeManager: GymModeManager = GymModeManager()
+    
     private init() {
         let appGroupIdentifier = "group.com.Fez.LifeFlow"
         let schema = Schema([

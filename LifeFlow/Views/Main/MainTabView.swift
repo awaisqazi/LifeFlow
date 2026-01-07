@@ -46,6 +46,8 @@ struct MainTabView: View {
         .environment(\.exitGymMode) {
             isGymModeActive = false
         }
+        // Inject shared GymModeManager for workout state persistence
+        .environment(\.gymModeManager, AppDependencyManager.shared.gymModeManager)
         // Full-screen Gym Mode modal
         .fullScreenCover(isPresented: $isGymModeActive) {
             GymModeView()
