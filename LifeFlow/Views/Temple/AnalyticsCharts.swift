@@ -37,127 +37,509 @@ enum TimeScope: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - Hydration Chart
+// MARK: - Hydration Chart (Streak Calendar)
 
+/// Water-themed streak calendar showing days the hydration goal was met.
+/// Features interactive tap to reveal daily cup consumption.
 struct HydrationChart: View {
     let logs: [DayLog]
     let scope: TimeScope
     
-    var filteredLogs: [DayLog] {
-        let calendar = Calendar.current
-        let now = Date()
-        let startDate: Date
-        
-        switch scope {
-        case .week:
-            startDate = calendar.date(byAdding: .day, value: -7, to: now)!
-        case .month:
-            startDate = calendar.date(byAdding: .month, value: -1, to: now)!
-        case .year:
-            startDate = calendar.date(byAdding: .year, value: -1, to: now)!
-        }
-        
-        return logs.filter { $0.date >= startDate }.sorted { $0.date < $1.date }
+    @State private var selectedDate: Date?
+    @State private var showingDetail = false
+    
+    /// Daily goal from user settings
+    private var dailyGoal: Double {
+        HydrationSettings.load().dailyOuncesGoal
     }
     
-    /// For month/year views, aggregate by week/month
-    var aggregatedData: [(date: Date, intake: Double)] {
+    /// Generate array of dates for the current scope
+    private var datesInScope: [Date] {
         let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
         
         switch scope {
         case .week:
-            // Show individual days
-            return filteredLogs.map { ($0.date, $0.waterIntake) }
+            // Saturday through Friday week
+            // Find the most recent Saturday (or today if it is Saturday)
+            var weekday = calendar.component(.weekday, from: today)
+            // weekday: 1 = Sunday, 2 = Monday, ..., 7 = Saturday
+            // We want Saturday (7) as start of week
+            let daysSinceSaturday = (weekday == 7) ? 0 : (weekday + 6) % 7 + 1
+            let saturday = calendar.date(byAdding: .day, value: -daysSinceSaturday + 1, to: today)!
+            
+            return (0..<7).compactMap { offset in
+                calendar.date(byAdding: .day, value: offset, to: saturday)
+            }
             
         case .month:
-            // Aggregate by week
-            var weeklyData: [Date: Double] = [:]
-            for log in filteredLogs {
-                let weekStart = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: log.date))!
-                weeklyData[weekStart, default: 0] += log.waterIntake
+            // Current calendar month
+            let components = calendar.dateComponents([.year, .month], from: today)
+            guard let firstOfMonth = calendar.date(from: components),
+                  let range = calendar.range(of: .day, in: .month, for: firstOfMonth) else {
+                return []
             }
-            return weeklyData.sorted { $0.key < $1.key }.map { ($0.key, $0.value) }
+            
+            return (0..<range.count).compactMap { offset in
+                calendar.date(byAdding: .day, value: offset, to: firstOfMonth)
+            }
             
         case .year:
-            // Aggregate by month
-            var monthlyData: [Date: Double] = [:]
-            for log in filteredLogs {
-                let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: log.date))!
-                monthlyData[monthStart, default: 0] += log.waterIntake
+            // Last 365 days
+            return (0..<365).compactMap { offset in
+                calendar.date(byAdding: .day, value: -(364 - offset), to: today)
             }
-            return monthlyData.sorted { $0.key < $1.key }.map { ($0.key, $0.value) }
+        }
+    }
+    
+    /// Days to display based on scope
+    private var daysToShow: Int {
+        datesInScope.count
+    }
+    
+    /// Get log for a specific date
+    private func logFor(_ date: Date) -> DayLog? {
+        logs.first { Calendar.current.isDate($0.date, inSameDayAs: date) }
+    }
+    
+    /// Check if goal was met for a date
+    private func goalMet(for date: Date) -> Bool {
+        guard let log = logFor(date) else { return false }
+        return log.waterIntake >= dailyGoal
+    }
+    
+    /// Count of days goal was met
+    private var goalMetCount: Int {
+        datesInScope.filter { goalMet(for: $0) }.count
+    }
+    
+    /// Current month name for month view header
+    private var currentMonthName: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM"
+        return formatter.string(from: Date())
+    }
+    
+    /// Grid columns based on scope
+    private var columns: [GridItem] {
+        switch scope {
+        case .week:
+            return Array(repeating: GridItem(.flexible(), spacing: 8), count: 7)
+        case .month:
+            return Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
+        case .year:
+            // 12 months across
+            return Array(repeating: GridItem(.flexible(), spacing: 2), count: 12)
         }
     }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            // Header with summary
             HStack {
                 Image(systemName: "drop.fill")
                     .foregroundStyle(.cyan)
                 Text("Hydration")
                     .font(.headline)
                     .foregroundStyle(.primary)
+                
+                Spacer()
+                
+                // Goal met summary
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.cyan)
+                    Text("\(goalMetCount)/\(daysToShow) days")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.cyan)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Color.cyan.opacity(0.15), in: Capsule())
             }
             
-            if filteredLogs.isEmpty {
-                EmptyChartState(message: "No hydration data for this period")
-            } else {
-                Chart {
-                    ForEach(aggregatedData, id: \.date) { data in
-                        BarMark(
-                            x: .value("Date", data.date, unit: scope == .week ? .day : (scope == .month ? .weekOfYear : .month)),
-                            y: .value("Intake", data.intake)
-                        )
-                        .foregroundStyle(.cyan.gradient)
-                        .cornerRadius(4)
-                    }
+            // Subheader with month name for month view
+            if scope == .month {
+                HStack {
+                    Text(currentMonthName)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
                     
-                    // Goal line (64oz daily, adjusted for aggregation)
-                    let goalValue: Double = scope == .week ? 64 : (scope == .month ? 64 * 7 : 64 * 30)
-                    RuleMark(y: .value("Goal", goalValue))
-                        .foregroundStyle(.cyan.opacity(0.5))
-                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [5, 5]))
+                    Spacer()
+                    
+                    Text("Days you hit your \(Int(dailyGoal))oz goal")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .frame(height: 180)
-                .chartXAxis {
-                    AxisMarks(values: .automatic) { value in
-                        AxisGridLine()
-                        AxisValueLabel {
-                            if let date = value.as(Date.self) {
-                                Text(formatAxisLabel(for: date))
-                                    .font(.caption2)
+            } else {
+                Text("Days you hit your \(Int(dailyGoal))oz goal")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            
+            if scope == .year {
+                // Year view: monthly aggregates
+                YearlyHydrationGrid(logs: logs, dailyGoal: dailyGoal)
+            } else {
+                // Week/Month view: day grid
+                if scope == .week {
+                    // Single row for week
+                    HStack(spacing: 8) {
+                        ForEach(datesInScope, id: \.self) { date in
+                            HydrationDayTile(
+                                date: date,
+                                log: logFor(date),
+                                dailyGoal: dailyGoal,
+                                isCompact: false
+                            )
+                            .onTapGesture {
+                                selectedDate = date
+                                showingDetail = true
                             }
                         }
                     }
-                }
-                .chartYAxis {
-                    AxisMarks { value in
-                        AxisGridLine()
-                        AxisValueLabel {
-                            if let intValue = value.as(Double.self) {
-                                Text("\(Int(intValue))oz")
-                                    .font(.caption2)
+                } else {
+                    // Grid for month
+                    LazyVGrid(columns: columns, spacing: 4) {
+                        ForEach(datesInScope, id: \.self) { date in
+                            HydrationDayTile(
+                                date: date,
+                                log: logFor(date),
+                                dailyGoal: dailyGoal,
+                                isCompact: true
+                            )
+                            .onTapGesture {
+                                selectedDate = date
+                                showingDetail = true
                             }
                         }
                     }
                 }
             }
+            
+            // Legend
+            HStack(spacing: 16) {
+                Spacer()
+                HydrationLegendItem(color: .cyan, label: "Goal Met")
+                HydrationLegendItem(color: .secondary.opacity(0.3), label: "Missed")
+            }
+            .font(.caption2)
         }
         .padding()
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .sheet(isPresented: $showingDetail) {
+            if let date = selectedDate {
+                HydrationDayDetailSheet(
+                    date: date,
+                    log: logFor(date),
+                    dailyGoal: dailyGoal
+                )
+                .presentationDetents([.height(300)])
+            }
+        }
+    }
+}
+
+// MARK: - Hydration Day Tile
+
+/// Individual day tile for the hydration streak calendar
+struct HydrationDayTile: View {
+    let date: Date
+    let log: DayLog?
+    let dailyGoal: Double
+    let isCompact: Bool
+    
+    private var isToday: Bool {
+        Calendar.current.isDateInToday(date)
     }
     
-    private func formatAxisLabel(for date: Date) -> String {
+    private var goalMet: Bool {
+        guard let log = log else { return false }
+        return log.waterIntake >= dailyGoal
+    }
+    
+    private var waterIntake: Double {
+        log?.waterIntake ?? 0
+    }
+    
+    private var fillLevel: Double {
+        guard dailyGoal > 0 else { return 0 }
+        return min(waterIntake / dailyGoal, 1.0)
+    }
+    
+    private var dayLabel: String {
         let formatter = DateFormatter()
-        switch scope {
-        case .week:
-            formatter.dateFormat = "E"  // Mon, Tue, etc.
-        case .month:
-            formatter.dateFormat = "M/d" // 1/15
-        case .year:
-            formatter.dateFormat = "MMM" // Jan, Feb, etc.
-        }
+        formatter.dateFormat = isCompact ? "d" : "E"
         return formatter.string(from: date)
+    }
+    
+    var body: some View {
+        VStack(spacing: isCompact ? 2 : 6) {
+            // Day label
+            Text(dayLabel)
+                .font(isCompact ? .system(size: 8) : .caption2.weight(.medium))
+                .foregroundStyle(isToday ? .cyan : .secondary)
+            
+            // Water droplet
+            ZStack {
+                // Background
+                Image(systemName: "drop.fill")
+                    .font(isCompact ? .system(size: 16) : .title3)
+                    .foregroundStyle(.secondary.opacity(0.15))
+                
+                // Fill based on progress
+                Image(systemName: "drop.fill")
+                    .font(isCompact ? .system(size: 16) : .title3)
+                    .foregroundStyle(
+                        goalMet
+                            ? LinearGradient(
+                                colors: [.cyan, .blue],
+                                startPoint: .top,
+                                endPoint: .bottom
+                              )
+                            : LinearGradient(
+                                colors: [.secondary.opacity(0.3), .secondary.opacity(0.2)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                              )
+                    )
+                    .mask(
+                        GeometryReader { geo in
+                            Rectangle()
+                                .frame(height: geo.size.height * fillLevel)
+                                .offset(y: geo.size.height * (1 - fillLevel))
+                        }
+                    )
+                
+                // Goal checkmark overlay
+                if goalMet {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: isCompact ? 6 : 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .offset(y: isCompact ? 1 : 2)
+                }
+            }
+            .frame(width: isCompact ? 20 : 32, height: isCompact ? 24 : 38)
+            
+            // Today indicator
+            if isToday && !isCompact {
+                Circle()
+                    .fill(.cyan)
+                    .frame(width: 4, height: 4)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, isCompact ? 2 : 4)
+        .background(
+            isToday
+                ? RoundedRectangle(cornerRadius: isCompact ? 6 : 10)
+                    .stroke(.cyan.opacity(0.3), lineWidth: 1)
+                : nil
+        )
+    }
+}
+
+// MARK: - Yearly Hydration Grid
+
+/// Monthly aggregated view for year scope
+struct YearlyHydrationGrid: View {
+    let logs: [DayLog]
+    let dailyGoal: Double
+    
+    private var monthlyData: [(month: Date, daysMetGoal: Int, totalDays: Int)] {
+        let calendar = Calendar.current
+        var data: [(Date, Int, Int)] = []
+        
+        for monthOffset in stride(from: 11, through: 0, by: -1) {
+            guard let monthStart = calendar.date(byAdding: .month, value: -monthOffset, to: Date()) else { continue }
+            
+            let components = calendar.dateComponents([.year, .month], from: monthStart)
+            guard let firstOfMonth = calendar.date(from: components),
+                  let range = calendar.range(of: .day, in: .month, for: firstOfMonth) else { continue }
+            
+            let daysInMonth = range.count
+            let daysPassed: Int
+            
+            if calendar.isDate(monthStart, equalTo: Date(), toGranularity: .month) {
+                daysPassed = calendar.component(.day, from: Date())
+            } else if monthOffset == 0 {
+                daysPassed = calendar.component(.day, from: Date())
+            } else {
+                daysPassed = daysInMonth
+            }
+            
+            let logsInMonth = logs.filter { calendar.isDate($0.date, equalTo: firstOfMonth, toGranularity: .month) }
+            let daysMetGoal = logsInMonth.filter { $0.waterIntake >= dailyGoal }.count
+            
+            data.append((firstOfMonth, daysMetGoal, daysPassed))
+        }
+        
+        return data
+    }
+    
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(monthlyData, id: \.month) { item in
+                VStack(spacing: 4) {
+                    // Month bar
+                    let percentage = item.totalDays > 0 ? Double(item.daysMetGoal) / Double(item.totalDays) : 0
+                    GeometryReader { geo in
+                        ZStack(alignment: .bottom) {
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(.secondary.opacity(0.15))
+                            
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.cyan, .blue],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                                .frame(height: geo.size.height * percentage)
+                        }
+                    }
+                    .frame(height: 60)
+                    
+                    // Month label
+                    Text(monthLabel(for: item.month))
+                        .font(.system(size: 8))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+    
+    private func monthLabel(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM"
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Hydration Legend Item
+
+struct HydrationLegendItem: View {
+    let color: Color
+    let label: String
+    
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "drop.fill")
+                .font(.system(size: 10))
+                .foregroundStyle(color)
+            Text(label)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+// MARK: - Day Detail Sheet
+
+/// Detail sheet showing hydration for a specific day
+struct HydrationDayDetailSheet: View {
+    let date: Date
+    let log: DayLog?
+    let dailyGoal: Double
+    
+    @Environment(\.dismiss) private var dismiss
+    
+    private var cupsGoal: Int {
+        HydrationSettings.load().dailyCupsGoal
+    }
+    
+    private var cupsDrank: Int {
+        Int((log?.waterIntake ?? 0) / 8)
+    }
+    
+    private var waterIntake: Double {
+        log?.waterIntake ?? 0
+    }
+    
+    private var goalMet: Bool {
+        waterIntake >= dailyGoal
+    }
+    
+    private var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, MMMM d"
+        return formatter.string(from: date)
+    }
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 24) {
+                // Status icon
+                ZStack {
+                    Circle()
+                        .fill(goalMet ? Color.cyan.opacity(0.15) : Color.secondary.opacity(0.1))
+                        .frame(width: 80, height: 80)
+                    
+                    Image(systemName: goalMet ? "drop.fill" : "drop")
+                        .font(.system(size: 36))
+                        .foregroundStyle(goalMet ? .cyan : .secondary)
+                    
+                    if goalMet {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                            .offset(x: 24, y: 24)
+                    }
+                }
+                
+                // Stats
+                VStack(spacing: 8) {
+                    Text(formattedDate)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    
+                    HStack(spacing: 4) {
+                        Text("\(cupsDrank)")
+                            .font(.system(size: 48, weight: .bold, design: .rounded))
+                            .foregroundStyle(goalMet ? .cyan : .primary)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("cups")
+                                .font(.subheadline.weight(.medium))
+                            Text("of \(cupsGoal)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    
+                    Text("\(Int(waterIntake)) / \(Int(dailyGoal)) oz")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                
+                // Visual cups
+                HStack(spacing: 6) {
+                    ForEach(0..<cupsGoal, id: \.self) { index in
+                        Image(systemName: "drop.fill")
+                            .font(.title3)
+                            .foregroundStyle(
+                                index < cupsDrank
+                                    ? Color.cyan
+                                    : Color.secondary.opacity(0.2)
+                            )
+                    }
+                }
+                
+                Spacer()
+            }
+            .padding()
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
     }
 }
 
@@ -330,8 +712,9 @@ struct ConsistencyHeatmap: View {
         
         var score: Double = 0
         
-        // Hydration: 64oz = full credit
-        score += min(log.waterIntake / 64.0, 1.0) * 0.5
+        // Hydration: goal from settings = full credit
+        let hydrationGoal = HydrationSettings.load().dailyOuncesGoal
+        score += min(log.waterIntake / hydrationGoal, 1.0) * 0.5
         
         // Workout: any workout = half credit
         if log.hasWorkedOut { score += 0.5 }

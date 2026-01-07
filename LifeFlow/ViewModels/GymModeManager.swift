@@ -127,6 +127,7 @@ final class GymModeManager {
             totalSets: currentExercise?.sets.count ?? 0,
             workoutStartDate: workoutStartTime ?? Date(),
             restEndTime: isRestTimerActive ? Date().addingTimeInterval(restTimeRemaining) : nil,
+            restDuration: isRestTimerActive ? restTimeRemaining : nil,
             pauseRequested: false,
             isPaused: isPaused,
             pausedDisplayTime: isPaused ? formattedElapsedTime : nil,

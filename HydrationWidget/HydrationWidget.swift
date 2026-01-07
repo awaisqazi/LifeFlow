@@ -20,14 +20,19 @@ struct Provider: TimelineProvider {
         let results = try? context.fetch(descriptor)
         return results?.first ?? DayLog(date: Date())
     }
+    
+    /// Load hydration goal from shared settings
+    private func getDailyGoal() -> Double {
+        HydrationSettings.load().dailyOuncesGoal
+    }
 
     func placeholder(in context: Context) -> SimpleEntry {
-        SimpleEntry(date: Date(), waterIntake: 24, dailyGoal: 64)
+        SimpleEntry(date: Date(), waterIntake: 24, dailyGoal: getDailyGoal())
     }
 
     func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> ()) {
         let log = getTodayLog()
-        let entry = SimpleEntry(date: Date(), waterIntake: log.waterIntake, dailyGoal: 64)
+        let entry = SimpleEntry(date: Date(), waterIntake: log.waterIntake, dailyGoal: getDailyGoal())
         completion(entry)
     }
 
@@ -38,7 +43,7 @@ struct Provider: TimelineProvider {
         let entry = SimpleEntry(
             date: Date(),
             waterIntake: log.waterIntake,
-            dailyGoal: 64
+            dailyGoal: getDailyGoal()
         )
 
         // Reload policy: update next time the app is opened or every hour, but Intent will trigger reload too.

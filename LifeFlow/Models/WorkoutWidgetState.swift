@@ -19,6 +19,7 @@ struct WorkoutWidgetState: Codable {
     var totalSets: Int
     var workoutStartDate: Date   // For Text(date, style: .timer) count-up
     var restEndTime: Date?       // For Text(date, style: .timer) countdown
+    var restDuration: TimeInterval? // Total rest duration in seconds for progress bar
     var pauseRequested: Bool     // Flag set by Live Activity intent to request pause
     var isPaused: Bool           // Whether the workout is currently paused
     var pausedDisplayTime: String? // Static time string to show when paused (e.g. "12:45")
@@ -46,6 +47,7 @@ struct WorkoutWidgetState: Codable {
             totalSets: 0,
             workoutStartDate: Date(),
             restEndTime: nil,
+            restDuration: nil,
             pauseRequested: false,
             isPaused: false,
             pausedDisplayTime: nil,

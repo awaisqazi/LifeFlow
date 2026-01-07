@@ -17,9 +17,20 @@ struct HydrationView: View {
     @State private var waterManager = WaterManager()
     @State private var animatedWaterLevel: Double = 0
     
-    /// Daily water goal in ounces
-    private let dailyGoal: Double = 64
+    /// Hydration settings from user preferences
+    private var settings: HydrationSettings {
+        HydrationSettings.load()
+    }
     
+    /// Daily water goal in ounces (from settings)
+    private var dailyGoal: Double {
+        settings.dailyOuncesGoal
+    }
+    
+    /// Number of cups for progress indicator
+    private var cupsGoal: Int {
+        settings.dailyCupsGoal
+    }
 
     
     /// Get today's metrics by filtering in Swift
@@ -121,15 +132,27 @@ struct HydrationView: View {
                 .frame(width: 180, height: 280)
             }
             
-            // Progress indicator with glow
-            HStack(spacing: 10) {
-                ForEach(0..<8, id: \.self) { index in
+            // Progress indicator with glow (one drop per cup)
+            HStack(spacing: 8) {
+                ForEach(0..<cupsGoal, id: \.self) { index in
                     let isFilled = Double(index) < (currentIntake / 8)
-                    Circle()
-                        .fill(isFilled ? .cyan : .white.opacity(0.15))
-                        .frame(width: 10, height: 10)
+                    Image(systemName: "drop.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(
+                            isFilled
+                                ? LinearGradient(
+                                    colors: [.cyan, .blue],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                  )
+                                : LinearGradient(
+                                    colors: [.white.opacity(0.2), .white.opacity(0.1)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                  )
+                        )
                         .shadow(color: isFilled ? .cyan.opacity(0.6) : .clear, radius: 4)
-                        .scaleEffect(isFilled ? 1.1 : 1.0)
+                        .scaleEffect(isFilled ? 1.15 : 1.0)
                         .animation(.spring(response: 0.3), value: isFilled)
                 }
             }

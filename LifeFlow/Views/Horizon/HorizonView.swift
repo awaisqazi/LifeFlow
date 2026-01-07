@@ -104,6 +104,9 @@ struct HorizonView: View {
                         .padding()
                         .glassEffect(in: .rect(cornerRadius: 20))
                         
+                        // Hydration Goal Settings Card
+                        HydrationGoalCard()
+                        
                         // Motivation Card
                         VStack(spacing: 12) {
                             Image(systemName: "sparkles")
@@ -302,6 +305,165 @@ struct GoalRow: View {
                 .monospacedDigit()
                 .frame(width: 36, alignment: .trailing)
         }
+    }
+}
+
+// MARK: - Hydration Goal Settings Card
+
+/// Settings card for configuring daily hydration goal
+struct HydrationGoalCard: View {
+    @State private var cupsGoal: Int = HydrationSettings.load().dailyCupsGoal
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Header
+            HStack {
+                Image(systemName: "drop.fill")
+                    .font(.title2)
+                    .foregroundStyle(.cyan)
+                
+                Text("Hydration Goal")
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                
+                Spacer()
+                
+                Text("\(cupsGoal * 8) oz/day")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.cyan)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Color.cyan.opacity(0.15), in: Capsule())
+            }
+            
+            // Description
+            Text("Set your daily water intake goal")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            
+            // Stepper with visual
+            VStack(spacing: 12) {
+                // Custom stepper row
+                HStack {
+                    Button {
+                        if cupsGoal > 4 {
+                            cupsGoal -= 1
+                            saveGoal()
+                        }
+                    } label: {
+                        Image(systemName: "minus.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(cupsGoal > 4 ? .cyan : .secondary.opacity(0.3))
+                    }
+                    .disabled(cupsGoal <= 4)
+                    
+                    Spacer()
+                    
+                    VStack(spacing: 2) {
+                        Text("\(cupsGoal)")
+                            .font(.system(size: 32, weight: .bold, design: .rounded))
+                            .foregroundStyle(.primary)
+                            .contentTransition(.numericText(value: Double(cupsGoal)))
+                            .animation(.spring(response: 0.3), value: cupsGoal)
+                        
+                        Text("cups")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Button {
+                        if cupsGoal < 16 {
+                            cupsGoal += 1
+                            saveGoal()
+                        }
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(cupsGoal < 16 ? .cyan : .secondary.opacity(0.3))
+                    }
+                    .disabled(cupsGoal >= 16)
+                }
+                .padding(.horizontal)
+                
+                // Water drop visualization
+                HStack(spacing: 6) {
+                    ForEach(0..<cupsGoal, id: \.self) { index in
+                        WaterDroplet(
+                            isFilled: true,
+                            delay: Double(index) * 0.05
+                        )
+                    }
+                    
+                    // Empty slots to show capacity
+                    ForEach(cupsGoal..<16, id: \.self) { index in
+                        WaterDroplet(
+                            isFilled: false,
+                            delay: 0
+                        )
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .padding(.vertical, 8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .glassEffect(in: .rect(cornerRadius: 20))
+    }
+    
+    private func saveGoal() {
+        let impact = UIImpactFeedbackGenerator(style: .light)
+        impact.impactOccurred()
+        
+        let settings = HydrationSettings(dailyCupsGoal: cupsGoal)
+        settings.save()
+    }
+}
+
+/// Individual water droplet for the goal visualization
+struct WaterDroplet: View {
+    let isFilled: Bool
+    let delay: Double
+    
+    @State private var isAnimating = false
+    
+    var body: some View {
+        Image(systemName: "drop.fill")
+            .font(.system(size: 14))
+            .foregroundStyle(
+                isFilled
+                    ? LinearGradient(
+                        colors: [.cyan, .blue],
+                        startPoint: .top,
+                        endPoint: .bottom
+                      )
+                    : LinearGradient(
+                        colors: [.secondary.opacity(0.2), .secondary.opacity(0.1)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                      )
+            )
+            .scaleEffect(isAnimating && isFilled ? 1.0 : 0.8)
+            .opacity(isAnimating || !isFilled ? 1.0 : 0.5)
+            .animation(
+                .spring(response: 0.4, dampingFraction: 0.6).delay(delay),
+                value: isAnimating
+            )
+            .onAppear {
+                if isFilled {
+                    isAnimating = true
+                }
+            }
+            .onChange(of: isFilled) { _, newValue in
+                if newValue {
+                    isAnimating = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        isAnimating = true
+                    }
+                }
+            }
     }
 }
 
