@@ -78,25 +78,154 @@ final class WorkoutExercise {
     }
 }
 
-// MARK: - Common Exercises Library
+// MARK: - Comprehensive Exercise Library
 
 extension WorkoutExercise {
-    /// Common weight training exercises for quick selection
-    static let weightExercises: [String] = [
-        "Bench Press", "Squat", "Deadlift", "Overhead Press",
-        "Barbell Row", "Pull-ups", "Dumbbell Curl", "Tricep Extension",
-        "Leg Press", "Lat Pulldown", "Cable Fly", "Lunges"
-    ]
     
-    /// Common cardio exercises
+    // MARK: - Cardio Zone Equipment
+    
+    /// Cardio machines and exercises
     static let cardioExercises: [String] = [
-        "Treadmill", "Stationary Bike", "Elliptical", "Rowing Machine",
-        "Stair Climber", "Jump Rope"
+        "Treadmill",
+        "Elliptical",
+        "Stair Climber (StairMaster)",
+        "Arc Trainer",
+        "Rowing Machine",
+        "Stationary Bike (Upright)",
+        "Recumbent Bike",
+        "Arm Cycle (SciFit)"
     ]
     
-    /// Common calisthenics exercises
-    static let calisthenicsExercises: [String] = [
-        "Push-ups", "Pull-ups", "Dips", "Burpees",
-        "Mountain Climbers", "Planks", "Sit-ups", "Leg Raises"
+    // MARK: - Selectorized Machines
+    
+    /// Gym machines with pin-selected weight stacks
+    static let machineExercises: [String] = [
+        // Leg Machines
+        "Leg Press",
+        "Leg Extension",
+        "Seated Leg Curl",
+        "Prone Leg Curl",
+        "Hip Abduction",
+        "Hip Adduction",
+        "Glute Kickback Machine",
+        "Calf Extension",
+        
+        // Upper Body Machines
+        "Chest Press",
+        "Pectoral Fly",
+        "Rear Delt (Reverse Fly)",
+        "Shoulder Press Machine",
+        "Lateral Raise Machine",
+        "Lat Pulldown",
+        "Seated Row",
+        "Back Extension",
+        "Bicep Curl Machine",
+        "Tricep Extension Machine",
+        "Abdominal Crunch Machine",
+        "Torso Rotation"
     ]
+    
+    // MARK: - Free Weights
+    
+    /// Dumbbells, fixed barbells, and Smith machine exercises
+    static let weightExercises: [String] = [
+        // Smith Machine Exercises
+        "Smith Squat",
+        "Smith Bench Press",
+        "Smith Shoulder Press",
+        "Smith Lunges",
+        "Smith Deadlift",
+        
+        // Dumbbell Exercises
+        "Dumbbell Bench Press",
+        "Dumbbell Lunges",
+        "Dumbbell Shoulder Press",
+        "Dumbbell Curl",
+        "Dumbbell Row",
+        "Dumbbell Fly",
+        "Goblet Squat",
+        "Tricep Kickback",
+        
+        // Fixed Barbell Exercises
+        "Barbell Curl",
+        "Skullcrushers",
+        "Upright Row",
+        
+        // Assisted Machine
+        "Assisted Pull-Up",
+        "Assisted Dip"
+    ]
+    
+    // MARK: - Functional / Cable Exercises
+    
+    /// Cable towers and PF 360/Synergy equipment
+    static let functionalExercises: [String] = [
+        // Cable Tower Exercises
+        "Tricep Pushdown",
+        "Cable Bicep Curl",
+        "Face Pull",
+        "Cable Woodchopper",
+        "Cable Chest Fly",
+        
+        // PF 360 / Synergy Exercises
+        "TRX Row",
+        "TRX Suspended Lunge",
+        "Kettlebell Swing",
+        "Medicine Ball Slam",
+        "Wall Ball",
+        "Box Jump",
+        "Step-Up (Plyo Box)",
+        "Battle Ropes",
+        "Monkey Bar Traverse"
+    ]
+    
+    // MARK: - Calisthenics / Bodyweight
+    
+    /// Bodyweight exercises
+    static let calisthenicsExercises: [String] = [
+        "Push-Up",
+        "Pull-Up",
+        "Dip",
+        "Burpee",
+        "Mountain Climber",
+        "Sit-Up",
+        "Leg Raise",
+        "Jumping Jack"
+    ]
+    
+    // MARK: - Flexibility / Stretching
+    
+    /// Stretching and abs area exercises
+    static let flexibilityExercises: [String] = [
+        // Abs Equipment
+        "Decline Sit-Up",
+        "Hyper-Extension (Roman Chair)",
+        "Hanging Leg Raise (Captain's Chair)",
+        
+        // Mat Work
+        "Plank Hold",
+        "Hamstring Stretch",
+        "Quad Stretch",
+        "Hip Flexor Stretch",
+        "Shoulder Stretch",
+        "Yoga Flow"
+    ]
+    
+    // MARK: - All Exercises
+    
+    /// Combined list of all available exercises
+    static var allExercises: [String] {
+        cardioExercises + machineExercises + weightExercises + functionalExercises + calisthenicsExercises + flexibilityExercises
+    }
+    
+    /// Returns the correct ExerciseType for a given exercise name
+    static func exerciseType(for name: String) -> ExerciseType {
+        if cardioExercises.contains(name) { return .cardio }
+        if machineExercises.contains(name) { return .machine }
+        if weightExercises.contains(name) { return .weight }
+        if functionalExercises.contains(name) { return .functional }
+        if calisthenicsExercises.contains(name) { return .calisthenics }
+        if flexibilityExercises.contains(name) { return .flexibility }
+        return .weight // Default fallback
+    }
 }

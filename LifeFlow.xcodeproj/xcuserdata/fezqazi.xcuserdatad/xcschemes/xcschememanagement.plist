@@ -7,17 +7,35 @@
 		<key>GymWidgetsExtension.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
-			<integer>1</integer>
+			<integer>0</integer>
 		</dict>
 		<key>HydrationWidgetExtension.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
-			<integer>0</integer>
+			<integer>1</integer>
 		</dict>
 		<key>LifeFlow.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
-			<integer>0</integer>
+			<integer>2</integer>
+		</dict>
+	</dict>
+	<key>SuppressBuildableAutocreation</key>
+	<dict>
+		<key>D9501B592EFF213E00ED9FB6</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>D9501C0F2F0079A200ED9FB6</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>D9501C712F00B52700ED9FB6</key>
+		<dict>
+			<key>primary</key>
+			<true/>
 		</dict>
 	</dict>
 </dict>

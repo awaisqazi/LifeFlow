@@ -91,7 +91,12 @@ struct GymWidgets: Widget {
         nextSetsCompleted: 0,
         nextTotalSets: 3,
         totalExercises: 5,
-        currentExerciseIndex: 2
+        currentExerciseIndex: 2,
+        isCardio: false,
+        cardioElapsedTime: 0,
+        cardioDuration: 0,
+        cardioSpeed: 0,
+        cardioIncline: 0
     ))
 }
 
@@ -117,7 +122,12 @@ struct GymWidgets: Widget {
         nextSetsCompleted: 0,
         nextTotalSets: 3,
         totalExercises: 5,
-        currentExerciseIndex: 2
+        currentExerciseIndex: 2,
+        isCardio: false,
+        cardioElapsedTime: 0,
+        cardioDuration: 0,
+        cardioSpeed: 0,
+        cardioIncline: 0
     ))
 }
 
@@ -143,6 +153,11 @@ struct GymWidgets: Widget {
         nextSetsCompleted: 1,
         nextTotalSets: 3,
         totalExercises: 6,
-        currentExerciseIndex: 3
+        currentExerciseIndex: 3,
+        isCardio: false,
+        cardioElapsedTime: 0,
+        cardioDuration: 0,
+        cardioSpeed: 0,
+        cardioIncline: 0
     ))
 }

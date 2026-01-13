@@ -749,6 +749,8 @@ private struct ExerciseDetailCard: View {
         case .cardio: return .green
         case .calisthenics: return .blue
         case .flexibility: return .purple
+        case .machine: return .red
+        case .functional: return .cyan
         }
     }
 }

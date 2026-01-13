@@ -215,22 +215,41 @@ struct GymCard: View {
                     
                     // Button based on state
                     if dayLog.hasWorkedOut {
-                        // Show Completed with details button
-                        Button {
-                            showWorkoutDetailSheet = true
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.caption)
-                                Text("Completed")
-                                    .font(.caption.weight(.bold))
-                                Image(systemName: "info.circle")
-                                    .font(.caption2)
+                        // Show Completed status with options
+                        HStack(spacing: 8) {
+                            // Info button for details
+                            Button {
+                                showWorkoutDetailSheet = true
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.caption)
+                                    Text("Done")
+                                        .font(.caption.weight(.bold))
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                                .background(Color.green.gradient, in: Capsule())
+                                .foregroundStyle(.white)
                             }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(Color.green.gradient, in: Capsule())
-                            .foregroundStyle(.white)
+                            
+                            // Add More / Continue Training button
+                            Button {
+                                enterGymMode()
+                                let impact = UIImpactFeedbackGenerator(style: .medium)
+                                impact.impactOccurred()
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "plus.circle.fill")
+                                        .font(.caption)
+                                    Text("More")
+                                        .font(.caption.weight(.bold))
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                                .background(Color.orange.gradient, in: Capsule())
+                                .foregroundStyle(.white)
+                            }
                         }
                     } else if hasPausedWorkout {
                         // Continue button
@@ -271,6 +290,13 @@ struct GymCard: View {
                     }
                 }
                 .padding(16)
+            }
+            .overlay {
+                // Green border when completed for visual emphasis
+                if dayLog.hasWorkedOut {
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.green.opacity(0.6), lineWidth: 2)
+                }
             }
             .offset(x: offset)
             .gesture(

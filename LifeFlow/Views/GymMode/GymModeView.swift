@@ -19,6 +19,9 @@ struct GymModeView: View {
         session.endTime == nil
     }, sort: \WorkoutSession.startTime, order: .reverse) private var incompleteWorkouts: [WorkoutSession]
     
+    /// Query for DayLogs to link completed workouts
+    @Query(sort: \DayLog.date, order: .reverse) private var dayLogs: [DayLog]
+    
     /// Filter for only today's incomplete workouts (ignore stale sessions from previous days)
     private var todaysIncompleteWorkouts: [WorkoutSession] {
         let calendar = Calendar.current
@@ -31,6 +34,8 @@ struct GymModeView: View {
     @State private var showEndConfirmation: Bool = false
     @State private var isEditMode: Bool = false
     @State private var completedSession: WorkoutSession? = nil
+    @State private var showAddExerciseSheet: Bool = false
+    @State private var showWorkoutCompleteConfirmation: Bool = false
     
     // Current set input values
     @State private var currentWeight: Double = 0
@@ -124,6 +129,29 @@ struct GymModeView: View {
                 }
             }
         }
+        .sheet(isPresented: $showAddExerciseSheet) {
+            AddExerciseSheet { exerciseData in
+                addExerciseToWorkout(exerciseData)
+                showAddExerciseSheet = false
+            }
+        }
+        .confirmationDialog(
+            "All exercises complete!",
+            isPresented: $showWorkoutCompleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Finish Workout") {
+                endAndCompleteWorkout()
+            }
+            
+            Button("Add More Exercises") {
+                showAddExerciseSheet = true
+            }
+            
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("You've completed all your exercises. Would you like to finish your workout or add more exercises?")
+        }
     }
     
     // MARK: - Active Workout View
@@ -161,6 +189,9 @@ struct GymModeView: View {
                                    index < session.exercises.count - 1 {
                                     manager.moveExercise(from: index, to: index + 1)
                                 }
+                            },
+                            onDelete: {
+                                deleteExercise(exercise)
                             }
                         )
                     }
@@ -212,6 +243,19 @@ struct GymModeView: View {
             }
             
             Spacer()
+            
+            // Add button (only in edit mode)
+            if isEditMode {
+                Button {
+                    showAddExerciseSheet = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(.green)
+                        .frame(width: 44, height: 44)
+                        .background(Color.green.opacity(0.15), in: Circle())
+                }
+            }
             
             // Edit/Done button
             Button {
@@ -294,9 +338,9 @@ struct GymModeView: View {
             incline: currentIncline
         )
         
-        // Check if workout is complete
+        // Check if workout is complete - prompt user instead of auto-completing
         if manager.isWorkoutComplete {
-            endAndCompleteWorkout()
+            showWorkoutCompleteConfirmation = true
         } else {
             loadCurrentSetDefaults()
         }
@@ -350,6 +394,22 @@ struct GymModeView: View {
     /// End workout completely and show summary
     private func endAndCompleteWorkout() {
         completedSession = manager.endWorkout()
+        
+        // Add completed session to today's DayLog so hasWorkedOut returns true
+        if let session = completedSession {
+            let startOfDay = Calendar.current.startOfDay(for: Date())
+            if let todayLog = dayLogs.first(where: { $0.date >= startOfDay }) {
+                // Add to existing DayLog
+                if !todayLog.workouts.contains(where: { $0.id == session.id }) {
+                    todayLog.workouts.append(session)
+                }
+            } else {
+                // Create new DayLog for today
+                let newLog = DayLog(date: Date(), workouts: [session])
+                modelContext.insert(newLog)
+            }
+        }
+        
         try? modelContext.save()
         showSummary = true
     }
@@ -362,6 +422,110 @@ struct GymModeView: View {
         }
         let _ = manager.endWorkout()
         dismiss()
+    }
+    
+    /// Complete a cardio exercise with timed/freestyle data
+    private func completeCardioExercise(
+        exercise: WorkoutExercise,
+        duration: TimeInterval,
+        speed: Double,
+        incline: Double,
+        intervals: [CardioInterval]?
+    ) {
+        // Get the current set for this exercise
+        guard let currentSet = exercise.sortedSets.first(where: { !$0.isCompleted }) else { return }
+        
+        // Update the set with the cardio data
+        currentSet.duration = duration
+        currentSet.speed = speed
+        currentSet.incline = incline
+        currentSet.isCompleted = true
+        
+        // Save interval data if freestyle
+        if let intervals = intervals {
+            let encoder = JSONEncoder()
+            currentSet.cardioIntervals = try? encoder.encode(intervals)
+            currentSet.cardioMode = CardioWorkoutMode.freestyle.rawValue
+        } else {
+            currentSet.cardioMode = CardioWorkoutMode.timed.rawValue
+        }
+        
+        // Haptic feedback
+        let impact = UIImpactFeedbackGenerator(style: .medium)
+        impact.impactOccurred()
+        
+        // Move to next exercise or check completion
+        manager.advanceToNextExercise()
+        
+        // Check if workout is complete - prompt user instead of auto-completing
+        if manager.isWorkoutComplete {
+            showWorkoutCompleteConfirmation = true
+        }
+        
+        try? modelContext.save()
+    }
+    
+    /// Add a new exercise to the active workout mid-session
+    private func addExerciseToWorkout(_ exerciseData: (name: String, type: ExerciseType, setCount: Int)) {
+        guard let session = manager.activeSession else { return }
+        
+        // Create the new exercise
+        let newExercise = WorkoutExercise(
+            name: exerciseData.name,
+            type: exerciseData.type,
+            orderIndex: session.exercises.count
+        )
+        
+        // Add sets based on user selection
+        for i in 0..<exerciseData.setCount {
+            let set = ExerciseSet(orderIndex: i)
+            newExercise.sets.append(set)
+        }
+        
+        // Set session relationship
+        newExercise.session = session
+        
+        // Insert into context
+        modelContext.insert(newExercise)
+        
+        // Add to session
+        session.exercises.append(newExercise)
+        
+        // Tell manager to update widget state
+        manager.syncWidgetStateAfterExerciseChange()
+        
+        // Save changes
+        try? modelContext.save()
+        
+        // Haptic feedback
+        let impact = UIImpactFeedbackGenerator(style: .medium)
+        impact.impactOccurred()
+    }
+    
+    /// Delete an exercise from the active workout
+    private func deleteExercise(_ exercise: WorkoutExercise) {
+        guard let session = manager.activeSession else { return }
+        
+        // Remove from session
+        session.exercises.removeAll { $0.id == exercise.id }
+        
+        // Delete from context
+        modelContext.delete(exercise)
+        
+        // Re-index remaining exercises
+        for (index, ex) in session.sortedExercises.enumerated() {
+            ex.orderIndex = index
+        }
+        
+        // Update widget/live activity
+        manager.syncWidgetStateAfterExerciseChange()
+        
+        // Save changes
+        try? modelContext.save()
+        
+        // Haptic feedback
+        let notification = UINotificationFeedbackGenerator()
+        notification.notificationOccurred(.warning)
     }
     
     private func checkForPausedWorkout() {
@@ -399,6 +563,7 @@ private struct FlexibleExerciseCard: View {
     let onTap: () -> Void
     let onMoveUp: () -> Void
     let onMoveDown: () -> Void
+    let onDelete: () -> Void
     
     private var isComplete: Bool {
         completedSets >= totalSets
@@ -410,8 +575,7 @@ private struct FlexibleExerciseCard: View {
     }
     
     var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 16) {
+        HStack(spacing: 16) {
                 // Progress indicator
                 ZStack {
                     Circle()
@@ -483,9 +647,239 @@ private struct FlexibleExerciseCard: View {
                             .stroke(isActive && !isEditMode ? Color.orange.opacity(0.3) : Color.clear, lineWidth: 1)
                     )
             )
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if !isEditMode {
+                    onTap()
+                }
+            }
+            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                if isEditMode {
+                    Button(role: .destructive) {
+                        onDelete()
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                }
+            }
+    }
+}
+
+// MARK: - Add Exercise Sheet
+
+private struct AddExerciseSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let onAdd: ((name: String, type: ExerciseType, setCount: Int)) -> Void
+    
+    @State private var searchText: String = ""
+    @State private var selectedType: ExerciseType? = nil
+    @State private var selectedExercise: (name: String, type: ExerciseType)? = nil
+    @State private var setCount: Int = 3
+    
+    private var allExercises: [(name: String, type: ExerciseType)] {
+        var exercises: [(name: String, type: ExerciseType)] = []
+        
+        for name in WorkoutExercise.weightExercises {
+            exercises.append((name, .weight))
+        }
+        for name in WorkoutExercise.machineExercises {
+            exercises.append((name, .machine))
+        }
+        for name in WorkoutExercise.cardioExercises {
+            exercises.append((name, .cardio))
+        }
+        for name in WorkoutExercise.calisthenicsExercises {
+            exercises.append((name, .calisthenics))
+        }
+        for name in WorkoutExercise.functionalExercises {
+            exercises.append((name, .functional))
+        }
+        for name in WorkoutExercise.flexibilityExercises {
+            exercises.append((name, .flexibility))
+        }
+        
+        return exercises.sorted { $0.name < $1.name }
+    }
+    
+    private var filteredExercises: [(name: String, type: ExerciseType)] {
+        var result = allExercises
+        
+        if let type = selectedType {
+            result = result.filter { $0.type == type }
+        }
+        
+        if !searchText.isEmpty {
+            result = result.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+        }
+        
+        return result
+    }
+    
+    var body: some View {
+        NavigationStack {
+            if let exercise = selectedExercise {
+                // Phase 2: Set count selection
+                VStack(spacing: 24) {
+                    Spacer()
+                    
+                    // Exercise name
+                    VStack(spacing: 8) {
+                        Image(systemName: exercise.type.icon)
+                            .font(.system(size: 48))
+                            .foregroundStyle(colorForType(exercise.type))
+                        
+                        Text(exercise.name)
+                            .font(.title2.weight(.bold))
+                    }
+                    
+                    // Set count stepper
+                    VStack(spacing: 12) {
+                        Text("How many sets?")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        
+                        HStack(spacing: 24) {
+                            Button {
+                                if setCount > 1 { setCount -= 1 }
+                            } label: {
+                                Image(systemName: "minus.circle.fill")
+                                    .font(.system(size: 44))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .disabled(setCount <= 1)
+                            
+                            Text("\(setCount)")
+                                .font(.system(size: 56, weight: .bold, design: .rounded))
+                                .frame(width: 80)
+                            
+                            Button {
+                                if setCount < 10 { setCount += 1 }
+                            } label: {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 44))
+                                    .foregroundStyle(.green)
+                            }
+                            .disabled(setCount >= 10)
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    // Add button
+                    Button {
+                        onAdd((name: exercise.name, type: exercise.type, setCount: setCount))
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.title3)
+                            Text("Add \(exercise.name)")
+                                .font(.headline.weight(.bold))
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(Color.green.gradient, in: RoundedRectangle(cornerRadius: 16))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal)
+                    .padding(.bottom, 24)
+                }
+                .navigationTitle("Set Count")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Back") {
+                            selectedExercise = nil
+                        }
+                    }
+                }
+            } else {
+                // Phase 1: Exercise selection
+                VStack(spacing: 0) {
+                    // Type filter
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            FilterChip(title: "All", isSelected: selectedType == nil) {
+                                selectedType = nil
+                            }
+                            
+                            ForEach(ExerciseType.allCases, id: \.self) { type in
+                                FilterChip(title: type.title, isSelected: selectedType == type) {
+                                    selectedType = type
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                    .padding(.vertical, 12)
+                    
+                    // Exercise list
+                    List {
+                        ForEach(filteredExercises, id: \.name) { exercise in
+                            Button {
+                                selectedExercise = exercise
+                                // Default to 1 set for cardio/flexibility, 3 for weights
+                                setCount = (exercise.type == .cardio || exercise.type == .flexibility) ? 1 : 3
+                            } label: {
+                                HStack {
+                                    Image(systemName: exercise.type.icon)
+                                        .foregroundStyle(colorForType(exercise.type))
+                                        .frame(width: 30)
+                                    
+                                    Text(exercise.name)
+                                        .foregroundStyle(.primary)
+                                    
+                                    Spacer()
+                                    
+                                    Image(systemName: "chevron.right")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                    .listStyle(.plain)
+                }
+                .searchable(text: $searchText, prompt: "Search exercises")
+                .navigationTitle("Add Exercise")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            dismiss()
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    private func colorForType(_ type: ExerciseType) -> Color {
+        switch type {
+        case .weight: return .blue
+        case .cardio: return .green
+        case .calisthenics: return .orange
+        case .flexibility: return .purple
+        case .machine: return .red
+        case .functional: return .cyan
+        }
+    }
+}
+
+private struct FilterChip: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(isSelected ? .black : .secondary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(isSelected ? Color.green : Color.white.opacity(0.1), in: Capsule())
         }
         .buttonStyle(.plain)
-        .disabled(isEditMode)
     }
 }
 

@@ -42,8 +42,14 @@ final class GymModeManager {
     /// Whether the rest timer is currently running
     private(set) var isRestTimerActive: Bool = false
     
-    /// Remaining seconds on the rest timer
-    private(set) var restTimeRemaining: TimeInterval = 0
+    /// When the rest timer ends (Date-based for background sync)
+    private(set) var restEndTime: Date?
+    
+    /// Remaining seconds on the rest timer (computed from restEndTime)
+    var restTimeRemaining: TimeInterval {
+        guard let endTime = restEndTime else { return 0 }
+        return max(0, endTime.timeIntervalSinceNow)
+    }
     
     /// Default rest duration in seconds
     var defaultRestDuration: TimeInterval = 60
@@ -119,6 +125,9 @@ final class GymModeManager {
             nextSetsCompleted = nextEx.sets.filter { $0.isCompleted }.count
         }
         
+        // Determine if current exercise is cardio
+        let isCardioExercise = currentExercise?.type == .cardio
+        
         let state = WorkoutWidgetState(
             isActive: isWorkoutActive,
             workoutTitle: activeSession?.title ?? "Workout",
@@ -126,7 +135,7 @@ final class GymModeManager {
             currentSet: currentSetIndex + 1,
             totalSets: currentExercise?.sets.count ?? 0,
             workoutStartDate: workoutStartTime ?? Date(),
-            restEndTime: isRestTimerActive ? Date().addingTimeInterval(restTimeRemaining) : nil,
+            restEndTime: restEndTime,
             restDuration: isRestTimerActive ? restTimeRemaining : nil,
             pauseRequested: false,
             isPaused: isPaused,
@@ -139,9 +148,30 @@ final class GymModeManager {
             nextSetsCompleted: nextSetsCompleted,
             nextTotalSets: nextTotalSets,
             totalExercises: exercises.count,
-            currentExerciseIndex: currentExerciseIndex + 1
+            currentExerciseIndex: currentExerciseIndex + 1,
+            isCardio: isCardioExercise,
+            cardioElapsedTime: 0,  // Will be updated by ExerciseInputCard
+            cardioDuration: 0,     // Will be updated by ExerciseInputCard
+            cardioSpeed: 0,        // Will be updated by ExerciseInputCard
+            cardioIncline: 0       // Will be updated by ExerciseInputCard
         )
         state.save()
+    }
+    
+    /// Public method to sync widget state after exercises are added/modified mid-workout
+    func syncWidgetStateAfterExerciseChange() {
+        syncWidgetState()
+        
+        // Also update Live Activity if active
+        if let currentEx = currentExercise {
+            workoutLiveActivityManager.updateWorkout(
+                exerciseName: currentEx.name,
+                currentSet: currentSetIndex + 1,
+                totalSets: currentEx.sets.count,
+                elapsedTime: Int(elapsedTime),
+                workoutStartDate: workoutStartTime ?? Date()
+            )
+        }
     }
     
     // MARK: - Workout Lifecycle
@@ -456,6 +486,31 @@ final class GymModeManager {
         }
     }
     
+    /// Advance to the next exercise (used for cardio completion)
+    func advanceToNextExercise() {
+        guard let session = activeSession else { return }
+        let exercises = session.sortedExercises
+        
+        // Move to next exercise
+        currentExerciseIndex += 1
+        currentSetIndex = 0
+        
+        // Update Live Activity if there's a next exercise
+        if currentExerciseIndex < exercises.count {
+            let nextExercise = exercises[currentExerciseIndex]
+            workoutLiveActivityManager.updateWorkout(
+                exerciseName: nextExercise.name,
+                currentSet: 1,
+                totalSets: nextExercise.sets.count,
+                elapsedTime: Int(elapsedTime),
+                workoutStartDate: workoutStartTime ?? Date()
+            )
+        }
+        
+        // Sync widget state
+        syncWidgetState()
+    }
+    
     /// Whether all exercises and sets are complete
     var isWorkoutComplete: Bool {
         guard let session = activeSession else { return false }
@@ -559,7 +614,7 @@ final class GymModeManager {
     /// Start the rest timer
     /// - Parameter duration: Duration in seconds
     func startRestTimer(duration: TimeInterval) {
-        restTimeRemaining = duration
+        restEndTime = Date().addingTimeInterval(duration)
         isRestTimerActive = true
         
         // Update workout Live Activity to show rest state
@@ -572,7 +627,7 @@ final class GymModeManager {
             nextSet: nextSet,
             totalSets: totalSets,
             elapsedTime: Int(elapsedTime),
-            restEndTime: Date().addingTimeInterval(duration),
+            restEndTime: restEndTime!,
             workoutStartDate: self.workoutStartTime ?? Date()
         )
         
@@ -587,18 +642,14 @@ final class GymModeManager {
                 
                 // Check if widget intent skipped the rest
                 let widgetState = WorkoutWidgetState.load()
-                if widgetState.restEndTime == nil {
+                if widgetState.restEndTime == nil && self.isRestTimerActive {
                     // Widget skipped rest - sync to app
                     self.stopRestTimer()
                     return
                 }
                 
-                if self.restTimeRemaining > 0 {
-                    self.restTimeRemaining -= 1
-                    
-                    // No longer updating Live Activity every second for rest.
-                    // The native timer handles the countdown on-device.
-                } else {
+                // Check if rest time has elapsed (computed from restEndTime)
+                if self.restTimeRemaining <= 0 {
                     self.stopRestTimer()
                     // Haptic feedback when timer completes
                     let notification = UINotificationFeedbackGenerator()
@@ -610,10 +661,15 @@ final class GymModeManager {
     /// Add time to the current rest timer
     /// - Parameter seconds: Seconds to add
     func addRestTime(_ seconds: TimeInterval) {
-        restTimeRemaining += seconds
+        // Extend the rest end time
+        if let currentEnd = restEndTime {
+            restEndTime = currentEnd.addingTimeInterval(seconds)
+        } else {
+            restEndTime = Date().addingTimeInterval(seconds)
+        }
         
         // Update Live Activity if active
-        if isRestTimerActive {
+        if isRestTimerActive, let newEndTime = restEndTime {
             let exerciseName = currentExercise?.name ?? "Rest"
             let nextSet = currentSetIndex + 1
             let totalSets = currentExercise?.sets.count ?? 3
@@ -623,7 +679,7 @@ final class GymModeManager {
                 nextSet: nextSet,
                 totalSets: totalSets,
                 elapsedTime: Int(elapsedTime),
-                restEndTime: Date().addingTimeInterval(restTimeRemaining),
+                restEndTime: newEndTime,
                 workoutStartDate: self.workoutStartTime ?? Date()
             )
             
@@ -640,7 +696,7 @@ final class GymModeManager {
         restTimerCancellable?.cancel()
         restTimerCancellable = nil
         isRestTimerActive = false
-        restTimeRemaining = 0
+        restEndTime = nil
         
         // Resume normal workout state in Live Activity
         if let currentActiveExercise = self.currentExercise {

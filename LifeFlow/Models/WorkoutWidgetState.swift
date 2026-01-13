@@ -37,6 +37,13 @@ struct WorkoutWidgetState: Codable {
     var totalExercises: Int
     var currentExerciseIndex: Int
     
+    // Cardio-specific state
+    var isCardio: Bool
+    var cardioElapsedTime: TimeInterval
+    var cardioDuration: TimeInterval  // Target duration for timed cardio
+    var cardioSpeed: Double
+    var cardioIncline: Double
+    
     /// Default idle state
     static var idle: WorkoutWidgetState {
         WorkoutWidgetState(
@@ -59,7 +66,12 @@ struct WorkoutWidgetState: Codable {
             nextSetsCompleted: 0,
             nextTotalSets: 0,
             totalExercises: 0,
-            currentExerciseIndex: 0
+            currentExerciseIndex: 0,
+            isCardio: false,
+            cardioElapsedTime: 0,
+            cardioDuration: 0,
+            cardioSpeed: 0,
+            cardioIncline: 0
         )
     }
     

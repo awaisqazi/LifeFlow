@@ -46,6 +46,12 @@ final class ExerciseSet {
     /// Incline percentage (for treadmill)
     var incline: Double?
     
+    /// JSON-encoded [CardioInterval] for freestyle cardio workouts
+    var cardioIntervals: Data?
+    
+    /// Cardio workout mode (timed or freestyle)
+    var cardioMode: String?
+    
     // MARK: - Relationships
     
     /// The exercise this set belongs to

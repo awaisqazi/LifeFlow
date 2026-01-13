@@ -114,9 +114,29 @@ private struct SmallWidgetView: View {
                             .font(.caption.weight(.semibold))
                             .lineLimit(1)
                         
-                        Text("Set \(state.currentSet)/\(state.totalSets)")
-                            .font(.caption2)
+                        if state.isCardio && state.cardioSpeed > 0 {
+                            // Cardio: show speed and incline
+                            HStack(spacing: 8) {
+                                HStack(spacing: 2) {
+                                    Image(systemName: "speedometer")
+                                        .font(.system(size: 8))
+                                    Text(String(format: "%.1f", state.cardioSpeed))
+                                        .font(.caption2)
+                                }
+                                HStack(spacing: 2) {
+                                    Image(systemName: "arrow.up.right")
+                                        .font(.system(size: 8))
+                                    Text(String(format: "%.1f%%", state.cardioIncline))
+                                        .font(.caption2)
+                                }
+                            }
                             .foregroundStyle(.secondary)
+                        } else {
+                            // Weights: show sets
+                            Text("Set \(state.currentSet)/\(state.totalSets)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 .padding(12)
@@ -197,9 +217,31 @@ private struct MediumWidgetView: View {
                             .multilineTextAlignment(.leading)
                             .minimumScaleFactor(0.9)
                         
-                        Text("Set \(state.currentSet) of \(state.totalSets)")
-                            .font(.caption2.weight(.bold))
+                        if state.isCardio && state.cardioSpeed > 0 {
+                            // Cardio: show speed and incline
+                            HStack(spacing: 10) {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "speedometer")
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(.green)
+                                    Text(String(format: "%.1f mph", state.cardioSpeed))
+                                        .font(.caption2.weight(.bold))
+                                }
+                                HStack(spacing: 3) {
+                                    Image(systemName: "arrow.up.right")
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(.orange)
+                                    Text(String(format: "%.1f%%", state.cardioIncline))
+                                        .font(.caption2.weight(.bold))
+                                }
+                            }
                             .foregroundStyle(.secondary)
+                        } else {
+                            // Weights: show sets
+                            Text("Set \(state.currentSet) of \(state.totalSets)")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(.secondary)
+                        }
                         
                         if let next = state.nextExerciseName {
                             HStack(spacing: 4) {
@@ -535,8 +577,41 @@ private struct CurrentExerciseCard: View {
                         .foregroundStyle(isFullColor ? .cyan : .primary)
                         .widgetAccentable()
                 }
+            } else if state.isCardio && state.cardioSpeed > 0 {
+                // Cardio: show speed and incline
+                VStack(spacing: 8) {
+                    HStack(spacing: 16) {
+                        // Speed
+                        VStack(spacing: 2) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "speedometer")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.green)
+                                Text(String(format: "%.1f", state.cardioSpeed))
+                                    .font(.system(size: 24, weight: .bold, design: .rounded).monospacedDigit())
+                            }
+                            Text("mph")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(.secondary)
+                        }
+                        
+                        // Incline
+                        VStack(spacing: 2) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.up.right")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.orange)
+                                Text(String(format: "%.1f", state.cardioIncline))
+                                    .font(.system(size: 24, weight: .bold, design: .rounded).monospacedDigit())
+                            }
+                            Text("%")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
             } else {
-                // Set Progress
+                // Set Progress (weights)
                 VStack(spacing: 4) {
                     Text("Set \(state.currentSet) of \(state.totalSets)")
                         .font(.system(size: 16, weight: .semibold, design: .rounded))

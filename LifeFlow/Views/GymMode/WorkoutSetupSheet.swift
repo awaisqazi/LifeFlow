@@ -708,6 +708,8 @@ private struct ExerciseRow: View {
         case .cardio: return .green
         case .calisthenics: return .blue
         case .flexibility: return .purple
+        case .machine: return .red
+        case .functional: return .cyan
         }
     }
 }
@@ -754,14 +756,20 @@ private struct ExercisePickerSheet: View {
     private var filteredExercises: [String] {
         let all: [String]
         switch selectedType {
-        case .weight, .none:
+        case .none:
+            all = WorkoutExercise.allExercises
+        case .weight:
             all = WorkoutExercise.weightExercises
         case .cardio:
             all = WorkoutExercise.cardioExercises
         case .calisthenics:
             all = WorkoutExercise.calisthenicsExercises
         case .flexibility:
-            return ["Hamstring Stretch", "Quad Stretch", "Shoulder Stretch", "Hip Flexor Stretch"]
+            all = WorkoutExercise.flexibilityExercises
+        case .machine:
+            all = WorkoutExercise.machineExercises
+        case .functional:
+            all = WorkoutExercise.functionalExercises
         }
         
         if searchText.isEmpty {
@@ -820,11 +828,14 @@ private struct ExercisePickerSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add (\(selectedNames.count))") {
                         let exercises = selectedNames.map { name in
-                            let type = selectedType ?? .weight
+                            // Use the correct type for each exercise based on which category it belongs to
+                            let type = selectedType ?? WorkoutExercise.exerciseType(for: name)
                             let exercise = WorkoutExercise(name: name, type: type)
-                            _ = exercise.addSet()
-                            _ = exercise.addSet()
-                            _ = exercise.addSet()
+                            // Cardio and flexibility get 1 set, others get 3
+                            let setCount = (type == .cardio || type == .flexibility) ? 1 : 3
+                            for _ in 0..<setCount {
+                                _ = exercise.addSet()
+                            }
                             return exercise
                         }
                         onSelect(exercises)

@@ -351,6 +351,8 @@ private struct ExpandableExerciseCard: View {
         case .cardio: return .green
         case .calisthenics: return .blue
         case .flexibility: return .purple
+        case .machine: return .red
+        case .functional: return .cyan
         }
     }
 }
@@ -401,7 +403,7 @@ private struct SetDetailRow: View {
     @ViewBuilder
     private var setDetails: some View {
         switch exerciseType {
-        case .weight:
+        case .weight, .machine, .functional:
             HStack(spacing: 8) {
                 if let weight = set.weight {
                     Label("\(Int(weight)) lbs", systemImage: "scalemass.fill")
