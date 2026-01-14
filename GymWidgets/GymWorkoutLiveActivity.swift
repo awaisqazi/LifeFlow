@@ -49,6 +49,14 @@ struct GymWorkoutLiveActivity: Widget {
                                 .shadow(color: Color.cyan.opacity(0.3), radius: 8)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.5)
+                        } else if context.state.isCardio, context.state.cardioModeIndex == 0, let cardioEnd = context.state.cardioEndTime {
+                            // Timed Cardio: Countdown
+                            Text(cardioEnd, style: .timer)
+                                .font(.system(size: 32, weight: .bold, design: .rounded).monospacedDigit())
+                                .foregroundStyle(.orange)
+                                .shadow(color: Color.orange.opacity(0.3), radius: 8)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.5)
                         } else {
                             Text(context.state.workoutStartDate, style: .timer)
                                 .font(.system(size: 32, weight: .bold, design: .rounded).monospacedDigit())
@@ -58,7 +66,7 @@ struct GymWorkoutLiveActivity: Widget {
                                 .minimumScaleFactor(0.5)
                         }
                         
-                        Text(context.state.isResting ? "Remaining" : "Elapsed")
+                        Text(context.state.isResting ? "Remaining" : (context.state.isCardio && context.state.cardioModeIndex == 0 ? "Countdown" : "Elapsed"))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -69,20 +77,44 @@ struct GymWorkoutLiveActivity: Widget {
                 
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(spacing: 12) {
-                        // Progress / Sets
-                        HStack(spacing: 4) {
-                            ForEach(0..<context.state.totalSets, id: \.self) { index in
-                                Capsule()
-                                    .fill(index < context.state.currentSet ? 
-                                          (context.state.isResting ? Color.cyan : Color.green) : 
-                                          Color.gray.opacity(0.3))
-                                    .frame(height: 4)
-                            }
+                        // Progress indicator - cardio vs sets
+                        if context.state.isCardio, context.state.cardioModeIndex == 0, 
+                           let cardioEnd = context.state.cardioEndTime,
+                           context.state.cardioDuration > 0 {
+                            // Timed Cardio: Countdown progress bar
+                            let remaining = max(0, cardioEnd.timeIntervalSinceNow)
+                            let progress = remaining / context.state.cardioDuration
                             
-                            Text("Set \(context.state.currentSet)/\(context.state.totalSets)")
-                                .font(.caption2.weight(.bold))
-                                .foregroundStyle(.secondary)
-                                .padding(.leading, 4)
+                            GeometryReader { geo in
+                                ZStack(alignment: .leading) {
+                                    // Background track
+                                    Capsule()
+                                        .fill(Color.gray.opacity(0.3))
+                                        .frame(height: 6)
+                                    
+                                    // Progress fill (decreasing)
+                                    Capsule()
+                                        .fill(Color.orange.gradient)
+                                        .frame(width: geo.size.width * progress, height: 6)
+                                }
+                            }
+                            .frame(height: 6)
+                        } else {
+                            // Standard sets progress
+                            HStack(spacing: 4) {
+                                ForEach(0..<context.state.totalSets, id: \.self) { index in
+                                    Capsule()
+                                        .fill(index < context.state.currentSet ? 
+                                              (context.state.isResting ? Color.cyan : Color.green) : 
+                                              Color.gray.opacity(0.3))
+                                        .frame(height: 4)
+                                }
+                                
+                                Text("Set \(context.state.currentSet)/\(context.state.totalSets)")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(.secondary)
+                                    .padding(.leading, 4)
+                            }
                         }
                         
                         HStack {
@@ -92,10 +124,20 @@ struct GymWorkoutLiveActivity: Widget {
                             
                             Spacer()
                             
-                            if !context.state.isResting {
-                                Text("Next: \(context.state.exerciseName)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
+                            if context.state.isCardio {
+                                // Show cardio info
+                                HStack(spacing: 8) {
+                                    if context.state.cardioSpeed > 0 {
+                                        Text(String(format: "%.1f mph", context.state.cardioSpeed))
+                                            .font(.caption2)
+                                            .foregroundStyle(.orange)
+                                    }
+                                    if context.state.cardioIncline > 0 {
+                                        Text(String(format: "%.0f%%", context.state.cardioIncline))
+                                            .font(.caption2)
+                                            .foregroundStyle(.orange)
+                                    }
+                                }
                             }
                         }
                     }
@@ -108,6 +150,11 @@ struct GymWorkoutLiveActivity: Widget {
                     Text(restEndTime, style: .timer)
                         .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
                         .foregroundStyle(.cyan)
+                } else if context.state.isCardio, context.state.cardioModeIndex == 0, let cardioEnd = context.state.cardioEndTime {
+                    // Timed Cardio: Countdown
+                    Text(cardioEnd, style: .timer)
+                        .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
+                        .foregroundStyle(.orange)
                 } else {
                     Text(context.state.workoutStartDate, style: .timer)
                         .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
@@ -221,6 +268,13 @@ private struct LockScreenView: View {
                             .foregroundStyle(.cyan)
                             .shadow(color: Color.cyan.opacity(0.2), radius: 10)
                             .multilineTextAlignment(.trailing)
+                    } else if context.state.isCardio, context.state.cardioModeIndex == 0, let cardioEnd = context.state.cardioEndTime {
+                        // Timed Cardio: Countdown
+                        Text(cardioEnd, style: .timer)
+                            .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
+                            .foregroundStyle(.orange)
+                            .shadow(color: Color.orange.opacity(0.2), radius: 10)
+                            .multilineTextAlignment(.trailing)
                     } else {
                         Text(context.state.workoutStartDate, style: .timer)
                             .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
@@ -229,7 +283,7 @@ private struct LockScreenView: View {
                             .multilineTextAlignment(.trailing)
                     }
                     
-                    Text(context.state.isResting ? "REST TIMER" : "TOTAL TIME")
+                    Text(context.state.isResting ? "REST TIMER" : (context.state.isCardio && context.state.cardioModeIndex == 0 ? "COUNTDOWN" : "TOTAL TIME"))
                         .font(.system(size: 8, weight: .black))
                         .foregroundStyle(.secondary)
                 }

@@ -88,14 +88,19 @@ final class GymWorkoutLiveActivityManager {
     
     // MARK: - Update Activity
     
-    /// Update the workout activity with current state
-    /// - Parameters:
-    ///   - exerciseName: Current exercise
-    ///   - currentSet: Current set number
-    ///   - totalSets: Total sets for exercise
-    ///   - elapsedTime: Total elapsed workout time in seconds
-    ///   - workoutStartDate: Current session start date
-    func updateWorkout(exerciseName: String, currentSet: Int, totalSets: Int, elapsedTime: Int, workoutStartDate: Date) {
+    func updateWorkout(
+        exerciseName: String,
+        currentSet: Int,
+        totalSets: Int,
+        elapsedTime: Int,
+        workoutStartDate: Date,
+        isCardio: Bool = false,
+        cardioModeIndex: Int = 0,
+        cardioSpeed: Double = 0,
+        cardioIncline: Double = 0,
+        cardioEndTime: Date? = nil,
+        cardioDuration: TimeInterval = 0
+    ) {
         guard let activity = currentActivity else { return }
         
         let updatedState = GymWorkoutAttributes.ContentState(
@@ -104,7 +109,13 @@ final class GymWorkoutLiveActivityManager {
             totalSets: totalSets,
             elapsedTime: elapsedTime,
             workoutStartDate: workoutStartDate,
-            isResting: false
+            isResting: false,
+            isCardio: isCardio,
+            cardioModeIndex: cardioModeIndex,
+            cardioSpeed: cardioSpeed,
+            cardioIncline: cardioIncline,
+            cardioEndTime: cardioEndTime,
+            cardioDuration: cardioDuration
         )
         
         let content = ActivityContent(state: updatedState, staleDate: nil)
@@ -133,7 +144,8 @@ final class GymWorkoutLiveActivityManager {
             workoutStartDate: workoutStartDate,
             isResting: true,
             restTimeRemaining: Int(restEndTime.timeIntervalSinceNow),
-            restEndTime: restEndTime
+            restEndTime: restEndTime,
+            isCardio: false // Rest is not a cardio activity state per se
         )
         
         let content = ActivityContent(state: restState, staleDate: nil)

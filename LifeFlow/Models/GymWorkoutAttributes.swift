@@ -41,6 +41,14 @@ public struct GymWorkoutAttributes: ActivityAttributes {
         /// End date of the rest timer (for native countdown timer)
         public var restEndTime: Date?
         
+        /// Cardio fields
+        public var isCardio: Bool
+        public var cardioModeIndex: Int   // 0 for Timed, 1 for Freestyle
+        public var cardioSpeed: Double
+        public var cardioIncline: Double
+        public var cardioEndTime: Date?   // For countdown in timed mode
+        public var cardioDuration: TimeInterval // For progress bar in timed mode
+        
         /// Formatted elapsed time (MM:SS or H:MM:SS)
         public var formattedElapsedTime: String {
             let hours = elapsedTime / 3600
@@ -70,7 +78,13 @@ public struct GymWorkoutAttributes: ActivityAttributes {
             workoutStartDate: Date = Date(),
             isResting: Bool = false,
             restTimeRemaining: Int = 0,
-            restEndTime: Date? = nil
+            restEndTime: Date? = nil,
+            isCardio: Bool = false,
+            cardioModeIndex: Int = 0,
+            cardioSpeed: Double = 0,
+            cardioIncline: Double = 0,
+            cardioEndTime: Date? = nil,
+            cardioDuration: TimeInterval = 0
         ) {
             self.exerciseName = exerciseName
             self.exerciseIcon = exerciseIcon
@@ -81,6 +95,12 @@ public struct GymWorkoutAttributes: ActivityAttributes {
             self.isResting = isResting
             self.restTimeRemaining = restTimeRemaining
             self.restEndTime = restEndTime
+            self.isCardio = isCardio
+            self.cardioModeIndex = cardioModeIndex
+            self.cardioSpeed = cardioSpeed
+            self.cardioIncline = cardioIncline
+            self.cardioEndTime = cardioEndTime
+            self.cardioDuration = cardioDuration
         }
     }
     

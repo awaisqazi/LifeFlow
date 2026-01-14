@@ -11,6 +11,8 @@ import SwiftUI
 /// Phase 1: Set weight → Start Set
 /// Phase 2: Enter reps → Complete
 struct ExerciseInputCard: View {
+    @Environment(\.gymModeManager) private var manager
+    
     let exercise: WorkoutExercise
     let setNumber: Int
     let previousData: (weight: Double?, reps: Int?)?
@@ -434,6 +436,17 @@ struct ExerciseInputCard: View {
                         // Log interval changes for both timed and freestyle modes
                         if isCardioActive {
                             scheduleIntervalUpdate()
+                            
+                            // Sync with widget
+                            let endTime = cardioMode == .timed ? Date().addingTimeInterval(duration - cardioElapsedTime) : nil
+                            manager.updateCardioState(
+                                mode: cardioMode == .timed ? 0 : 1,
+                                endTime: endTime,
+                                speed: speed,
+                                incline: incline,
+                                elapsedTime: cardioElapsedTime,
+                                duration: duration
+                            )
                         }
                     }
                 )
@@ -585,11 +598,35 @@ struct ExerciseInputCard: View {
         isCardioActive = true
         cardioElapsedTime = 0
         expandedSetting = nil
-        lastRecordedSpeed = speed
         lastRecordedIncline = incline
+        
+        // Sync with widget
+        let endTime = Date().addingTimeInterval(duration)
+        manager.updateCardioState(
+            mode: 0,
+            endTime: endTime,
+            speed: speed,
+            incline: incline,
+            elapsedTime: 0,
+            duration: duration
+        )
         
         cardioTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
             cardioElapsedTime += 1
+            
+            // Sync with widget every 5 seconds or on significant events
+            if Int(cardioElapsedTime) % 5 == 0 {
+                let remaining = max(0, duration - cardioElapsedTime)
+                manager.updateCardioState(
+                    mode: 0,
+                    endTime: Date().addingTimeInterval(remaining),
+                    speed: speed,
+                    incline: incline,
+                    elapsedTime: cardioElapsedTime,
+                    duration: duration
+                )
+            }
+            
             if cardioElapsedTime >= duration {
                 // Auto-complete when timer finishes
                 stopCardioWorkout()
@@ -610,8 +647,30 @@ struct ExerciseInputCard: View {
         lastRecordedSpeed = speed
         lastRecordedIncline = incline
         
+        // Sync with widget
+        manager.updateCardioState(
+            mode: 1,
+            endTime: nil as Date?,
+            speed: speed,
+            incline: incline,
+            elapsedTime: 0,
+            duration: 0
+        )
+        
         cardioTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
             cardioElapsedTime += 1
+            
+            // Sync with widget every 5 seconds
+            if Int(cardioElapsedTime) % 5 == 0 {
+                manager.updateCardioState(
+                    mode: 1,
+                    endTime: nil as Date?,
+                    speed: speed,
+                    incline: incline,
+                    elapsedTime: cardioElapsedTime,
+                    duration: 0
+                )
+            }
         }
     }
     
@@ -634,6 +693,9 @@ struct ExerciseInputCard: View {
         intervalDebounceTimer?.invalidate()
         intervalDebounceTimer = nil
         isCardioActive = false
+        
+        // Clear widget cardio state
+        manager.updateCardioState(mode: 0, endTime: nil as Date?, speed: 0, incline: 0, elapsedTime: 0, duration: 0)
     }
     
     // MARK: - Flexibility Inputs

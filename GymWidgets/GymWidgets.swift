@@ -96,7 +96,9 @@ struct GymWidgets: Widget {
         cardioElapsedTime: 0,
         cardioDuration: 0,
         cardioSpeed: 0,
-        cardioIncline: 0
+        cardioIncline: 0,
+        cardioEndTime: nil,
+        cardioModeIndex: 0
     ))
 }
 
@@ -127,7 +129,9 @@ struct GymWidgets: Widget {
         cardioElapsedTime: 0,
         cardioDuration: 0,
         cardioSpeed: 0,
-        cardioIncline: 0
+        cardioIncline: 0,
+        cardioEndTime: nil,
+        cardioModeIndex: 0
     ))
 }
 
@@ -158,6 +162,8 @@ struct GymWidgets: Widget {
         cardioElapsedTime: 0,
         cardioDuration: 0,
         cardioSpeed: 0,
-        cardioIncline: 0
+        cardioIncline: 0,
+        cardioEndTime: nil,
+        cardioModeIndex: 0
     ))
 }

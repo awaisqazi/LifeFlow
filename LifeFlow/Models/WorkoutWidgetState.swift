@@ -44,6 +44,9 @@ struct WorkoutWidgetState: Codable {
     var cardioSpeed: Double
     var cardioIncline: Double
     
+    var cardioEndTime: Date?     // For countdown timers in timed cardio
+    var cardioModeIndex: Int     // 0 for Timed, 1 for Freestyle
+    
     /// Default idle state
     static var idle: WorkoutWidgetState {
         WorkoutWidgetState(
@@ -71,7 +74,9 @@ struct WorkoutWidgetState: Codable {
             cardioElapsedTime: 0,
             cardioDuration: 0,
             cardioSpeed: 0,
-            cardioIncline: 0
+            cardioIncline: 0,
+            cardioEndTime: nil,
+            cardioModeIndex: 0
         )
     }
     

@@ -215,22 +215,17 @@ struct GymCard: View {
                     
                     // Button based on state
                     if dayLog.hasWorkedOut {
-                        // Show Completed status with options
-                        HStack(spacing: 8) {
-                            // Info button for details
+                        // Show Completed status with circular icon buttons
+                        HStack(spacing: 12) {
+                            // View details button
                             Button {
                                 showWorkoutDetailSheet = true
                             } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.caption)
-                                    Text("Done")
-                                        .font(.caption.weight(.bold))
-                                }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 8)
-                                .background(Color.green.gradient, in: Capsule())
-                                .foregroundStyle(.white)
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 44, height: 44)
+                                    .background(Color.green.gradient, in: Circle())
                             }
                             
                             // Add More / Continue Training button
@@ -239,16 +234,11 @@ struct GymCard: View {
                                 let impact = UIImpactFeedbackGenerator(style: .medium)
                                 impact.impactOccurred()
                             } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "plus.circle.fill")
-                                        .font(.caption)
-                                    Text("More")
-                                        .font(.caption.weight(.bold))
-                                }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 8)
-                                .background(Color.orange.gradient, in: Capsule())
-                                .foregroundStyle(.white)
+                                Image(systemName: "plus")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 44, height: 44)
+                                    .background(Color.orange.gradient, in: Circle())
                             }
                         }
                     } else if hasPausedWorkout {

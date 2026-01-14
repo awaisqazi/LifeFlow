@@ -37,6 +37,26 @@ final class GymModeManager {
     /// Elapsed time since workout started
     private(set) var elapsedTime: TimeInterval = 0
     
+    // MARK: - Cardio State
+    
+    /// Current cardio mode (0: Timed, 1: Freestyle)
+    private(set) var cardioModeIndex: Int = 0
+    
+    /// When the timed cardio ends
+    private(set) var cardioEndTime: Date?
+    
+    /// Current cardio speed
+    var cardioSpeed: Double = 0
+    
+    /// Current cardio incline
+    var cardioIncline: Double = 0
+    
+    /// Current cardio elapsed time
+    private(set) var cardioElapsedTime: TimeInterval = 0
+    
+    /// Current cardio total duration (for timed mode)
+    private(set) var cardioDuration: TimeInterval = 0
+    
     // MARK: - Rest Timer
     
     /// Whether the rest timer is currently running
@@ -150,10 +170,12 @@ final class GymModeManager {
             totalExercises: exercises.count,
             currentExerciseIndex: currentExerciseIndex + 1,
             isCardio: isCardioExercise,
-            cardioElapsedTime: 0,  // Will be updated by ExerciseInputCard
-            cardioDuration: 0,     // Will be updated by ExerciseInputCard
-            cardioSpeed: 0,        // Will be updated by ExerciseInputCard
-            cardioIncline: 0       // Will be updated by ExerciseInputCard
+            cardioElapsedTime: cardioElapsedTime,
+            cardioDuration: cardioDuration,
+            cardioSpeed: cardioSpeed,
+            cardioIncline: cardioIncline,
+            cardioEndTime: cardioEndTime,
+            cardioModeIndex: cardioModeIndex
         )
         state.save()
     }
@@ -169,7 +191,41 @@ final class GymModeManager {
                 currentSet: currentSetIndex + 1,
                 totalSets: currentEx.sets.count,
                 elapsedTime: Int(elapsedTime),
-                workoutStartDate: workoutStartTime ?? Date()
+                workoutStartDate: workoutStartTime ?? Date(),
+                isCardio: currentEx.type == .cardio,
+                cardioModeIndex: cardioModeIndex,
+                cardioSpeed: cardioSpeed,
+                cardioIncline: cardioIncline,
+                cardioEndTime: cardioEndTime,
+                cardioDuration: cardioDuration
+            )
+        }
+    }
+    
+    /// Update cardio-specific state for widget/Live Activity sync
+    func updateCardioState(mode: Int, endTime: Date? = nil, speed: Double, incline: Double, elapsedTime: TimeInterval = 0, duration: TimeInterval = 0) {
+        self.cardioModeIndex = mode
+        self.cardioEndTime = endTime
+        self.cardioSpeed = speed
+        self.cardioIncline = incline
+        self.cardioElapsedTime = elapsedTime
+        self.cardioDuration = duration
+        syncWidgetState()
+        
+        // Also update Live Activity if active
+        if let currentEx = currentExercise {
+            workoutLiveActivityManager.updateWorkout(
+                exerciseName: currentEx.name,
+                currentSet: currentSetIndex + 1,
+                totalSets: currentEx.sets.count,
+                elapsedTime: Int(elapsedTime),
+                workoutStartDate: workoutStartTime ?? Date(),
+                isCardio: true,
+                cardioModeIndex: mode,
+                cardioSpeed: speed,
+                cardioIncline: incline,
+                cardioEndTime: endTime,
+                cardioDuration: duration
             )
         }
     }

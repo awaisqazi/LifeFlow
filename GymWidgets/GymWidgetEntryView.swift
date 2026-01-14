@@ -48,18 +48,61 @@ struct GymWidgetEntryView: View {
     var entry: WorkoutEntry
     
     @Environment(\.widgetFamily) var family
+    @Environment(\.widgetRenderingMode) var renderingMode
+    
+    private var isFullColor: Bool {
+        renderingMode == .fullColor
+    }
     
     var body: some View {
-        switch family {
-        case .systemSmall:
-            SmallWidgetView(state: entry.state)
-        case .systemMedium:
-            MediumWidgetView(state: entry.state)
-        case .systemLarge:
-            LargeWidgetView(state: entry.state)
-        default:
-            SmallWidgetView(state: entry.state)
+        Group {
+            switch family {
+            case .systemSmall:
+                SmallWidgetView(state: entry.state, isFullColor: isFullColor)
+            case .systemMedium:
+                MediumWidgetView(state: entry.state, isFullColor: isFullColor)
+            case .systemLarge:
+                LargeWidgetView(state: entry.state)
+            default:
+                SmallWidgetView(state: entry.state, isFullColor: isFullColor)
+            }
         }
+        .containerBackground(for: .widget) {
+            // Let system handle tinted/glass background in accented mode
+            // Only provide a subtle background in full-color mode
+            if isFullColor {
+                Color.black.opacity(0.85)
+            } else {
+                Color.clear
+            }
+        }
+    }
+}
+
+// MARK: - Color Hex Extension
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3: // RGB (12-bit)
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6: // RGB (24-bit)
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8: // ARGB (32-bit)
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (1, 1, 1, 0)
+        }
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue: Double(b) / 255,
+            opacity: Double(a) / 255
+        )
     }
 }
 
@@ -67,6 +110,7 @@ struct GymWidgetEntryView: View {
 
 private struct SmallWidgetView: View {
     let state: WorkoutWidgetState
+    let isFullColor: Bool
     
     var body: some View {
         if state.isActive {
@@ -76,11 +120,13 @@ private struct SmallWidgetView: View {
                     // Status badge
                     HStack(spacing: 4) {
                         Circle()
-                            .fill(state.isPaused ? Color.secondary : (state.isResting ? Color.cyan : Color.green))
+                            .fill(isFullColor ? (state.isPaused ? Color.secondary : (state.isResting ? Color.cyan : Color.green)) : Color.primary)
                             .frame(width: 6, height: 6)
+                            .widgetAccentable()
                         Text(state.isPaused ? "PAUSED" : (state.isResting ? "RESTING" : "ACTIVE"))
                             .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(state.isPaused ? Color.secondary : (state.isResting ? Color.cyan : Color.green))
+                            .foregroundStyle(isFullColor ? (state.isPaused ? Color.secondary : (state.isResting ? Color.cyan : Color.green)) : .primary)
+                            .widgetAccentable()
                     }
                     
                     Spacer()
@@ -98,6 +144,23 @@ private struct SmallWidgetView: View {
                             .foregroundStyle(.cyan)
                             .multilineTextAlignment(.center)
                             .frame(maxWidth: .infinity)
+                    } else if state.isCardio {
+                        if state.cardioModeIndex == 0, let cardioEnd = state.cardioEndTime {
+                            // Timed Cardio: Countdown
+                            Text(cardioEnd, style: .timer)
+                                .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
+                                .foregroundStyle(.orange)
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            // Freestyle Cardio: Count up from start relative to current elapsed
+                            let cardioStart = Date().addingTimeInterval(-state.cardioElapsedTime)
+                            Text(cardioStart, style: .timer)
+                                .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
+                                .foregroundStyle(.green)
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: .infinity)
+                        }
                     } else {
                         Text(state.workoutStartDate, style: .timer)
                             .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
@@ -163,6 +226,7 @@ private struct SmallWidgetView: View {
 
 private struct MediumWidgetView: View {
     let state: WorkoutWidgetState
+    let isFullColor: Bool
     
     var body: some View {
         if state.isActive {
@@ -173,13 +237,15 @@ private struct MediumWidgetView: View {
                         HStack(spacing: 4) {
                             Image(systemName: state.isPaused ? "pause.fill" : (state.isResting ? "timer" : "dumbbell.fill"))
                                 .font(.system(size: 10, weight: .bold))
+                                .widgetAccentable()
                             Text(state.isPaused ? "PAUSED" : (state.isResting ? "RESTING" : "ACTIVE"))
                                 .font(.system(size: 10, weight: .black))
+                                .widgetAccentable()
                         }
-                        .foregroundStyle(state.isPaused ? Color.secondary : (state.isResting ? Color.cyan : Color.orange))
+                        .foregroundStyle(isFullColor ? (state.isPaused ? Color.secondary : (state.isResting ? Color.cyan : Color.orange)) : .primary)
                         .padding(.vertical, 4)
                         .padding(.horizontal, 8)
-                        .background(state.isPaused ? Color.secondary.opacity(0.1) : (state.isResting ? Color.cyan.opacity(0.1) : Color.orange.opacity(0.1)), in: Capsule())
+                        .glassEffect(.regular, in: .capsule)
                         
                         Spacer()
                         
@@ -191,6 +257,19 @@ private struct MediumWidgetView: View {
                             Text(restEnd, style: .timer)
                                 .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
                                 .foregroundStyle(Color.cyan)
+                        } else if state.isCardio {
+                            if state.cardioModeIndex == 0, let cardioEnd = state.cardioEndTime {
+                                // Timed Cardio: Countdown
+                                Text(cardioEnd, style: .timer)
+                                    .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
+                                    .foregroundStyle(.orange)
+                            } else {
+                                // Freestyle Cardio: Count up
+                                let cardioStart = Date().addingTimeInterval(-state.cardioElapsedTime)
+                                Text(cardioStart, style: .timer)
+                                    .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
+                                    .foregroundStyle(.green)
+                            }
                         } else {
                             Text(state.workoutStartDate, style: .timer)
                                 .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
@@ -295,6 +374,10 @@ private struct LargeWidgetView: View {
     
     @Environment(\.widgetRenderingMode) var renderingMode
     
+    private var isFullColor: Bool {
+        renderingMode == .fullColor
+    }
+    
     var body: some View {
         Group {
             if state.isActive {
@@ -303,9 +386,7 @@ private struct LargeWidgetView: View {
                 idleStatePlaceholder
             }
         }
-        .containerBackground(for: .widget) {
-            Color.black.opacity(0.95)
-        }
+        // Removed containerBackground - parent handles this
     }
     
     // MARK: - Exercise Queue Dashboard
@@ -378,6 +459,19 @@ private struct LargeWidgetView: View {
                     Text(state.pausedDisplayTime ?? "--:--")
                         .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
                         .foregroundStyle(.secondary)
+                } else if state.isCardio {
+                    if state.cardioModeIndex == 0, let cardioEnd = state.cardioEndTime {
+                        // Timed Cardio: Countdown
+                        Text(cardioEnd, style: .timer)
+                            .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
+                            .foregroundStyle(.orange)
+                    } else {
+                        // Freestyle Cardio: Count up
+                        let cardioStart = Date().addingTimeInterval(-state.cardioElapsedTime)
+                        Text(cardioStart, style: .timer)
+                            .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
+                            .foregroundStyle(.green)
+                    }
                 } else {
                     Text(state.workoutStartDate, style: .timer)
                         .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
@@ -462,7 +556,16 @@ private struct ExerciseCard: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .background(cardBackground)
+        .background {
+            if isFullColor {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color.white.opacity(position == .previous ? 0.04 : 0.06))
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.primary.opacity(isFullColor ? 0.08 : 0.15), lineWidth: 1)
+        )
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
     
@@ -558,7 +661,16 @@ private struct CurrentExerciseCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity)
-        .background(heroCardBackground)
+        .background {
+            if isFullColor {
+                RoundedRectangle(cornerRadius: 18)
+                    .fill(Color.white.opacity(0.08))
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.primary.opacity(isFullColor ? 0.12 : 0.2), lineWidth: 1)
+        )
         .clipShape(RoundedRectangle(cornerRadius: 18))
     }
     
@@ -650,6 +762,46 @@ private struct CurrentExerciseCard: View {
                 }
                 .progressViewStyle(.linear)
                 .tint(isFullColor ? .cyan : .primary)
+            } else if state.isCardio {
+                if state.cardioModeIndex == 0, let cardioEnd = state.cardioEndTime {
+                    // Timed Cardio: Countdown progress bar
+                    let duration = state.cardioDuration > 0 ? state.cardioDuration : 600
+                    let startTime = cardioEnd.addingTimeInterval(-duration)
+                    
+                    ProgressView(
+                        timerInterval: startTime...cardioEnd,
+                        countsDown: true
+                    ) {
+                        EmptyView()
+                    } currentValueLabel: {
+                        EmptyView()
+                    }
+                    .progressViewStyle(.linear)
+                    .tint(isFullColor ? .orange : .primary)
+                } else {
+                    // Freestyle Cardio: Count up progress bar (based on cardioElapsedTime)
+                    // Since it's freestyle, we don't have a fixed end. 
+                    // Let's just use a simple capsule that is always filled or pulses?
+                    // Actually, lets just not show a bar for freestyle or show elapsed percentage of some goal?
+                    // User said "reflect progress going up for the freestyle".
+                    // Let's use 30 mins as a default goal for the bar if no duration.
+                    let goal: TimeInterval = 1800 // 30 mins default goal for bar visibility
+                    let progress = min(state.cardioElapsedTime / goal, 1.0)
+                    
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(Color.white.opacity(0.12))
+                                .frame(height: 6)
+                            
+                            Capsule()
+                                .fill(isFullColor ? accentColor : Color.primary)
+                                .frame(width: geo.size.width * progress, height: 6)
+                                .widgetAccentable()
+                        }
+                    }
+                    .frame(height: 6)
+                }
             } else {
                 // Work mode: show set progress (bar increases)
                 GeometryReader { geo in
@@ -674,7 +826,7 @@ private struct CurrentExerciseCard: View {
     
     private var heroCardBackground: some View {
         RoundedRectangle(cornerRadius: 18)
-            .fill(Color.white.opacity(0.1))
+            .fill(.ultraThinMaterial)
             .overlay(
                 RoundedRectangle(cornerRadius: 18)
                     .stroke(
@@ -686,5 +838,6 @@ private struct CurrentExerciseCard: View {
                         lineWidth: 0.5
                     )
             )
+            .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
     }
 }
