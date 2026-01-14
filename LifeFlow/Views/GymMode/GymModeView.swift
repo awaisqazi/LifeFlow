@@ -37,6 +37,9 @@ struct GymModeView: View {
     @State private var showAddExerciseSheet: Bool = false
     @State private var showWorkoutCompleteConfirmation: Bool = false
     
+    // Namespace for morphing glass effects between sliver and input card
+    @Namespace private var animationNamespace
+    
     // Current set input values
     @State private var currentWeight: Double = 0
     @State private var currentReps: Double = 0
@@ -46,8 +49,9 @@ struct GymModeView: View {
     
     var body: some View {
         ZStack {
-            // Dark background for high contrast
-            Color.black.ignoresSafeArea()
+            // Living mesh gradient background
+            AnimatedMeshGradientView(theme: .flow)
+                .ignoresSafeArea()
             
             if manager.isWorkoutActive {
                 activeWorkoutView
@@ -158,57 +162,90 @@ struct GymModeView: View {
     
     private var activeWorkoutView: some View {
         VStack(spacing: 0) {
-            // Header
+            // Header with glass styling
             workoutHeader
             
-            // Exercise list (tappable, reorderable)
+            // Unified Morphing Dashboard
             ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach(manager.activeSession?.sortedExercises ?? [], id: \.id) { exercise in
-                        FlexibleExerciseCard(
-                            exercise: exercise,
-                            isActive: exercise.id == manager.currentExercise?.id,
-                            completedSets: manager.completedSetsCount(for: exercise),
-                            totalSets: exercise.sets.count,
-                            isEditMode: isEditMode,
-                            onTap: {
-                                if !isEditMode {
-                                    manager.selectExercise(exercise)
-                                    loadCurrentSetDefaults()
+                GlassEffectContainer(spacing: 16) {
+                    LazyVStack(spacing: 16) {
+                        ForEach(manager.activeSession?.sortedExercises ?? [], id: \.id) { exercise in
+                            let isActive = exercise.id == manager.currentExercise?.id
+                            
+                            if isActive && !isEditMode {
+                                // === STATE A: ACTIVE (The Existing Input Card) ===
+                                let previousData = manager.getPreviousSetData(
+                                    for: exercise.name,
+                                    setIndex: manager.currentSetIndex,
+                                    using: modelContext
+                                )
+                                
+                                ExerciseInputCard(
+                                    exercise: exercise,
+                                    setNumber: manager.currentSetIndex + 1,
+                                    previousData: previousData,
+                                    weight: $currentWeight,
+                                    reps: $currentReps,
+                                    duration: $currentDuration,
+                                    speed: $currentSpeed,
+                                    incline: $currentIncline,
+                                    onComplete: { completeCurrentSet() }
+                                )
+                                .glassEffectID(exercise.id.uuidString, in: animationNamespace)
+                                .transition(.blurReplace)
+                                
+                            } else if isEditMode {
+                                // Edit mode: show FlexibleExerciseCard for reordering
+                                FlexibleExerciseCard(
+                                    exercise: exercise,
+                                    isActive: isActive,
+                                    completedSets: manager.completedSetsCount(for: exercise),
+                                    totalSets: exercise.sets.count,
+                                    isEditMode: true,
+                                    onTap: {},
+                                    onMoveUp: {
+                                        if let index = manager.activeSession?.sortedExercises.firstIndex(where: { $0.id == exercise.id }),
+                                           index > 0 {
+                                            manager.moveExercise(from: index, to: index - 1)
+                                        }
+                                    },
+                                    onMoveDown: {
+                                        if let session = manager.activeSession,
+                                           let index = session.sortedExercises.firstIndex(where: { $0.id == exercise.id }),
+                                           index < session.exercises.count - 1 {
+                                            manager.moveExercise(from: index, to: index + 1)
+                                        }
+                                    },
+                                    onDelete: {
+                                        deleteExercise(exercise)
+                                    }
+                                )
+                                .glassEffectID(exercise.id.uuidString, in: animationNamespace)
+                                
+                            } else {
+                                // === STATE B: INACTIVE (The Sliver) ===
+                                InactiveGlassSliver(
+                                    exercise: exercise,
+                                    completedSets: manager.completedSetsCount(for: exercise),
+                                    totalSets: exercise.sets.count
+                                )
+                                .glassEffectID(exercise.id.uuidString, in: animationNamespace)
+                                .onTapGesture {
+                                    withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
+                                        manager.selectExercise(exercise)
+                                        loadCurrentSetDefaults()
+                                    }
                                 }
-                            },
-                            onMoveUp: {
-                                if let index = manager.activeSession?.sortedExercises.firstIndex(where: { $0.id == exercise.id }),
-                                   index > 0 {
-                                    manager.moveExercise(from: index, to: index - 1)
-                                }
-                            },
-                            onMoveDown: {
-                                if let session = manager.activeSession,
-                                   let index = session.sortedExercises.firstIndex(where: { $0.id == exercise.id }),
-                                   index < session.exercises.count - 1 {
-                                    manager.moveExercise(from: index, to: index + 1)
-                                }
-                            },
-                            onDelete: {
-                                deleteExercise(exercise)
                             }
-                        )
+                        }
                     }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 16)
-                .padding(.bottom, 220)
-            }
-            
-            Spacer()
-            
-            // Current exercise input panel (if not in edit mode)
-            if !isEditMode, let exercise = manager.currentExercise {
-                exerciseInputPanel(exercise: exercise)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                .padding(.bottom, 100) // Space for action menu
             }
         }
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: manager.currentExercise?.id)
         .animation(.spring(response: 0.3), value: isEditMode)
     }
     

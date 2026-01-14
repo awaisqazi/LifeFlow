@@ -192,47 +192,47 @@ struct GymWorkoutLiveActivity: Widget {
 private struct LockScreenView: View {
     let context: ActivityViewContext<GymWorkoutAttributes>
     
+    // Determine tint based on state
+    var stateColor: Color {
+        context.state.isResting ? .cyan : .orange
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
             // Header
             HStack {
                 Label(context.attributes.workoutTitle.uppercased(), systemImage: "bolt.fill")
                     .font(.system(size: 10, weight: .black))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(stateColor)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Color.orange.opacity(0.1), in: Capsule())
+                    .background(stateColor.opacity(0.1), in: Capsule())
                 
                 Spacer()
                 
-                Text("LIVE WORKOUT")
+                Text(context.state.isResting ? "RESTING" : "ACTIVE")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(stateColor)
                     .tracking(1)
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)
             
             HStack(spacing: 16) {
-                // Left - Static State Indicator (no animation needed)
+                // Left - State Indicator
                 ZStack {
-                    // Background circle with state-based color
                     Circle()
-                        .fill(context.state.isResting ? 
-                              Color.cyan.opacity(0.15) : 
-                              Color.green.opacity(0.15))
+                        .fill(stateColor.opacity(0.15))
                         .frame(width: 64, height: 64)
                     
-                    // Border ring
                     Circle()
-                        .stroke(context.state.isResting ? Color.cyan : Color.green, lineWidth: 3)
+                        .stroke(stateColor, lineWidth: 3)
                         .frame(width: 64, height: 64)
                     
-                    // State icon + set info
                     VStack(spacing: 2) {
                         Image(systemName: context.state.isResting ? "timer" : "dumbbell.fill")
                             .font(.system(size: 18, weight: .bold))
-                            .foregroundStyle(context.state.isResting ? .cyan : .green)
+                            .foregroundStyle(stateColor)
                         
                         Text("\(context.state.currentSet)/\(context.state.totalSets)")
                             .font(.system(size: 12, weight: .bold, design: .rounded))
@@ -242,10 +242,6 @@ private struct LockScreenView: View {
                 
                 // Middle - Info
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(context.state.isResting ? "Currently Resting" : "Active Exercise")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(context.state.isResting ? .cyan : .orange)
-                    
                     Text(context.state.exerciseName)
                         .font(.title3.weight(.bold))
                         .lineLimit(1)
@@ -269,7 +265,6 @@ private struct LockScreenView: View {
                             .shadow(color: Color.cyan.opacity(0.2), radius: 10)
                             .multilineTextAlignment(.trailing)
                     } else if context.state.isCardio, context.state.cardioModeIndex == 0, let cardioEnd = context.state.cardioEndTime {
-                        // Timed Cardio: Countdown
                         Text(cardioEnd, style: .timer)
                             .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
                             .foregroundStyle(.orange)
@@ -291,7 +286,7 @@ private struct LockScreenView: View {
             }
             .padding(16)
         }
-        // Note: Removed custom background - iOS provides the Live Activity container automatically
+        // Note: glassEffect is NOT supported in Live Activity context - causes blank rendering
     }
 }
 
