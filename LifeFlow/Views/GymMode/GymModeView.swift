@@ -37,7 +37,7 @@ struct GymModeView: View {
     @State private var showAddExerciseSheet: Bool = false
     @State private var showWorkoutCompleteConfirmation: Bool = false
     
-    // Namespace for morphing glass effects between sliver and input card
+    // Namespace for morphing glass effects
     @Namespace private var animationNamespace
     
     // Current set input values
@@ -158,32 +158,30 @@ struct GymModeView: View {
         }
     }
     
-    // MARK: - Active Workout View
+    // MARK: - Active Workout View (Liquid Dashboard)
     
     private var activeWorkoutView: some View {
         VStack(spacing: 0) {
-            // Header with glass styling
+            // Header
             workoutHeader
             
-            // Unified Morphing Dashboard
+            // Dashboard
             ScrollView {
-                GlassEffectContainer(spacing: 16) {
-                    LazyVStack(spacing: 16) {
+                // ScrollViewReader allows us to scroll to the active card
+                ScrollViewReader { scrollProxy in
+                    // GlassEffectContainer groups the liquid glass elements
+                    GlassEffectContainer(spacing: 16) {
                         ForEach(manager.activeSession?.sortedExercises ?? [], id: \.id) { exercise in
-                            let isActive = exercise.id == manager.currentExercise?.id
-                            
-                            if isActive && !isEditMode {
-                                // === STATE A: ACTIVE (The Existing Input Card) ===
-                                let previousData = manager.getPreviousSetData(
-                                    for: exercise.name,
-                                    setIndex: manager.currentSetIndex,
-                                    using: modelContext
-                                )
-                                
+                            if manager.currentExercise?.id == exercise.id {
+                                // === STATE A: ACTIVE (Input Card) ===
                                 ExerciseInputCard(
                                     exercise: exercise,
                                     setNumber: manager.currentSetIndex + 1,
-                                    previousData: previousData,
+                                    previousData: manager.getPreviousSetData(
+                                        for: exercise.name,
+                                        setIndex: manager.currentSetIndex,
+                                        using: modelContext
+                                    ),
                                     weight: $currentWeight,
                                     reps: $currentReps,
                                     duration: $currentDuration,
@@ -193,60 +191,37 @@ struct GymModeView: View {
                                 )
                                 .glassEffectID(exercise.id.uuidString, in: animationNamespace)
                                 .transition(.blurReplace)
-                                
-                            } else if isEditMode {
-                                // Edit mode: show FlexibleExerciseCard for reordering
-                                FlexibleExerciseCard(
-                                    exercise: exercise,
-                                    isActive: isActive,
-                                    completedSets: manager.completedSetsCount(for: exercise),
-                                    totalSets: exercise.sets.count,
-                                    isEditMode: true,
-                                    onTap: {},
-                                    onMoveUp: {
-                                        if let index = manager.activeSession?.sortedExercises.firstIndex(where: { $0.id == exercise.id }),
-                                           index > 0 {
-                                            manager.moveExercise(from: index, to: index - 1)
-                                        }
-                                    },
-                                    onMoveDown: {
-                                        if let session = manager.activeSession,
-                                           let index = session.sortedExercises.firstIndex(where: { $0.id == exercise.id }),
-                                           index < session.exercises.count - 1 {
-                                            manager.moveExercise(from: index, to: index + 1)
-                                        }
-                                    },
-                                    onDelete: {
-                                        deleteExercise(exercise)
-                                    }
-                                )
-                                .glassEffectID(exercise.id.uuidString, in: animationNamespace)
+                                .id(exercise.id)
                                 
                             } else {
-                                // === STATE B: INACTIVE (The Sliver) ===
-                                InactiveGlassSliver(
-                                    exercise: exercise,
-                                    completedSets: manager.completedSetsCount(for: exercise),
-                                    totalSets: exercise.sets.count
-                                )
-                                .glassEffectID(exercise.id.uuidString, in: animationNamespace)
-                                .onTapGesture {
+                                // === STATE B: INACTIVE (Button) ===
+                                Button {
+                                    // Tap Logic: Select & Center
                                     withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
                                         manager.selectExercise(exercise)
                                         loadCurrentSetDefaults()
+                                        
+                                        // Auto-scroll the new active card to the center
+                                        scrollProxy.scrollTo(exercise.id, anchor: .center)
                                     }
+                                } label: {
+                                    InactiveGlassSliver(
+                                        exercise: exercise,
+                                        completedSets: manager.completedSetsCount(for: exercise),
+                                        totalSets: exercise.sets.count
+                                    )
                                 }
+                                .buttonStyle(.plain)
+                                .glassEffectID(exercise.id.uuidString, in: animationNamespace)
+                                .id(exercise.id)
                             }
                         }
                     }
+                    .padding()
+                    .padding(.bottom, 100)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-                .padding(.bottom, 100) // Space for action menu
             }
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: manager.currentExercise?.id)
-        .animation(.spring(response: 0.3), value: isEditMode)
     }
     
     // MARK: - Header

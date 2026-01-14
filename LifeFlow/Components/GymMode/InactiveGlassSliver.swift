@@ -7,16 +7,10 @@
 
 import SwiftUI
 
-/// A compact, touchable glass row representing a future or completed exercise.
-/// Used in the morphing dashboard alongside the active `ExerciseInputCard`.
 struct InactiveGlassSliver: View {
     let exercise: WorkoutExercise
     let completedSets: Int
     let totalSets: Int
-    
-    private var isComplete: Bool {
-        completedSets >= totalSets
-    }
     
     var body: some View {
         HStack {
@@ -27,7 +21,7 @@ struct InactiveGlassSliver: View {
             
             Spacer()
             
-            if isComplete {
+            if completedSets >= totalSets {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
                     .font(.title3)
@@ -39,27 +33,7 @@ struct InactiveGlassSliver: View {
         }
         .padding()
         .frame(height: 60)
-        .glassEffect(.regular, in: .rect(cornerRadius: 16))
-    }
-}
-
-// MARK: - Preview
-
-#Preview("Incomplete") {
-    ZStack {
-        AnimatedMeshGradientView(theme: .flow)
-        VStack(spacing: 16) {
-            InactiveGlassSliver(
-                exercise: WorkoutExercise(name: "Bench Press", type: .weight, orderIndex: 0),
-                completedSets: 1,
-                totalSets: 3
-            )
-            InactiveGlassSliver(
-                exercise: WorkoutExercise(name: "Squats", type: .weight, orderIndex: 1),
-                completedSets: 3,
-                totalSets: 3
-            )
-        }
-        .padding()
+        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 16))
+        .contentShape(Rectangle()) // CRITICAL: Makes the empty glass space tappable
     }
 }

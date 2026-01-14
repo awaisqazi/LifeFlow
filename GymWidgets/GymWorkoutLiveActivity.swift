@@ -192,101 +192,55 @@ struct GymWorkoutLiveActivity: Widget {
 private struct LockScreenView: View {
     let context: ActivityViewContext<GymWorkoutAttributes>
     
-    // Determine tint based on state
     var stateColor: Color {
         context.state.isResting ? .cyan : .orange
     }
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            HStack {
-                Label(context.attributes.workoutTitle.uppercased(), systemImage: "bolt.fill")
-                    .font(.system(size: 10, weight: .black))
-                    .foregroundStyle(stateColor)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(stateColor.opacity(0.1), in: Capsule())
-                
-                Spacer()
-                
+        HStack(alignment: .center, spacing: 0) {
+            // Left: Status & Info
+            VStack(alignment: .leading, spacing: 4) {
                 Text(context.state.isResting ? "RESTING" : "ACTIVE")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.caption2.weight(.black))
                     .foregroundStyle(stateColor)
                     .tracking(1)
+                
+                Text(context.state.exerciseName)
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                
+                Text("Set \(context.state.currentSet) of \(context.state.totalSets)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
             
-            HStack(spacing: 16) {
-                // Left - State Indicator
-                ZStack {
-                    Circle()
-                        .fill(stateColor.opacity(0.15))
-                        .frame(width: 64, height: 64)
-                    
-                    Circle()
-                        .stroke(stateColor, lineWidth: 3)
-                        .frame(width: 64, height: 64)
-                    
-                    VStack(spacing: 2) {
-                        Image(systemName: context.state.isResting ? "timer" : "dumbbell.fill")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundStyle(stateColor)
-                        
-                        Text("\(context.state.currentSet)/\(context.state.totalSets)")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundStyle(.primary)
-                    }
-                }
-                
-                // Middle - Info
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(context.state.exerciseName)
-                        .font(.title3.weight(.bold))
-                        .lineLimit(1)
-                    
-                    Text("Session: ")
-                        .font(.caption)
-                        .foregroundStyle(.secondary) +
-                    Text(context.state.workoutStartDate, style: .timer)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                
-                Spacer()
-                
-                // Right - Big Timer
-                VStack(alignment: .trailing, spacing: 0) {
-                    if context.state.isResting, let restEndTime = context.state.restEndTime {
-                        Text(restEndTime, style: .timer)
-                            .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
-                            .foregroundStyle(.cyan)
-                            .shadow(color: Color.cyan.opacity(0.2), radius: 10)
-                            .multilineTextAlignment(.trailing)
-                    } else if context.state.isCardio, context.state.cardioModeIndex == 0, let cardioEnd = context.state.cardioEndTime {
-                        Text(cardioEnd, style: .timer)
-                            .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
-                            .foregroundStyle(.orange)
-                            .shadow(color: Color.orange.opacity(0.2), radius: 10)
-                            .multilineTextAlignment(.trailing)
-                    } else {
-                        Text(context.state.workoutStartDate, style: .timer)
-                            .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
-                            .foregroundStyle(.primary)
-                            .shadow(color: Color.white.opacity(0.2), radius: 10)
-                            .multilineTextAlignment(.trailing)
-                    }
-                    
-                    Text(context.state.isResting ? "REST TIMER" : (context.state.isCardio && context.state.cardioModeIndex == 0 ? "COUNTDOWN" : "TOTAL TIME"))
-                        .font(.system(size: 8, weight: .black))
-                        .foregroundStyle(.secondary)
-                }
-                .frame(alignment: .trailing)
+            Spacer()
+            
+            // Right: Timer (Large & Clear)
+            if context.state.isResting, let restEndTime = context.state.restEndTime {
+                Text(restEndTime, style: .timer)
+                    .font(.system(.largeTitle, design: .rounded).monospacedDigit())
+                    .fontWeight(.bold)
+                    .foregroundStyle(.cyan)
+                    .multilineTextAlignment(.trailing)
+            } else if context.state.isCardio, context.state.cardioModeIndex == 0, let cardioEnd = context.state.cardioEndTime {
+                Text(cardioEnd, style: .timer)
+                    .font(.system(.largeTitle, design: .rounded).monospacedDigit())
+                    .fontWeight(.bold)
+                    .foregroundStyle(.orange)
+                    .multilineTextAlignment(.trailing)
+            } else {
+                Text(context.state.workoutStartDate, style: .timer)
+                    .font(.system(.largeTitle, design: .rounded).monospacedDigit())
+                    .fontWeight(.bold)
+                    .foregroundStyle(.orange)
+                    .multilineTextAlignment(.trailing)
             }
-            .padding(16)
         }
-        // Note: glassEffect is NOT supported in Live Activity context - causes blank rendering
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+        // No background - let the system Live Activity container handle it
     }
 }
 
