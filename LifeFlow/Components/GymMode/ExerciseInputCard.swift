@@ -245,8 +245,7 @@ struct ExerciseInputCard: View {
     @State private var lastRecordedSpeed: Double = 0
     @State private var lastRecordedIncline: Double = 0
     @State private var expandedSetting: CardioSetting? = nil
-    @State private var durationHours: Int = 0
-    @State private var durationMinutes: Int = 30
+    // Old duration state removed
     
     private enum CardioSetting {
         case speed
@@ -272,93 +271,11 @@ struct ExerciseInputCard: View {
                 freestyleCardioContent
             }
         }
-        .onAppear {
-            // Initialize hours/minutes from duration
-            durationHours = Int(duration) / 3600
-            durationMinutes = (Int(duration) % 3600) / 60
-        }
     }
     
-    // MARK: - Duration Input Component
+    // MARK: - Quick Add Time Buttons
     
-    private var durationInputView: some View {
-        VStack(spacing: 12) {
-            Text("DURATION")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .tracking(1)
-            
-            HStack(spacing: 16) {
-                // Hours
-                VStack(spacing: 4) {
-                    HStack(spacing: 8) {
-                        Button {
-                            if durationHours > 0 { durationHours -= 1; updateDuration() }
-                        } label: {
-                            Image(systemName: "minus.circle.fill")
-                                .font(.title2)
-                                .foregroundStyle(.secondary)
-                        }
-                        .disabled(durationHours <= 0)
-                        
-                        Text("\(durationHours)")
-                            .font(.system(size: 36, weight: .bold, design: .rounded))
-                            .frame(width: 50)
-                        
-                        Button {
-                            if durationHours < 4 { durationHours += 1; updateDuration() }
-                        } label: {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.title2)
-                                .foregroundStyle(.green)
-                        }
-                        .disabled(durationHours >= 4)
-                    }
-                    Text("hr")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                
-                Text(":")
-                    .font(.system(size: 36, weight: .bold, design: .rounded))
-                    .foregroundStyle(.secondary)
-                
-                // Minutes
-                VStack(spacing: 4) {
-                    HStack(spacing: 8) {
-                        Button {
-                            if durationMinutes >= 5 { durationMinutes -= 5; updateDuration() }
-                        } label: {
-                            Image(systemName: "minus.circle.fill")
-                                .font(.title2)
-                                .foregroundStyle(.secondary)
-                        }
-                        .disabled(durationMinutes < 5 && durationHours == 0)
-                        
-                        Text(String(format: "%02d", durationMinutes))
-                            .font(.system(size: 36, weight: .bold, design: .rounded))
-                            .frame(width: 60)
-                        
-                        Button {
-                            if durationMinutes < 55 { durationMinutes += 5; updateDuration() }
-                            else { durationMinutes = 0; durationHours += 1; updateDuration() }
-                        } label: {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.title2)
-                                .foregroundStyle(.green)
-                        }
-                    }
-                    Text("min")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-    }
-    
-    private func updateDuration() {
-        duration = TimeInterval(durationHours * 3600 + durationMinutes * 60)
-    }
+
     
     // MARK: - Quick Add Time Buttons
     
@@ -505,7 +422,7 @@ struct ExerciseInputCard: View {
                 .buttonStyle(.plain)
             } else {
                 // Setup: duration and settings
-                durationInputView
+                LiquidTimeInput(duration: $duration)
                 
                 speedInclineInputs
                 
@@ -1029,14 +946,23 @@ private struct CardioSettingBox: View {
     
     var body: some View {
         Button(action: onTap) {
-            VStack(spacing: 6) {
-                Text(label)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(label.uppercased())
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+                    
+                    Spacer()
+                    
+                    // Edit Indicator
+                    Image(systemName: "pencil")
+                        .font(.caption2)
+                        .foregroundStyle(color.opacity(0.8))
+                }
                 
                 HStack(alignment: .firstTextBaseline, spacing: 2) {
                     Text(String(format: "%.1f", value))
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .font(.system(size: 32, weight: .bold, design: .rounded))
                         .foregroundStyle(.primary)
                     
                     Text(unit)
@@ -1044,16 +970,12 @@ private struct CardioSettingBox: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            .padding()
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(isExpanded ? color.opacity(0.15) : Color.white.opacity(0.05))
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(isExpanded ? color.opacity(0.5) : Color.clear, lineWidth: 2)
-                    )
+            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 16))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(isExpanded ? color : color.opacity(0.3), lineWidth: isExpanded ? 2 : 1)
             )
         }
         .buttonStyle(.plain)

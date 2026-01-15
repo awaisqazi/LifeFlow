@@ -141,7 +141,7 @@ struct WorkoutSetupSheet: View {
     // MARK: - Title Section
     
     private var titleSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("WORKOUT NAME")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
@@ -149,8 +149,17 @@ struct WorkoutSetupSheet: View {
             
             TextField("e.g. Push Day", text: $workoutTitle)
                 .font(.title3.weight(.semibold))
-                .padding(16)
-                .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+                .foregroundStyle(Color.white)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 16)
+                .background {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.white.opacity(0.08))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
+                        }
+                }
         }
     }
     
@@ -274,22 +283,35 @@ struct WorkoutSetupSheet: View {
         Button {
             showExercisePicker = true
         } label: {
-            HStack {
+            HStack(spacing: 10) {
                 Image(systemName: "plus.circle.fill")
                     .font(.title2)
+                    .foregroundStyle(.green)
                 Text("Add Exercise")
-                    .font(.headline)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(Color.white)
             }
-            .foregroundStyle(.orange)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
-            .overlay {
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+            .padding(.vertical, 18)
+            .background {
+                RoundedRectangle(cornerRadius: 18)
+                    .fill(Color.white.opacity(0.08))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 18)
+                            .stroke(Color.green.opacity(0.4), lineWidth: 1)
+                    }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ScaleButtonStyle())
+    }
+    
+    // Button animation style
+    private struct ScaleButtonStyle: ButtonStyle {
+        func makeBody(configuration: Configuration) -> some View {
+            configuration.label
+                .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+                .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
+        }
     }
     
     // MARK: - Start Button
@@ -298,7 +320,7 @@ struct WorkoutSetupSheet: View {
         Button {
             startWorkout()
         } label: {
-            HStack {
+            HStack(spacing: 10) {
                 Image(systemName: "flame.fill")
                     .font(.title2)
                 Text("Start Workout")
@@ -306,13 +328,14 @@ struct WorkoutSetupSheet: View {
             }
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 18)
+            .padding(.vertical, 20)
             .background(
                 selectedExercises.isEmpty
                     ? Color.gray.gradient
                     : Color.green.gradient,
-                in: RoundedRectangle(cornerRadius: 16)
+                in: RoundedRectangle(cornerRadius: 20)
             )
+            .shadow(color: selectedExercises.isEmpty ? .clear : .green.opacity(0.3), radius: 12, x: 0, y: 6)
         }
         .buttonStyle(.plain)
         .disabled(selectedExercises.isEmpty)
@@ -391,30 +414,43 @@ private struct SavedRoutineButton: View {
     
     var body: some View {
         Button(action: onTap) {
-            VStack(spacing: 8) {
-                ZStack(alignment: .topTrailing) {
+            VStack(spacing: 10) {
+                // Icon with colored ring
+                ZStack {
+                    Circle()
+                        .stroke(color.opacity(0.4), lineWidth: 2)
+                        .frame(width: 44, height: 44)
+                    
+                    Circle()
+                        .fill(color.opacity(0.15))
+                        .frame(width: 40, height: 40)
+                    
                     Image(systemName: routine.icon)
-                        .font(.title2)
+                        .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(color)
                     
+                    // Favorite badge
                     if routine.isFavorite {
                         Image(systemName: "star.fill")
                             .font(.system(size: 10))
                             .foregroundStyle(.yellow)
-                            .offset(x: 8, y: -4)
+                            .offset(x: 16, y: -16)
                     }
                 }
                 
                 Text(routine.name)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.white)
                     .lineLimit(1)
             }
-            .frame(width: 90, height: 80)
-            .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
-            .overlay {
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(color.opacity(0.3), lineWidth: 1)
+            .frame(width: 95, height: 90)
+            .background {
+                RoundedRectangle(cornerRadius: 18)
+                    .fill(Color.white.opacity(0.08))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 18)
+                            .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                    }
             }
         }
         .buttonStyle(.plain)
@@ -445,20 +481,35 @@ private struct TemplateButton: View {
     
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.title2)
-                    .foregroundStyle(color)
+            VStack(spacing: 10) {
+                // Icon with colored ring
+                ZStack {
+                    Circle()
+                        .stroke(color.opacity(0.4), lineWidth: 2)
+                        .frame(width: 44, height: 44)
+                    
+                    Circle()
+                        .fill(color.opacity(0.15))
+                        .frame(width: 40, height: 40)
+                    
+                    Image(systemName: icon)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(color)
+                }
                 
                 Text(title)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.white)
+                    .lineLimit(1)
             }
-            .frame(width: 90, height: 80)
-            .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
-            .overlay {
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(color.opacity(0.3), lineWidth: 1)
+            .frame(width: 95, height: 90)
+            .background {
+                RoundedRectangle(cornerRadius: 18)
+                    .fill(Color.white.opacity(0.08))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 18)
+                            .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                    }
             }
         }
         .buttonStyle(.plain)
@@ -636,80 +687,116 @@ private struct ExerciseRow: View {
     
     @State private var setCount: Int = 3
     
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "line.3.horizontal")
-                .font(.subheadline)
-                .foregroundStyle(.secondary.opacity(0.6))
-            
-            Image(systemName: exercise.type.icon)
-                .font(.callout)
-                .foregroundStyle(colorForType(exercise.type))
-                .frame(width: 32, height: 32)
-                .background(colorForType(exercise.type).opacity(0.15), in: Circle())
-            
-            Text(exercise.name)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.primary)
-            
-            Spacer()
-            
-            HStack(spacing: 4) {
-                Button {
-                    if setCount > 1 {
-                        setCount -= 1
-                        onSetCountChange(setCount)
-                    }
-                } label: {
-                    Image(systemName: "minus")
-                        .font(.caption.weight(.bold))
-                        .frame(width: 28, height: 28)
-                        .background(Color.white.opacity(0.1), in: Circle())
-                }
-                .buttonStyle(.plain)
-                
-                Text("\(setCount)")
-                    .font(.subheadline.weight(.bold).monospacedDigit())
-                    .frame(width: 24)
-                
-                Button {
-                    if setCount < 10 {
-                        setCount += 1
-                        onSetCountChange(setCount)
-                    }
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.caption.weight(.bold))
-                        .frame(width: 28, height: 28)
-                        .background(Color.white.opacity(0.1), in: Circle())
-                }
-                .buttonStyle(.plain)
-            }
-            
-            Button(action: onRemove) {
-                Image(systemName: "xmark")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.red)
-                    .frame(width: 28, height: 28)
-                    .background(Color.red.opacity(0.15), in: Circle())
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(12)
-        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
-        .onAppear {
-            setCount = max(exercise.sets.count, 1)
-        }
-    }
-    
-    private func colorForType(_ type: ExerciseType) -> Color {
-        switch type {
+    private var exerciseColor: Color {
+        switch exercise.type {
         case .weight: return .orange
         case .cardio: return .green
         case .calisthenics: return .blue
         case .flexibility: return .purple
         case .machine: return .red
         case .functional: return .cyan
+        }
+    }
+    
+    var body: some View {
+        HStack(spacing: 14) {
+            // Icon with colored ring
+            ZStack {
+                Circle()
+                    .stroke(exerciseColor.opacity(0.4), lineWidth: 2)
+                    .frame(width: 40, height: 40)
+                
+                Circle()
+                    .fill(exerciseColor.opacity(0.15))
+                    .frame(width: 36, height: 36)
+                
+                Image(systemName: exercise.type.icon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(exerciseColor)
+            }
+            
+            // Exercise info
+            VStack(alignment: .leading, spacing: 2) {
+                Text(exercise.name)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(Color.white)
+                    .lineLimit(1)
+                
+                Text(exercise.type.title)
+                    .font(.caption)
+                    .foregroundStyle(Color.white.opacity(0.5))
+            }
+            
+            Spacer()
+            
+            // Set counter
+            HStack(spacing: 6) {
+                Button {
+                    if setCount > 1 {
+                        withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
+                            setCount -= 1
+                            onSetCountChange(setCount)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "minus")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(setCount <= 1 ? Color.secondary : Color.white)
+                        .frame(width: 30, height: 30)
+                        .background(Color.white.opacity(0.1), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(setCount <= 1)
+                
+                Text("\(setCount)")
+                    .font(.body.weight(.bold).monospacedDigit())
+                    .foregroundStyle(Color.white)
+                    .frame(width: 28)
+                    .contentTransition(.numericText())
+                
+                Button {
+                    if setCount < 10 {
+                        withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
+                            setCount += 1
+                            onSetCountChange(setCount)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(setCount >= 10 ? Color.secondary : Color.white)
+                        .frame(width: 30, height: 30)
+                        .background(Color.white.opacity(0.1), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(setCount >= 10)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(Color.white.opacity(0.05), in: Capsule())
+            
+            // Remove button
+            Button(action: onRemove) {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.red)
+                    .frame(width: 30, height: 30)
+                    .background(Color.red.opacity(0.15), in: Circle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background {
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white.opacity(0.06))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+                }
+        }
+        .onAppear {
+            setCount = max(exercise.sets.count, 1)
         }
     }
 }
@@ -779,73 +866,248 @@ private struct ExercisePickerSheet: View {
         }
     }
     
+    private func colorForType(_ type: ExerciseType) -> Color {
+        switch type {
+        case .weight: return .orange
+        case .cardio: return .green
+        case .calisthenics: return .blue
+        case .flexibility: return .purple
+        case .machine: return .red
+        case .functional: return .cyan
+        }
+    }
+    
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        TypeFilterChip(type: nil, selectedType: $selectedType, label: "All")
-                        ForEach(ExerciseType.allCases, id: \.self) { type in
-                            TypeFilterChip(type: type, selectedType: $selectedType, label: type.title)
+            ZStack {
+                // Background
+                AnimatedMeshGradientView(theme: .flow)
+                    .ignoresSafeArea()
+                
+                VStack(spacing: 0) {
+                    // Header
+                    VStack(spacing: 16) {
+                        // Title bar
+                        HStack {
+                            Button("Cancel") {
+                                dismiss()
+                            }
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(.white.opacity(0.8))
+                            
+                            Spacer()
+                            
+                            Text("Add Exercises")
+                                .font(.headline.weight(.semibold))
+                            
+                            Spacer()
+                            
+                            Button("Add (\(selectedNames.count))") {
+                                let exercises = selectedNames.map { name in
+                                    let type = selectedType ?? WorkoutExercise.exerciseType(for: name)
+                                    let exercise = WorkoutExercise(name: name, type: type)
+                                    let setCount = (type == .cardio || type == .flexibility) ? 1 : 3
+                                    for _ in 0..<setCount {
+                                        _ = exercise.addSet()
+                                    }
+                                    return exercise
+                                }
+                                onSelect(exercises)
+                                dismiss()
+                            }
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(selectedNames.isEmpty ? Color.secondary : Color.green)
+                            .disabled(selectedNames.isEmpty)
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 16)
+                        
+                        // Type filter chips
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                GlassTypeChip(label: "All", isSelected: selectedType == nil) {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                        selectedType = nil
+                                    }
+                                }
+                                
+                                ForEach(ExerciseType.allCases, id: \.self) { type in
+                                    GlassTypeChip(
+                                        label: type.title,
+                                        icon: type.icon,
+                                        color: colorForType(type),
+                                        isSelected: selectedType == type
+                                    ) {
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                            selectedType = type
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+                    }
+                    .padding(.bottom, 12)
+                    .background(.ultraThinMaterial)
+                    
+                    // Exercise list
+                    ScrollView {
+                        LazyVStack(spacing: 8) {
+                            ForEach(filteredExercises, id: \.self) { name in
+                                ExercisePickerRow(
+                                    name: name,
+                                    type: WorkoutExercise.exerciseType(for: name),
+                                    isSelected: selectedNames.contains(name),
+                                    colorForType: colorForType
+                                ) {
+                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                                        if selectedNames.contains(name) {
+                                            selectedNames.remove(name)
+                                        } else {
+                                            selectedNames.insert(name)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 12)
+                        .padding(.bottom, 100)
+                    }
+                    
+                    // Search bar at bottom
+                    HStack(spacing: 12) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                        
+                        TextField("Search exercises", text: $searchText)
+                            .textFieldStyle(.plain)
+                        
+                        if !searchText.isEmpty {
+                            Button {
+                                searchText = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
-                }
-                
-                Divider()
-                
-                List {
-                    ForEach(filteredExercises, id: \.self) { name in
-                        Button {
-                            if selectedNames.contains(name) {
-                                selectedNames.remove(name)
-                            } else {
-                                selectedNames.insert(name)
-                            }
-                        } label: {
-                            HStack {
-                                Text(name)
-                                    .foregroundStyle(.primary)
-                                Spacer()
-                                if selectedNames.contains(name) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(.green)
-                                }
-                            }
-                        }
+                    .background {
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(.ultraThinMaterial)
                     }
-                }
-                .listStyle(.plain)
-            }
-            .searchable(text: $searchText, prompt: "Search exercises")
-            .navigationTitle("Add Exercises")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add (\(selectedNames.count))") {
-                        let exercises = selectedNames.map { name in
-                            // Use the correct type for each exercise based on which category it belongs to
-                            let type = selectedType ?? WorkoutExercise.exerciseType(for: name)
-                            let exercise = WorkoutExercise(name: name, type: type)
-                            // Cardio and flexibility get 1 set, others get 3
-                            let setCount = (type == .cardio || type == .flexibility) ? 1 : 3
-                            for _ in 0..<setCount {
-                                _ = exercise.addSet()
-                            }
-                            return exercise
-                        }
-                        onSelect(exercises)
-                        dismiss()
-                    }
-                    .disabled(selectedNames.isEmpty)
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
                 }
             }
         }
         .preferredColorScheme(.dark)
+    }
+}
+
+// MARK: - Glass Type Chip
+
+private struct GlassTypeChip: View {
+    let label: String
+    var icon: String? = nil
+    var color: Color = .white
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if let icon = icon {
+                    Image(systemName: icon)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(isSelected ? .white : color)
+                }
+                
+                Text(label)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(isSelected ? .white : .primary)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background {
+                if isSelected {
+                    Capsule()
+                        .fill(Color.green.gradient)
+                } else {
+                    Capsule()
+                        .fill(Color.white.opacity(0.08))
+                        .overlay {
+                            Capsule()
+                                .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                        }
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Exercise Picker Row
+
+private struct ExercisePickerRow: View {
+    let name: String
+    let type: ExerciseType
+    let isSelected: Bool
+    let colorForType: (ExerciseType) -> Color
+    let action: () -> Void
+    
+    private var color: Color { colorForType(type) }
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                // Icon with colored ring
+                ZStack {
+                    Circle()
+                        .stroke(color.opacity(0.4), lineWidth: 2)
+                        .frame(width: 40, height: 40)
+                    
+                    Circle()
+                        .fill(color.opacity(0.15))
+                        .frame(width: 36, height: 36)
+                    
+                    Image(systemName: type.icon)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(color)
+                }
+                
+                // Exercise name
+                Text(name)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(Color.white)
+                
+                Spacer()
+                
+                // Selection indicator
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.green)
+                } else {
+                    Circle()
+                        .stroke(Color.white.opacity(0.3), lineWidth: 1.5)
+                        .frame(width: 24, height: 24)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(isSelected ? Color.green.opacity(0.1) : Color.white.opacity(0.06))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(isSelected ? Color.green.opacity(0.3) : Color.white.opacity(0.08), lineWidth: 0.5)
+                    }
+            }
+        }
+        .buttonStyle(.plain)
     }
 }
 

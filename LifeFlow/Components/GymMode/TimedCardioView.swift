@@ -63,22 +63,14 @@ struct TimedCardioView: View {
             }
             .padding(.top, 40)
             
-            // Duration picker
-            VStack(spacing: 12) {
+            // Duration input
+            VStack(alignment: .leading, spacing: 8) {
                 Text("DURATION")
-                    .font(.caption.weight(.semibold))
+                    .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
-                    .tracking(1)
+                    .padding(.leading, 4)
                 
-                HStack(spacing: 20) {
-                    ForEach([5, 10, 15, 20, 30], id: \.self) { mins in
-                        DurationChip(
-                            minutes: mins,
-                            isSelected: Int(targetDuration / 60) == mins,
-                            onTap: { targetDuration = Double(mins * 60) }
-                        )
-                    }
-                }
+                LiquidTimeInput(duration: $targetDuration)
             }
             
             // Speed and Incline

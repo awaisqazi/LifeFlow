@@ -13,14 +13,32 @@ struct WorkoutActionMenu: View {
     let onDiscard: () -> Void
     let onCancel: () -> Void
     
+    @State private var isAppearing = false
+    
     var body: some View {
-        VStack(spacing: 16) {
-            // Header
-            VStack(spacing: 8) {
-                Image(systemName: "hand.raised.fill")
-                    .font(.system(size: 32))
-                    .foregroundStyle(.orange.gradient)
-                    .padding(.bottom, 4)
+        VStack(spacing: 20) {
+            // Header with animated icon
+            VStack(spacing: 12) {
+                // Animated hand icon with glow
+                ZStack {
+                    // Glow effect
+                    Circle()
+                        .fill(.orange.opacity(0.3))
+                        .frame(width: 70, height: 70)
+                        .blur(radius: 20)
+                    
+                    // Icon background
+                    Circle()
+                        .fill(.orange.opacity(0.15))
+                        .frame(width: 64, height: 64)
+                    
+                    Image(systemName: "hand.raised.fill")
+                        .font(.system(size: 28, weight: .semibold))
+                        .foregroundStyle(.orange.gradient)
+                        .symbolEffect(.pulse, options: .repeating)
+                }
+                .scaleEffect(isAppearing ? 1.0 : 0.5)
+                .opacity(isAppearing ? 1.0 : 0)
                 
                 Text("Workout Paused")
                     .font(.title2.weight(.bold))
@@ -30,13 +48,13 @@ struct WorkoutActionMenu: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+                    .padding(.horizontal, 8)
             }
             .padding(.top, 8)
-            .padding(.bottom, 12)
             
+            // Action buttons
             VStack(spacing: 10) {
-                // Main Actions
-                ActionButton(
+                GlassActionButton(
                     title: "Pause & Continue Later",
                     subtitle: "Keep session active in background",
                     icon: "pause.fill",
@@ -44,7 +62,7 @@ struct WorkoutActionMenu: View {
                     action: onPause
                 )
                 
-                ActionButton(
+                GlassActionButton(
                     title: "End & Complete Workout",
                     subtitle: "Save and see summary",
                     icon: "checkmark.seal.fill",
@@ -52,119 +70,127 @@ struct WorkoutActionMenu: View {
                     action: onEnd
                 )
                 
-                ActionButton(
+                GlassActionButton(
                     title: "Discard Workout",
                     subtitle: "Delete this entire session",
                     icon: "trash.fill",
                     color: .red,
+                    isDestructive: true,
                     action: onDiscard
                 )
             }
             
-            // Cancel button
+            // Return button
             Button(action: onCancel) {
                 Text("Return to Workout")
-                    .font(.headline)
-                    .foregroundStyle(.primary)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(Color.white)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
+                    .padding(.vertical, 18)
                     .background {
-                        if #available(iOS 18.0, *) {
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(.clear)
-                                .glassEffect()
-                        } else {
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(.ultraThinMaterial)
-                        }
-                    }
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(Color.white.opacity(0.12))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 20)
+                                    .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
+                            }
                     }
             }
-            .buttonStyle(ScaleButtonStyle())
+            .buttonStyle(GlassButtonStyle())
             .padding(.top, 4)
         }
         .padding(24)
         .background {
-            if #available(iOS 18.0, *) {
-                RoundedRectangle(cornerRadius: 32)
-                    .fill(.clear)
-                    .glassEffect()
-            } else {
-                RoundedRectangle(cornerRadius: 32)
-                    .fill(.ultraThinMaterial)
+            RoundedRectangle(cornerRadius: 36)
+                .fill(.ultraThinMaterial)
+        }
+        .shadow(color: .black.opacity(0.4), radius: 40, x: 0, y: 20)
+        .shadow(color: .orange.opacity(0.1), radius: 30, x: 0, y: 0) // Subtle warm glow
+        .padding(16)
+        .onAppear {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                isAppearing = true
             }
         }
-        .overlay {
-            RoundedRectangle(cornerRadius: 32)
-                .stroke(Color.white.opacity(0.15), lineWidth: 1)
-        }
-        .shadow(color: .black.opacity(0.5), radius: 40, x: 0, y: 20)
-        .padding(16)
     }
 }
 
-private struct ActionButton: View {
+// MARK: - Glass Action Button
+
+private struct GlassActionButton: View {
     let title: String
     let subtitle: String
     let icon: String
     let color: Color
+    var isDestructive: Bool = false
     let action: () -> Void
     
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 16) {
-                // Icon backing
+            HStack(spacing: 14) {
+                // Icon with colored ring
                 ZStack {
+                    // Progress ring style background
                     Circle()
-                        .fill(color.opacity(0.15))
-                        .frame(width: 44, height: 44)
+                        .stroke(color.opacity(0.4), lineWidth: 2)
+                        .frame(width: 46, height: 46)
+                    
+                    Circle()
+                        .fill(color.opacity(0.2))
+                        .frame(width: 42, height: 42)
                     
                     Image(systemName: icon)
-                        .font(.headline)
+                        .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(color)
                 }
                 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(title)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Color.white)
                     
                     Text(subtitle)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.white.opacity(0.6))
                 }
                 
                 Spacer()
                 
                 Image(systemName: "chevron.right")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.tertiary)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.white.opacity(0.4))
             }
-            .padding(12)
-            .background(Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 18))
-            .overlay {
-                RoundedRectangle(cornerRadius: 18)
-                    .stroke(Color.white.opacity(0.05), lineWidth: 1)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background {
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color.white.opacity(0.08))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                    }
             }
         }
-        .buttonStyle(ScaleButtonStyle())
+        .buttonStyle(GlassButtonStyle())
     }
 }
 
-private struct ScaleButtonStyle: ButtonStyle {
+// MARK: - Glass Button Style
+
+private struct GlassButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
-            .animation(.interactiveSpring(), value: configuration.isPressed)
+            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }
 
 #Preview {
     ZStack {
-        Color.black.ignoresSafeArea()
+        AnimatedMeshGradientView(theme: .flow)
+            .ignoresSafeArea()
+        
         WorkoutActionMenu(
             onPause: {},
             onEnd: {},

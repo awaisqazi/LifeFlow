@@ -37,9 +37,14 @@ struct GymModeDropDelegate: DropDelegate {
         }
     }
     
-    /// Called when the drop is performed - clear the dragged item
+    /// Called when the drop is performed - clear the dragged item with animation
     func performDrop(info: DropInfo) -> Bool {
-        draggedItem = nil
+        // Critical: Use DispatchQueue to ensure state update happens after drop animation settles
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                draggedItem = nil
+            }
+        }
         return true
     }
     
@@ -48,9 +53,9 @@ struct GymModeDropDelegate: DropDelegate {
         DropProposal(operation: .move)
     }
     
-    /// Called when drag exits this item's drop zone
+    /// Called when drag exits this item's drop zone - safety recovery
     func dropExited(info: DropInfo) {
-        // No action needed
+        // No action needed during normal drag
     }
     
     /// Validate the drop

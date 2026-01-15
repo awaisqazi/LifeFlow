@@ -170,114 +170,13 @@ struct GymModeView: View {
             // Header
             workoutHeader
             
-            // Dashboard
-            ScrollView {
-                ScrollViewReader { scrollProxy in
-                    GlassEffectContainer(spacing: 16) {
-                        
-                        ForEach(localExercises, id: \.id) { exercise in
-                            // LOGIC CHANGE: If we are in Edit Mode, NEVER show the expanded card.
-                            // This ensures all items look the same so they can be reordered easily.
-                            if !isEditMode && manager.currentExercise?.id == exercise.id {
-                                // === STATE A: ACTIVE (Input Card) ===
-                                ExerciseInputCard(
-                                    exercise: exercise,
-                                    setNumber: manager.currentSetIndex + 1,
-                                    previousData: manager.getPreviousSetData(
-                                        for: exercise.name,
-                                        setIndex: manager.currentSetIndex,
-                                        using: modelContext
-                                    ),
-                                    weight: $currentWeight,
-                                    reps: $currentReps,
-                                    duration: $currentDuration,
-                                    speed: $currentSpeed,
-                                    incline: $currentIncline,
-                                    onComplete: { completeCurrentSet() }
-                                )
-                                .glassEffectID(exercise.id.uuidString, in: animationNamespace)
-                                .transition(.blurReplace)
-                                .id(exercise.id)
-                                
-                            } else {
-                                // === STATE B: INACTIVE (Sliver) ===
-                                InactiveGlassSliver(
-                                    exercise: exercise,
-                                    completedSets: manager.completedSetsCount(for: exercise),
-                                    totalSets: exercise.sets.count,
-                                    isEditMode: isEditMode,
-                                    namespace: animationNamespace,
-                                    onTap: {
-                                        print("DEBUG: Tapped exercise: \(exercise.name) (ID: \(exercise.id))")
-                                        if !isEditMode {
-                                            withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
-                                                manager.selectExercise(exercise)
-                                                loadCurrentSetDefaults()
-                                                scrollProxy.scrollTo(exercise.id, anchor: .center)
-                                            }
-                                        } else {
-                                            print("DEBUG: Tap ignored, isEditMode is TRUE")
-                                        }
-                                    }
-                                )
-                                .id(exercise.id)
-                                .onDrag({
-                                    // Haptic feedback when picking up
-                                    let impact = UIImpactFeedbackGenerator(style: .medium)
-                                    impact.impactOccurred()
-                                    
-                                    draggedItem = exercise
-                                    return NSItemProvider(object: exercise.id.uuidString as NSString)
-                                }, preview: {
-                                    HStack {
-                                        Text(exercise.name)
-                                            .font(.headline)
-                                            .foregroundStyle(.primary)
-                                            .lineLimit(1)
-                                        
-                                        Spacer()
-                                        
-                                        if isEditMode {
-                                            Image(systemName: "line.3.horizontal")
-                                                .font(.title3)
-                                                .foregroundStyle(.secondary)
-                                        } else {
-                                            let completed = manager.completedSetsCount(for: exercise)
-                                            if completed >= exercise.sets.count {
-                                                Image(systemName: "checkmark.circle.fill")
-                                                    .foregroundStyle(.green)
-                                                    .font(.title3)
-                                            } else {
-                                                Text("\(completed)/\(exercise.sets.count)")
-                                                    .font(.caption.monospacedDigit())
-                                                    .foregroundStyle(.secondary)
-                                            }
-                                        }
-                                    }
-                                    .padding()
-                                    .frame(width: 340, height: 60)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 16)
-                                            .fill(Color(white: 0.1).opacity(0.8))
-                                    )
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 16)
-                                            .stroke(.white.opacity(0.2), lineWidth: 1)
-                                    )
-                                })
-                                .onDrop(of: [.text], delegate: GymModeDropDelegate(
-                                    item: exercise,
-                                    exercises: $localExercises,
-                                    draggedItem: $draggedItem
-                                ))
-                                // CRITICAL: Opacity must be AFTER onDrag to ensure preview is visible
-                                .opacity(draggedItem?.id == exercise.id ? 0.0 : 1.0)
-                            }
-                        }
-                    }
-                    .padding()
-                    .padding(.bottom, 100)
-                }
+            // Dashboard - Use different layouts for edit mode vs normal mode
+            if isEditMode {
+                // EDIT MODE: Use native List with .onMove for reliable reordering
+                editModeList
+            } else {
+                // NORMAL MODE: Use the beautiful GlassEffectContainer
+                normalModeView
             }
         }
         .onAppear {
@@ -290,6 +189,96 @@ struct GymModeView: View {
             if !newValue {
                 // Exiting edit mode - persist the new order to the manager
                 persistExerciseOrder()
+            } else {
+                // Entering edit mode - sync to ensure we have latest data
+                syncLocalExercises()
+            }
+        }
+    }
+    
+    // MARK: - Edit Mode List (Liquid Glass Design with Native Reordering)
+    
+    private var editModeList: some View {
+        List {
+            ForEach(localExercises, id: \.id) { exercise in
+                EditModeExerciseRow(
+                    exercise: exercise,
+                    completedSets: manager.completedSetsCount(for: exercise),
+                    totalSets: exercise.sets.count,
+                    onDelete: {
+                        deleteExercise(exercise)
+                    }
+                )
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+            }
+            .onMove { source, destination in
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    localExercises.move(fromOffsets: source, toOffset: destination)
+                }
+            }
+            .onDelete { indexSet in
+                for index in indexSet {
+                    deleteExercise(localExercises[index])
+                }
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .environment(\.editMode, .constant(.active))
+    }
+    
+    // MARK: - Normal Mode View (Glass design)
+    
+    private var normalModeView: some View {
+        ScrollView {
+            ScrollViewReader { scrollProxy in
+                GlassEffectContainer(spacing: 16) {
+                    ForEach(localExercises, id: \.id) { exercise in
+                        if manager.currentExercise?.id == exercise.id {
+                            // === STATE A: ACTIVE (Input Card) ===
+                            ExerciseInputCard(
+                                exercise: exercise,
+                                setNumber: manager.currentSetIndex + 1,
+                                previousData: manager.getPreviousSetData(
+                                    for: exercise.name,
+                                    setIndex: manager.currentSetIndex,
+                                    using: modelContext
+                                ),
+                                weight: $currentWeight,
+                                reps: $currentReps,
+                                duration: $currentDuration,
+                                speed: $currentSpeed,
+                                incline: $currentIncline,
+                                onComplete: { completeCurrentSet() }
+                            )
+                            .glassEffectID(exercise.id.uuidString, in: animationNamespace)
+                            .transition(.blurReplace)
+                            .id(exercise.id)
+                            
+                        } else {
+                            // === STATE B: INACTIVE (Sliver) ===
+                            InactiveGlassSliver(
+                                exercise: exercise,
+                                completedSets: manager.completedSetsCount(for: exercise),
+                                totalSets: exercise.sets.count,
+                                isEditMode: false,
+                                namespace: animationNamespace,
+                                onTap: {
+                                    withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
+                                        manager.selectExercise(exercise)
+                                        loadCurrentSetDefaults()
+                                        scrollProxy.scrollTo(exercise.id, anchor: .center)
+                                    }
+                                }
+                            )
+                            .id(exercise.id)
+                        }
+                    }
+                }
+                .padding()
+                .padding(.bottom, 100)
             }
         }
     }
@@ -659,6 +648,107 @@ struct GymModeView: View {
     }
 }
 
+// MARK: - Edit Mode Exercise Row
+
+/// A modern Liquid Glass row for edit mode with native List reordering
+private struct EditModeExerciseRow: View {
+    let exercise: WorkoutExercise
+    let completedSets: Int
+    let totalSets: Int
+    let onDelete: () -> Void
+    
+    private var isComplete: Bool {
+        completedSets >= totalSets
+    }
+    
+    private var progress: Double {
+        guard totalSets > 0 else { return 0 }
+        return Double(completedSets) / Double(totalSets)
+    }
+    
+    private var exerciseIcon: String {
+        switch exercise.type {
+        case .weight: return "dumbbell.fill"
+        case .cardio: return "figure.run"
+        case .calisthenics: return "figure.gymnastics"
+        case .flexibility: return "figure.cooldown"
+        case .machine: return "gearshape.fill"
+        case .functional: return "figure.cross.training"
+        }
+    }
+    
+    private var accentColor: Color {
+        isComplete ? .green : .white.opacity(0.7)
+    }
+    
+    var body: some View {
+        HStack(spacing: 14) {
+            // Exercise type icon with progress ring
+            ZStack {
+                // Background ring
+                Circle()
+                    .stroke(Color.white.opacity(0.15), lineWidth: 3)
+                
+                // Progress ring
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(
+                        isComplete ? Color.green : Color.white.opacity(0.5),
+                        style: StrokeStyle(lineWidth: 3, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+                
+                // Icon
+                Image(systemName: isComplete ? "checkmark" : exerciseIcon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(accentColor)
+            }
+            .frame(width: 36, height: 36)
+            
+            // Exercise info
+            VStack(alignment: .leading, spacing: 2) {
+                Text(exercise.name)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                
+                Text(exercise.type.title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            
+            Spacer()
+            
+            // Progress text
+            Text("\(completedSets)/\(totalSets)")
+                .font(.subheadline.weight(.medium).monospacedDigit())
+                .foregroundStyle(isComplete ? .green : .secondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background {
+                    Capsule()
+                        .fill(isComplete ? Color.green.opacity(0.15) : Color.white.opacity(0.08))
+                }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background {
+            // Liquid Glass background
+            RoundedRectangle(cornerRadius: 20)
+                .fill(.clear)
+                .glassEffect(.regular.interactive())
+        }
+        .contentShape(.dragPreview, RoundedRectangle(cornerRadius: 20))
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button(role: .destructive) {
+                onDelete()
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
+}
+
 // MARK: - Flexible Exercise Card
 
 private struct FlexibleExerciseCard: View {
@@ -824,139 +914,281 @@ private struct AddExerciseSheet: View {
     
     var body: some View {
         NavigationStack {
-            if let exercise = selectedExercise {
-                // Phase 2: Set count selection
-                VStack(spacing: 24) {
-                    Spacer()
-                    
-                    // Exercise name
-                    VStack(spacing: 8) {
-                        Image(systemName: exercise.type.icon)
-                            .font(.system(size: 48))
-                            .foregroundStyle(colorForType(exercise.type))
-                        
-                        Text(exercise.name)
-                            .font(.title2.weight(.bold))
+            ZStack {
+                // Animated mesh gradient background
+                AnimatedMeshGradientView(theme: .flow)
+                    .ignoresSafeArea()
+                
+                if let exercise = selectedExercise {
+                    // Phase 2: Set count selection
+                    setCountSelectionView(for: exercise)
+                } else {
+                    // Phase 1: Exercise selection
+                    exerciseSelectionView
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+    
+    // MARK: - Exercise Selection View
+    
+    private var exerciseSelectionView: some View {
+        VStack(spacing: 0) {
+            // Header with glass effect
+            VStack(spacing: 16) {
+                // Title bar
+                HStack {
+                    Button("Cancel") {
+                        dismiss()
                     }
-                    
-                    // Set count stepper
-                    VStack(spacing: 12) {
-                        Text("How many sets?")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        
-                        HStack(spacing: 24) {
-                            Button {
-                                if setCount > 1 { setCount -= 1 }
-                            } label: {
-                                Image(systemName: "minus.circle.fill")
-                                    .font(.system(size: 44))
-                                    .foregroundStyle(.secondary)
-                            }
-                            .disabled(setCount <= 1)
-                            
-                            Text("\(setCount)")
-                                .font(.system(size: 56, weight: .bold, design: .rounded))
-                                .frame(width: 80)
-                            
-                            Button {
-                                if setCount < 10 { setCount += 1 }
-                            } label: {
-                                Image(systemName: "plus.circle.fill")
-                                    .font(.system(size: 44))
-                                    .foregroundStyle(.green)
-                            }
-                            .disabled(setCount >= 10)
-                        }
-                    }
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.8))
                     
                     Spacer()
                     
-                    // Add button
-                    Button {
-                        onAdd((name: exercise.name, type: exercise.type, setCount: setCount))
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.title3)
-                            Text("Add \(exercise.name)")
-                                .font(.headline.weight(.bold))
-                        }
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color.green.gradient, in: RoundedRectangle(cornerRadius: 16))
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal)
-                    .padding(.bottom, 24)
+                    Text("Add Exercise")
+                        .font(.headline.weight(.semibold))
+                    
+                    Spacer()
+                    
+                    // Invisible spacer for alignment
+                    Text("Cancel")
+                        .font(.body.weight(.medium))
+                        .opacity(0)
                 }
-                .navigationTitle("Set Count")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Back") {
-                            selectedExercise = nil
-                        }
-                    }
-                }
-            } else {
-                // Phase 1: Exercise selection
-                VStack(spacing: 0) {
-                    // Type filter
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            FilterChip(title: "All", isSelected: selectedType == nil) {
+                .padding(.horizontal)
+                .padding(.top, 16)
+                
+                // Type filter chips with glass effect
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        GlassFilterChip(title: "All", isSelected: selectedType == nil) {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                 selectedType = nil
                             }
-                            
-                            ForEach(ExerciseType.allCases, id: \.self) { type in
-                                FilterChip(title: type.title, isSelected: selectedType == type) {
+                        }
+                        
+                        ForEach(ExerciseType.allCases, id: \.self) { type in
+                            GlassFilterChip(
+                                title: type.title,
+                                icon: type.icon,
+                                color: colorForType(type),
+                                isSelected: selectedType == type
+                            ) {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                     selectedType = type
                                 }
                             }
                         }
-                        .padding(.horizontal)
                     }
-                    .padding(.vertical, 12)
-                    
-                    // Exercise list
-                    List {
-                        ForEach(filteredExercises, id: \.name) { exercise in
-                            Button {
+                    .padding(.horizontal)
+                }
+            }
+            .padding(.bottom, 12)
+            .background(.ultraThinMaterial)
+            
+            // Exercise list
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    ForEach(filteredExercises, id: \.name) { exercise in
+                        ExerciseSelectionRow(
+                            name: exercise.name,
+                            type: exercise.type,
+                            color: colorForType(exercise.type)
+                        ) {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                                 selectedExercise = exercise
-                                // Default to 1 set for cardio/flexibility, 3 for weights
                                 setCount = (exercise.type == .cardio || exercise.type == .flexibility) ? 1 : 3
-                            } label: {
-                                HStack {
-                                    Image(systemName: exercise.type.icon)
-                                        .foregroundStyle(colorForType(exercise.type))
-                                        .frame(width: 30)
-                                    
-                                    Text(exercise.name)
-                                        .foregroundStyle(.primary)
-                                    
-                                    Spacer()
-                                    
-                                    Image(systemName: "chevron.right")
-                                        .foregroundStyle(.secondary)
-                                }
                             }
                         }
                     }
-                    .listStyle(.plain)
                 }
-                .searchable(text: $searchText, prompt: "Search exercises")
-                .navigationTitle("Add Exercise")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") {
-                            dismiss()
-                        }
+                .padding(.horizontal)
+                .padding(.top, 12)
+                .padding(.bottom, 100)
+            }
+            
+            // Search bar at bottom with glass effect
+            HStack(spacing: 12) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                
+                TextField("Search exercises", text: $searchText)
+                    .textFieldStyle(.plain)
+                
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(.ultraThinMaterial)
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+        }
+    }
+    
+    // MARK: - Set Count Selection View
+    
+    private func setCountSelectionView(for exercise: (name: String, type: ExerciseType)) -> some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        selectedExercise = nil
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.body.weight(.semibold))
+                        Text("Back")
+                    }
+                    .foregroundStyle(.white.opacity(0.8))
+                }
+                
+                Spacer()
+                
+                Text("Set Count")
+                    .font(.headline.weight(.semibold))
+                
+                Spacer()
+                
+                // Invisible spacer
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.left")
+                    Text("Back")
+                }
+                .opacity(0)
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 16)
+            .background(.ultraThinMaterial)
+            
+            Spacer()
+            
+            // Exercise info card with glass effect
+            VStack(spacing: 20) {
+                // Icon
+                ZStack {
+                    Circle()
+                        .fill(colorForType(exercise.type).opacity(0.2))
+                        .frame(width: 80, height: 80)
+                    
+                    Image(systemName: exercise.type.icon)
+                        .font(.system(size: 36, weight: .semibold))
+                        .foregroundStyle(colorForType(exercise.type))
+                }
+                
+                Text(exercise.name)
+                    .font(.title2.weight(.bold))
+                
+                Text(exercise.type.title)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 32)
+            .padding(.horizontal, 40)
+            .background {
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(.clear)
+                    .glassEffect(.regular)
+            }
+            .padding(.horizontal, 32)
+            
+            Spacer()
+            
+            // Set count stepper with glass effect
+            VStack(spacing: 16) {
+                Text("How many sets?")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+                
+                HStack(spacing: 32) {
+                    Button {
+                        if setCount > 1 {
+                            withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
+                                setCount -= 1
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "minus")
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(setCount <= 1 ? Color.secondary : Color.white)
+                            .frame(width: 56, height: 56)
+                            .background {
+                                Circle()
+                                    .fill(.clear)
+                                    .glassEffect(.regular.interactive())
+                            }
+                    }
+                    .disabled(setCount <= 1)
+                    
+                    Text("\(setCount)")
+                        .font(.system(size: 64, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .frame(width: 100)
+                        .contentTransition(.numericText())
+                    
+                    Button {
+                        if setCount < 10 {
+                            withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
+                                setCount += 1
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(setCount >= 10 ? Color.secondary : Color.white)
+                            .frame(width: 56, height: 56)
+                            .background {
+                                Circle()
+                                    .fill(.clear)
+                                    .glassEffect(.regular.interactive())
+                            }
+                    }
+                    .disabled(setCount >= 10)
+                }
+            }
+            .padding(.vertical, 24)
+            .padding(.horizontal, 32)
+            .background {
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(.clear)
+                    .glassEffect(.regular)
+            }
+            .padding(.horizontal, 32)
+            
+            Spacer()
+            
+            // Add button
+            Button {
+                onAdd((name: exercise.name, type: exercise.type, setCount: setCount))
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title3)
+                    Text("Add \(exercise.name)")
+                        .font(.headline.weight(.bold))
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 18)
+                .background(Color.green.gradient, in: RoundedRectangle(cornerRadius: 20))
+                .shadow(color: .green.opacity(0.3), radius: 12, x: 0, y: 6)
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 32)
         }
     }
     
@@ -969,6 +1201,91 @@ private struct AddExerciseSheet: View {
         case .machine: return .red
         case .functional: return .cyan
         }
+    }
+}
+
+// MARK: - Glass Filter Chip
+
+private struct GlassFilterChip: View {
+    let title: String
+    var icon: String? = nil
+    var color: Color = .white
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if let icon = icon {
+                    Image(systemName: icon)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(isSelected ? .white : color)
+                }
+                
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(isSelected ? .white : .primary)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background {
+                if isSelected {
+                    Capsule()
+                        .fill(Color.green.gradient)
+                } else {
+                    Capsule()
+                        .fill(.clear)
+                        .glassEffect(.regular.interactive())
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Exercise Selection Row
+
+private struct ExerciseSelectionRow: View {
+    let name: String
+    let type: ExerciseType
+    let color: Color
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                // Icon with colored background
+                ZStack {
+                    Circle()
+                        .fill(color.opacity(0.2))
+                        .frame(width: 40, height: 40)
+                    
+                    Image(systemName: type.icon)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(color)
+                }
+                
+                // Exercise name
+                Text(name)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(.primary)
+                
+                Spacer()
+                
+                // Chevron
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(.clear)
+                    .glassEffect(.regular.interactive())
+            }
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -987,6 +1304,76 @@ private struct FilterChip: View {
                 .background(isSelected ? Color.green : Color.white.opacity(0.1), in: Capsule())
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Drag Preview Card
+
+/// A visually polished drag preview card for exercise reordering
+private struct DragPreviewCard: View {
+    let exerciseName: String
+    let completedSets: Int
+    let totalSets: Int
+    let isEditMode: Bool
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Drag indicator icon
+            Image(systemName: "line.3.horizontal")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.6))
+            
+            Text(exerciseName)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+            
+            Spacer()
+            
+            // Progress indicator
+            if completedSets >= totalSets {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .font(.title3)
+            } else {
+                Text("\(completedSets)/\(totalSets)")
+                    .font(.subheadline.weight(.medium).monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+        .frame(minWidth: 300, maxWidth: 360)
+        .background {
+            // Dark gradient background with depth
+            RoundedRectangle(cornerRadius: 20)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.15, green: 0.18, blue: 0.22),
+                            Color(red: 0.1, green: 0.12, blue: 0.15)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+            
+            // Subtle inner glow
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.25),
+                            Color.white.opacity(0.05)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1
+                )
+        }
+        .shadow(color: .black.opacity(0.4), radius: 12, x: 0, y: 6)
+        .shadow(color: .green.opacity(0.15), radius: 20, x: 0, y: 0) // Subtle green glow
     }
 }
 
