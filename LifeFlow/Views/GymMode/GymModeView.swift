@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 /// Full-screen immersive workout experience.
 /// Flexible navigation - tap any exercise to work on it in any order.
@@ -36,6 +37,10 @@ struct GymModeView: View {
     @State private var completedSession: WorkoutSession? = nil
     @State private var showAddExerciseSheet: Bool = false
     @State private var showWorkoutCompleteConfirmation: Bool = false
+    
+    // Drag and drop state for live reordering
+    @State private var draggedItem: WorkoutExercise? = nil
+    @State private var localExercises: [WorkoutExercise] = []
     
     // Namespace for morphing glass effects
     @Namespace private var animationNamespace
@@ -167,12 +172,13 @@ struct GymModeView: View {
             
             // Dashboard
             ScrollView {
-                // ScrollViewReader allows us to scroll to the active card
                 ScrollViewReader { scrollProxy in
-                    // GlassEffectContainer groups the liquid glass elements
                     GlassEffectContainer(spacing: 16) {
-                        ForEach(manager.activeSession?.sortedExercises ?? [], id: \.id) { exercise in
-                            if manager.currentExercise?.id == exercise.id {
+                        
+                        ForEach(localExercises, id: \.id) { exercise in
+                            // LOGIC CHANGE: If we are in Edit Mode, NEVER show the expanded card.
+                            // This ensures all items look the same so they can be reordered easily.
+                            if !isEditMode && manager.currentExercise?.id == exercise.id {
                                 // === STATE A: ACTIVE (Input Card) ===
                                 ExerciseInputCard(
                                     exercise: exercise,
@@ -194,26 +200,78 @@ struct GymModeView: View {
                                 .id(exercise.id)
                                 
                             } else {
-                                // === STATE B: INACTIVE (Button) ===
-                                Button {
-                                    // Tap Logic: Select & Center
-                                    withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
-                                        manager.selectExercise(exercise)
-                                        loadCurrentSetDefaults()
-                                        
-                                        // Auto-scroll the new active card to the center
-                                        scrollProxy.scrollTo(exercise.id, anchor: .center)
+                                // === STATE B: INACTIVE (Sliver) ===
+                                InactiveGlassSliver(
+                                    exercise: exercise,
+                                    completedSets: manager.completedSetsCount(for: exercise),
+                                    totalSets: exercise.sets.count,
+                                    isEditMode: isEditMode,
+                                    namespace: animationNamespace,
+                                    onTap: {
+                                        print("DEBUG: Tapped exercise: \(exercise.name) (ID: \(exercise.id))")
+                                        if !isEditMode {
+                                            withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
+                                                manager.selectExercise(exercise)
+                                                loadCurrentSetDefaults()
+                                                scrollProxy.scrollTo(exercise.id, anchor: .center)
+                                            }
+                                        } else {
+                                            print("DEBUG: Tap ignored, isEditMode is TRUE")
+                                        }
                                     }
-                                } label: {
-                                    InactiveGlassSliver(
-                                        exercise: exercise,
-                                        completedSets: manager.completedSetsCount(for: exercise),
-                                        totalSets: exercise.sets.count
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                                .glassEffectID(exercise.id.uuidString, in: animationNamespace)
+                                )
                                 .id(exercise.id)
+                                .onDrag({
+                                    // Haptic feedback when picking up
+                                    let impact = UIImpactFeedbackGenerator(style: .medium)
+                                    impact.impactOccurred()
+                                    
+                                    draggedItem = exercise
+                                    return NSItemProvider(object: exercise.id.uuidString as NSString)
+                                }, preview: {
+                                    HStack {
+                                        Text(exercise.name)
+                                            .font(.headline)
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(1)
+                                        
+                                        Spacer()
+                                        
+                                        if isEditMode {
+                                            Image(systemName: "line.3.horizontal")
+                                                .font(.title3)
+                                                .foregroundStyle(.secondary)
+                                        } else {
+                                            let completed = manager.completedSetsCount(for: exercise)
+                                            if completed >= exercise.sets.count {
+                                                Image(systemName: "checkmark.circle.fill")
+                                                    .foregroundStyle(.green)
+                                                    .font(.title3)
+                                            } else {
+                                                Text("\(completed)/\(exercise.sets.count)")
+                                                    .font(.caption.monospacedDigit())
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
+                                    }
+                                    .padding()
+                                    .frame(width: 340, height: 60)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .fill(Color(white: 0.1).opacity(0.8))
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .stroke(.white.opacity(0.2), lineWidth: 1)
+                                    )
+                                })
+                                .onDrop(of: [.text], delegate: GymModeDropDelegate(
+                                    item: exercise,
+                                    exercises: $localExercises,
+                                    draggedItem: $draggedItem
+                                ))
+                                // CRITICAL: Opacity must be AFTER onDrag to ensure preview is visible
+                                .opacity(draggedItem?.id == exercise.id ? 0.0 : 1.0)
                             }
                         }
                     }
@@ -222,6 +280,32 @@ struct GymModeView: View {
                 }
             }
         }
+        .onAppear {
+            syncLocalExercises()
+        }
+        .onChange(of: manager.activeSession?.exercises.count) { _, _ in
+            syncLocalExercises()
+        }
+        .onChange(of: isEditMode) { _, newValue in
+            if !newValue {
+                // Exiting edit mode - persist the new order to the manager
+                persistExerciseOrder()
+            }
+        }
+    }
+    
+    /// Sync local exercises from the manager's active session
+    private func syncLocalExercises() {
+        localExercises = manager.activeSession?.sortedExercises ?? []
+    }
+    
+    /// Persist the local exercise order back to the manager
+    private func persistExerciseOrder() {
+        for (index, exercise) in localExercises.enumerated() {
+            exercise.orderIndex = index
+        }
+        manager.syncWidgetStateAfterExerciseChange()
+        try? modelContext.save()
     }
     
     // MARK: - Header
@@ -428,11 +512,22 @@ struct GymModeView: View {
     
     /// Discard workout without saving
     private func discardWorkout() {
-        if let session = manager.activeSession {
+        // Clear local references first to prevent UI updates on deleted objects
+        localExercises = []
+        
+        // Capture the session to delete BEFORE resetting state (which sets activeSession to nil)
+        let sessionToDelete = manager.activeSession
+        
+        // Use resetState() to clear manager state safely
+        manager.resetState()
+        
+        // Delete the captured session
+        if let session = sessionToDelete {
             modelContext.delete(session)
-            try? modelContext.save() // Persist the deletion
+            // Explicitly save context to ensure deletion persists immediately
+            try? modelContext.save()
         }
-        let _ = manager.endWorkout()
+        
         dismiss()
     }
     

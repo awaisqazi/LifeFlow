@@ -125,7 +125,8 @@ final class GymModeManager {
         var previousTotalSets = 0
         var previousIsComplete = false
         
-        if currentExerciseIndex > 0 {
+        // SAFETY: Check both that currentExerciseIndex > 0 AND that the index is within bounds
+        if currentExerciseIndex > 0 && currentExerciseIndex - 1 < exercises.count {
             let prevEx = exercises[currentExerciseIndex - 1]
             previousExercise = prevEx.name
             previousTotalSets = prevEx.sets.count
@@ -138,6 +139,7 @@ final class GymModeManager {
         var nextSetsCompleted = 0
         var nextTotalSets = 0
         
+        // SAFETY: Check that the next index is within bounds
         if currentExerciseIndex + 1 < exercises.count {
             let nextEx = exercises[currentExerciseIndex + 1]
             nextExercise = nextEx.name
@@ -349,6 +351,8 @@ final class GymModeManager {
     
     /// End the current workout and return the completed session
     /// - Returns: The completed workout session
+    /// End the current workout and return the completed session
+    /// - Returns: The completed workout session
     func endWorkout() -> WorkoutSession? {
         let completedSession = activeSession
         
@@ -356,6 +360,14 @@ final class GymModeManager {
         activeSession?.endTime = Date()
         activeSession?.duration = elapsedTime
         
+        // Use the common reset logic
+        resetState()
+        
+        return completedSession
+    }
+    
+    /// Reset internal state without saving/modifying the session (e.g. for discard)
+    func resetState() {
         // Stop timers
         stopElapsedTimer()
         stopRestTimer()
@@ -376,8 +388,6 @@ final class GymModeManager {
         
         // Clear widget state
         WorkoutWidgetState.clear()
-        
-        return completedSession
     }
     
     /// Pause the workout (stops timers but keeps session in incomplete state for resume)
@@ -428,13 +438,20 @@ final class GymModeManager {
     /// Select a specific exercise to work on (allows any order)
     /// - Parameter exercise: The exercise to select
     func selectExercise(_ exercise: WorkoutExercise) {
-        guard let session = activeSession else { return }
+        print("DEBUG: selectExercise called for \(exercise.name) (ID: \(exercise.id))")
+        guard let session = activeSession else {
+            print("DEBUG: No active session")
+            return
+        }
         let exercises = session.sortedExercises
+        print("DEBUG: Active session exercises: \(exercises.map { $0.name })")
         
         if let index = exercises.firstIndex(where: { $0.id == exercise.id }) {
+            print("DEBUG: Found exercise at index \(index)")
             currentExerciseIndex = index
             // Find the next incomplete set for this exercise
             currentSetIndex = getNextIncompleteSetIndex(for: exercise)
+            print("DEBUG: New currentExerciseIndex: \(currentExerciseIndex), currentSetIndex: \(currentSetIndex)")
             
             // Synchronize Live Activity
             workoutLiveActivityManager.updateWorkout(
