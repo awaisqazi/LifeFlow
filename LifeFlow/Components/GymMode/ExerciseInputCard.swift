@@ -532,6 +532,7 @@ struct ExerciseInputCard: View {
         manager.isCardioInProgress = true
         
         cardioTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+            guard !manager.isPaused else { return }
             cardioElapsedTime += 1
             
             // Sync with widget every 5 seconds or on significant events
@@ -581,6 +582,7 @@ struct ExerciseInputCard: View {
         manager.isCardioInProgress = true
         
         cardioTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+            guard !manager.isPaused else { return }
             cardioElapsedTime += 1
             
             // Sync with widget every 5 seconds
@@ -669,9 +671,9 @@ struct ExerciseInputCard: View {
     
     private func startSetTimer() {
         Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { timer in
-            if setTimerActive {
+            if setTimerActive && !manager.isPaused {
                 setDuration += 1
-            } else {
+            } else if !setTimerActive {
                 timer.invalidate()
             }
         }

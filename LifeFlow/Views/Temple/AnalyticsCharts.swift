@@ -9,6 +9,14 @@ import SwiftUI
 import SwiftData
 import Charts
 
+// MARK: - Selected Date Wrapper
+
+/// Wrapper to make Date conform to Identifiable for sheet presentation
+struct SelectedDateWrapper: Identifiable {
+    let id = UUID()
+    let date: Date
+}
+
 // MARK: - Time Scope Enum
 
 enum TimeScope: String, CaseIterable, Identifiable {
@@ -45,8 +53,7 @@ struct HydrationChart: View {
     let logs: [DayLog]
     let scope: TimeScope
     
-    @State private var selectedDate: Date?
-    @State private var showingDetail = false
+    @State private var selectedDate: SelectedDateWrapper?
     
     /// Daily goal from user settings
     private var dailyGoal: Double {
@@ -62,7 +69,7 @@ struct HydrationChart: View {
         case .week:
             // Saturday through Friday week
             // Find the most recent Saturday (or today if it is Saturday)
-            var weekday = calendar.component(.weekday, from: today)
+            let weekday = calendar.component(.weekday, from: today)
             // weekday: 1 = Sunday, 2 = Monday, ..., 7 = Saturday
             // We want Saturday (7) as start of week
             let daysSinceSaturday = (weekday == 7) ? 0 : (weekday + 6) % 7 + 1
@@ -194,8 +201,7 @@ struct HydrationChart: View {
                                 isCompact: false
                             )
                             .onTapGesture {
-                                selectedDate = date
-                                showingDetail = true
+                                selectedDate = SelectedDateWrapper(date: date)
                             }
                         }
                     }
@@ -210,8 +216,7 @@ struct HydrationChart: View {
                                 isCompact: true
                             )
                             .onTapGesture {
-                                selectedDate = date
-                                showingDetail = true
+                                selectedDate = SelectedDateWrapper(date: date)
                             }
                         }
                     }
@@ -228,15 +233,13 @@ struct HydrationChart: View {
         }
         .padding()
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-        .sheet(isPresented: $showingDetail) {
-            if let date = selectedDate {
-                HydrationDayDetailSheet(
-                    date: date,
-                    log: logFor(date),
-                    dailyGoal: dailyGoal
-                )
-                .presentationDetents([.height(300)])
-            }
+        .sheet(item: $selectedDate) { wrapper in
+            HydrationDayDetailSheet(
+                date: wrapper.date,
+                log: logFor(wrapper.date),
+                dailyGoal: dailyGoal
+            )
+            .presentationDetents([.height(300)])
         }
     }
 }

@@ -575,7 +575,7 @@ private struct CelebrationParticles: View {
             }
             
             // Remove off-screen particles
-            particles.removeAll { $0.y > UIScreen.main.bounds.height + 50 }
+            particles.removeAll { $0.y > size.height + 50 }
             
             if particles.isEmpty {
                 timer.invalidate()

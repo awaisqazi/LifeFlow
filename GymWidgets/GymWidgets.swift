@@ -56,9 +56,6 @@ struct GymWidgets: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: WorkoutTimelineProvider()) { entry in
             GymWidgetEntryView(entry: entry)
-                .containerBackground(for: .widget) {
-                    Color.black
-                }
         }
         .configurationDisplayName("Workout")
         .description("Track your active workout or start a new one.")

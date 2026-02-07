@@ -26,7 +26,23 @@ final class GymWorkoutLiveActivityManager {
     ///   - totalExercises: Total number of exercises
     ///   - exerciseName: First exercise name
     ///   - workoutStartDate: Start date of the session
-    func startWorkout(workoutTitle: String, totalExercises: Int, exerciseName: String, workoutStartDate: Date) {
+    func startWorkout(
+        workoutTitle: String,
+        totalExercises: Int,
+        exerciseName: String,
+        workoutStartDate: Date,
+        currentSet: Int,
+        totalSets: Int,
+        elapsedTime: Int,
+        currentExerciseIndex: Int,
+        isPaused: Bool = false,
+        isCardio: Bool = false,
+        cardioModeIndex: Int = 0,
+        cardioSpeed: Double = 0,
+        cardioIncline: Double = 0,
+        cardioEndTime: Date? = nil,
+        cardioDuration: TimeInterval = 0
+    ) {
         // Check authorization status first
         let authInfo = ActivityAuthorizationInfo()
         print("🏋️ Live Activity - areActivitiesEnabled: \(authInfo.areActivitiesEnabled)")
@@ -45,13 +61,40 @@ final class GymWorkoutLiveActivityManager {
                     workoutTitle: workoutTitle,
                     totalExercises: totalExercises,
                     exerciseName: exerciseName,
-                    workoutStartDate: workoutStartDate
+                    workoutStartDate: workoutStartDate,
+                    currentSet: currentSet,
+                    totalSets: totalSets,
+                    elapsedTime: elapsedTime,
+                    currentExerciseIndex: currentExerciseIndex,
+                    isPaused: isPaused,
+                    isCardio: isCardio,
+                    cardioModeIndex: cardioModeIndex,
+                    cardioSpeed: cardioSpeed,
+                    cardioIncline: cardioIncline,
+                    cardioEndTime: cardioEndTime,
+                    cardioDuration: cardioDuration
                 )
             }
         }
     }
     
-    private func startActivityAfterCleanup(workoutTitle: String, totalExercises: Int, exerciseName: String, workoutStartDate: Date) {
+    private func startActivityAfterCleanup(
+        workoutTitle: String,
+        totalExercises: Int,
+        exerciseName: String,
+        workoutStartDate: Date,
+        currentSet: Int,
+        totalSets: Int,
+        elapsedTime: Int,
+        currentExerciseIndex: Int,
+        isPaused: Bool,
+        isCardio: Bool,
+        cardioModeIndex: Int,
+        cardioSpeed: Double,
+        cardioIncline: Double,
+        cardioEndTime: Date?,
+        cardioDuration: TimeInterval
+    ) {
         // Create attributes and initial state
         let attributes = GymWorkoutAttributes(
             workoutTitle: workoutTitle,
@@ -60,11 +103,19 @@ final class GymWorkoutLiveActivityManager {
         
         let initialState = GymWorkoutAttributes.ContentState(
             exerciseName: exerciseName,
-            currentSet: 1,
-            totalSets: 3,
-            elapsedTime: 0,
+            currentSet: currentSet,
+            totalSets: totalSets,
+            currentExerciseIndex: currentExerciseIndex,
+            elapsedTime: elapsedTime,
             workoutStartDate: workoutStartDate,
-            isResting: false
+            isResting: false,
+            isPaused: isPaused,
+            isCardio: isCardio,
+            cardioModeIndex: cardioModeIndex,
+            cardioSpeed: cardioSpeed,
+            cardioIncline: cardioIncline,
+            cardioEndTime: cardioEndTime,
+            cardioDuration: cardioDuration
         )
         
         print("🏋️ Starting Live Activity with title: \(workoutTitle), exercise: \(exerciseName)")
@@ -92,8 +143,10 @@ final class GymWorkoutLiveActivityManager {
         exerciseName: String,
         currentSet: Int,
         totalSets: Int,
+        currentExerciseIndex: Int,
         elapsedTime: Int,
         workoutStartDate: Date,
+        isPaused: Bool = false,
         isCardio: Bool = false,
         cardioModeIndex: Int = 0,
         cardioSpeed: Double = 0,
@@ -107,9 +160,11 @@ final class GymWorkoutLiveActivityManager {
             exerciseName: exerciseName,
             currentSet: currentSet,
             totalSets: totalSets,
+            currentExerciseIndex: currentExerciseIndex,
             elapsedTime: elapsedTime,
             workoutStartDate: workoutStartDate,
             isResting: false,
+            isPaused: isPaused,
             isCardio: isCardio,
             cardioModeIndex: cardioModeIndex,
             cardioSpeed: cardioSpeed,
@@ -133,18 +188,29 @@ final class GymWorkoutLiveActivityManager {
     ///   - elapsedTime: Elapsed workout time
     ///   - restEndTime: When the rest timer ends
     ///   - workoutStartDate: Current session start date
-    func startRest(exerciseName: String, nextSet: Int, totalSets: Int, elapsedTime: Int, restEndTime: Date, workoutStartDate: Date) {
+    func startRest(
+        exerciseName: String,
+        nextSet: Int,
+        totalSets: Int,
+        currentExerciseIndex: Int,
+        elapsedTime: Int,
+        restEndTime: Date,
+        workoutStartDate: Date,
+        isPaused: Bool = false
+    ) {
         guard let activity = currentActivity else { return }
         
         let restState = GymWorkoutAttributes.ContentState(
             exerciseName: exerciseName,
             currentSet: nextSet,
             totalSets: totalSets,
+            currentExerciseIndex: currentExerciseIndex,
             elapsedTime: elapsedTime,
             workoutStartDate: workoutStartDate,
             isResting: true,
             restTimeRemaining: Int(restEndTime.timeIntervalSinceNow),
             restEndTime: restEndTime,
+            isPaused: isPaused,
             isCardio: false // Rest is not a cardio activity state per se
         )
         
@@ -156,13 +222,23 @@ final class GymWorkoutLiveActivityManager {
     }
     
     /// End rest and resume workout
-    func endRest(exerciseName: String, currentSet: Int, totalSets: Int, elapsedTime: Int, workoutStartDate: Date) {
+    func endRest(
+        exerciseName: String,
+        currentSet: Int,
+        totalSets: Int,
+        currentExerciseIndex: Int,
+        elapsedTime: Int,
+        workoutStartDate: Date,
+        isPaused: Bool = false
+    ) {
         updateWorkout(
             exerciseName: exerciseName,
             currentSet: currentSet,
             totalSets: totalSets,
+            currentExerciseIndex: currentExerciseIndex,
             elapsedTime: elapsedTime,
-            workoutStartDate: workoutStartDate
+            workoutStartDate: workoutStartDate,
+            isPaused: isPaused
         )
     }
     

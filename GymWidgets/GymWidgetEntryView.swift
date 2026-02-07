@@ -8,47 +8,12 @@
 
 import SwiftUI
 import WidgetKit
-import AppIntents
-
-// MARK: - Shared Styles
-
-/// A reusable glassmorphic modifier for the LifeFlow aesthetic
-struct LiquidGlassModifier: ViewModifier {
-    var cornerRadius: CGFloat = 20
-    var borderColor: Color = .white.opacity(0.15)
-    
-    func body(content: Content) -> some View {
-        content
-            .background(.ultraThinMaterial)
-            .background(
-                // Subtle inner glow
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(LinearGradient(
-                        colors: [.white.opacity(0.05), .clear],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ))
-            )
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .stroke(borderColor, lineWidth: 0.5)
-            )
-            .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 10)
-    }
-}
-
-extension View {
-    func liquidGlassStyle(cornerRadius: CGFloat = 20) -> some View {
-        self.modifier(LiquidGlassModifier(cornerRadius: cornerRadius))
-    }
-}
 
 struct GymWidgetEntryView: View {
-    var entry: WorkoutEntry
+    let entry: WorkoutEntry
     
-    @Environment(\.widgetFamily) var family
-    @Environment(\.widgetRenderingMode) var renderingMode
+    @Environment(\.widgetFamily) private var family
+    @Environment(\.widgetRenderingMode) private var renderingMode
     
     private var isFullColor: Bool {
         renderingMode == .fullColor
@@ -58,51 +23,31 @@ struct GymWidgetEntryView: View {
         Group {
             switch family {
             case .systemSmall:
-                SmallWidgetView(state: entry.state, isFullColor: isFullColor)
+                SmallWidgetView(state: entry.state, isFullColor: isFullColor, referenceDate: entry.date)
             case .systemMedium:
-                MediumWidgetView(state: entry.state, isFullColor: isFullColor)
+                MediumWidgetView(state: entry.state, isFullColor: isFullColor, referenceDate: entry.date)
             case .systemLarge:
-                LargeWidgetView(state: entry.state)
+                LargeWidgetView(state: entry.state, referenceDate: entry.date)
             default:
-                SmallWidgetView(state: entry.state, isFullColor: isFullColor)
+                SmallWidgetView(state: entry.state, isFullColor: isFullColor, referenceDate: entry.date)
             }
         }
         .containerBackground(for: .widget) {
             // Let system handle tinted/glass background in accented mode
             // Only provide a subtle background in full-color mode
             if isFullColor {
-                Color.black.opacity(0.85)
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(0.9),
+                        entry.state.accentColor.opacity(0.18)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
             } else {
                 Color.clear
             }
         }
-    }
-}
-
-// MARK: - Color Hex Extension
-extension Color {
-    init(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let a, r, g, b: UInt64
-        switch hex.count {
-        case 3: // RGB (12-bit)
-            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
-        case 6: // RGB (24-bit)
-            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        case 8: // ARGB (32-bit)
-            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
-        default:
-            (a, r, g, b) = (1, 1, 1, 0)
-        }
-        self.init(
-            .sRGB,
-            red: Double(r) / 255,
-            green: Double(g) / 255,
-            blue: Double(b) / 255,
-            opacity: Double(a) / 255
-        )
     }
 }
 
@@ -111,113 +56,77 @@ extension Color {
 private struct SmallWidgetView: View {
     let state: WorkoutWidgetState
     let isFullColor: Bool
+    let referenceDate: Date
     
     var body: some View {
         if state.isActive {
-            // Active workout view
-            Link(destination: URL(string: "lifeflow://gym")!) {
-                VStack(spacing: 0) {
-                    // Status badge
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(isFullColor ? (state.isPaused ? Color.secondary : (state.isResting ? Color.cyan : Color.green)) : Color.primary)
-                            .frame(width: 6, height: 6)
-                            .widgetAccentable()
-                        Text(state.isPaused ? "PAUSED" : (state.isResting ? "RESTING" : "ACTIVE"))
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(isFullColor ? (state.isPaused ? Color.secondary : (state.isResting ? Color.cyan : Color.green)) : .primary)
-                            .widgetAccentable()
+            VStack(spacing: 8) {
+                StatusBadge(
+                    state: state,
+                    isFullColor: isFullColor,
+                    font: .system(size: 9, weight: .bold),
+                    dotSize: 6
+                )
+                
+                Spacer(minLength: 4)
+                
+                WorkoutTimerText(
+                    state: state,
+                    referenceDate: referenceDate,
+                    fontSize: 36,
+                    isFullColor: isFullColor
+                )
+                
+                Spacer(minLength: 4)
+                
+                VStack(spacing: 4) {
+                    Text(state.exerciseName)
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.9)
+                    
+                    if state.isCardio {
+                        CardioMetricsView(
+                            state: state,
+                            isFullColor: isFullColor,
+                            valueFont: .caption2,
+                            iconFont: .system(size: 8),
+                            spacing: 8
+                        )
+                        .foregroundStyle(.secondary)
+                    } else if state.totalSets > 0 {
+                        Text("Set \(state.currentSet)/\(state.totalSets)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
                     
-                    Spacer()
+                    StateProgressBar(
+                        state: state,
+                        isFullColor: isFullColor,
+                        height: 5
+                    )
                     
-                    // Timer
-                    if state.isPaused {
-                        Text(state.pausedDisplayTime ?? "--:--")
-                            .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
+                    if state.totalExercises > 0 {
+                        Text("Exercise \(state.currentExerciseIndex + 1)/\(state.totalExercises)")
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
-                    } else if state.isResting, let restEnd = state.restEndTime {
-                        Text(restEnd, style: .timer)
-                            .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
-                            .foregroundStyle(.cyan)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
-                    } else if state.isCardio {
-                        if state.cardioModeIndex == 0, let cardioEnd = state.cardioEndTime {
-                            // Timed Cardio: Countdown
-                            Text(cardioEnd, style: .timer)
-                                .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
-                                .foregroundStyle(.orange)
-                                .multilineTextAlignment(.center)
-                                .frame(maxWidth: .infinity)
-                        } else {
-                            // Freestyle Cardio: Count up from start relative to current elapsed
-                            let cardioStart = Date().addingTimeInterval(-state.cardioElapsedTime)
-                            Text(cardioStart, style: .timer)
-                                .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
-                                .foregroundStyle(.green)
-                                .multilineTextAlignment(.center)
-                                .frame(maxWidth: .infinity)
-                        }
-                    } else {
-                        Text(state.workoutStartDate, style: .timer)
-                            .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
-                            .foregroundStyle(.green)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
-                    }
-                    
-                    Spacer()
-                    
-                    // Exercise info
-                    VStack(spacing: 2) {
-                        Text(state.exerciseName)
-                            .font(.caption.weight(.semibold))
-                            .lineLimit(1)
-                        
-                        if state.isCardio && state.cardioSpeed > 0 {
-                            // Cardio: show speed and incline
-                            HStack(spacing: 8) {
-                                HStack(spacing: 2) {
-                                    Image(systemName: "speedometer")
-                                        .font(.system(size: 8))
-                                    Text(String(format: "%.1f", state.cardioSpeed))
-                                        .font(.caption2)
-                                }
-                                HStack(spacing: 2) {
-                                    Image(systemName: "arrow.up.right")
-                                        .font(.system(size: 8))
-                                    Text(String(format: "%.1f%%", state.cardioIncline))
-                                        .font(.caption2)
-                                }
-                            }
-                            .foregroundStyle(.secondary)
-                        } else {
-                            // Weights: show sets
-                            Text("Set \(state.currentSet)/\(state.totalSets)")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
                     }
                 }
-                .padding(12)
             }
+            .padding(12)
+            .widgetURL(URL(string: "lifeflow://gym"))
         } else {
-            // Idle view - Start workout button
-            Link(destination: URL(string: "lifeflow://gym")!) {
-                VStack(spacing: 12) {
-                    Image(systemName: "dumbbell.fill")
-                        .font(.system(size: 36))
-                        .foregroundStyle(.orange)
-                    
-                    Text("Start Workout")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            VStack(spacing: 12) {
+                Image(systemName: "dumbbell.fill")
+                    .font(.system(size: 36))
+                    .foregroundStyle(.orange)
+                
+                Text("Start Workout")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .widgetURL(URL(string: "lifeflow://gym"))
         }
     }
 }
@@ -227,142 +136,121 @@ private struct SmallWidgetView: View {
 private struct MediumWidgetView: View {
     let state: WorkoutWidgetState
     let isFullColor: Bool
+    let referenceDate: Date
     
     var body: some View {
         if state.isActive {
-            Link(destination: URL(string: "lifeflow://gym")!) {
-                HStack(spacing: 16) {
-                    // Left Column: Status & Timer
-                    VStack(spacing: 2) {
-                        HStack(spacing: 4) {
-                            Image(systemName: state.isPaused ? "pause.fill" : (state.isResting ? "timer" : "dumbbell.fill"))
-                                .font(.system(size: 10, weight: .bold))
-                                .widgetAccentable()
-                            Text(state.isPaused ? "PAUSED" : (state.isResting ? "RESTING" : "ACTIVE"))
-                                .font(.system(size: 10, weight: .black))
-                                .widgetAccentable()
-                        }
-                        .foregroundStyle(isFullColor ? (state.isPaused ? Color.secondary : (state.isResting ? Color.cyan : Color.orange)) : .primary)
-                        .padding(.vertical, 4)
-                        .padding(.horizontal, 8)
-                        .glassEffect(.regular, in: .capsule)
-                        
-                        Spacer()
-                        
-                        if state.isPaused {
-                            Text(state.pausedDisplayTime ?? "--:--")
-                                .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
-                                .foregroundStyle(Color.secondary)
-                        } else if state.isResting, let restEnd = state.restEndTime {
-                            Text(restEnd, style: .timer)
-                                .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
-                                .foregroundStyle(Color.cyan)
-                        } else if state.isCardio {
-                            if state.cardioModeIndex == 0, let cardioEnd = state.cardioEndTime {
-                                // Timed Cardio: Countdown
-                                Text(cardioEnd, style: .timer)
-                                    .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
-                                    .foregroundStyle(.orange)
-                            } else {
-                                // Freestyle Cardio: Count up
-                                let cardioStart = Date().addingTimeInterval(-state.cardioElapsedTime)
-                                Text(cardioStart, style: .timer)
-                                    .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
-                                    .foregroundStyle(.green)
-                            }
-                        } else {
-                            Text(state.workoutStartDate, style: .timer)
-                                .font(.system(size: 38, weight: .bold, design: .rounded).monospacedDigit())
-                                .foregroundStyle(Color.green)
-                        }
-                        
-                        Text(state.isResting ? "REST TIMER" : (state.isPaused ? "STATIONARY" : "ELAPSED"))
-                            .font(.system(size: 8, weight: .black))
-                            .foregroundStyle(.secondary.opacity(0.6))
-                        
-                        Spacer()
-                    }
-                    .frame(width: 110)
-                    
-                    // Right Column: Exercise Details
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(state.workoutTitle.uppercased())
-                            .font(.system(size: 10, weight: .black))
-                            .foregroundStyle(.secondary)
-                        
-                        Text(state.exerciseName)
-                            .font(.headline)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                            .minimumScaleFactor(0.9)
-                        
-                        if state.isCardio && state.cardioSpeed > 0 {
-                            // Cardio: show speed and incline
-                            HStack(spacing: 10) {
-                                HStack(spacing: 3) {
-                                    Image(systemName: "speedometer")
-                                        .font(.system(size: 9))
-                                        .foregroundStyle(.green)
-                                    Text(String(format: "%.1f mph", state.cardioSpeed))
-                                        .font(.caption2.weight(.bold))
-                                }
-                                HStack(spacing: 3) {
-                                    Image(systemName: "arrow.up.right")
-                                        .font(.system(size: 9))
-                                        .foregroundStyle(.orange)
-                                    Text(String(format: "%.1f%%", state.cardioIncline))
-                                        .font(.caption2.weight(.bold))
-                                }
-                            }
-                            .foregroundStyle(.secondary)
-                        } else {
-                            // Weights: show sets
-                            Text("Set \(state.currentSet) of \(state.totalSets)")
-                                .font(.caption2.weight(.bold))
-                                .foregroundStyle(.secondary)
-                        }
-                        
-                        if let next = state.nextExerciseName {
-                            HStack(spacing: 4) {
-                                Text("NEXT:")
-                                    .font(.system(size: 8, weight: .black))
-                                    .foregroundStyle(.tertiary)
-                                Text(next)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(.top, 2)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .padding()
-            }
-        } else {
-            // Idle view
-            Link(destination: URL(string: "lifeflow://gym")!) {
-                HStack(spacing: 16) {
-                    // Icon
-                    Image(systemName: "dumbbell.fill")
-                        .font(.system(size: 40))
-                        .foregroundStyle(.orange)
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("No Active Workout")
-                            .font(.headline)
-                        Text("Tap to start your session")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+            HStack(spacing: 16) {
+                // Left Column: Status & Timer
+                VStack(spacing: 6) {
+                    StatusBadge(
+                        state: state,
+                        isFullColor: isFullColor,
+                        font: .system(size: 10, weight: .black),
+                        dotSize: 6
+                    )
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                    .glassEffect(.regular, in: .capsule)
                     
                     Spacer()
                     
-                    Image(systemName: "chevron.right.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(.orange.opacity(0.6))
+                    WorkoutTimerText(
+                        state: state,
+                        referenceDate: referenceDate,
+                        fontSize: 34,
+                        isFullColor: isFullColor
+                    )
+                    
+                    Text(state.timerLabel)
+                        .font(.system(size: 8, weight: .black))
+                        .foregroundStyle(.secondary.opacity(0.6))
+                    
+                    StateProgressBar(
+                        state: state,
+                        isFullColor: isFullColor,
+                        height: 6
+                    )
+                    .padding(.horizontal, 6)
+                    
+                    Spacer()
                 }
-                .padding()
+                .frame(width: 118)
+                
+                // Right Column: Exercise Details
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(state.workoutTitle.uppercased())
+                        .font(.system(size: 10, weight: .black))
+                        .foregroundStyle(.secondary)
+                    
+                    Text(state.exerciseName)
+                        .font(.headline)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .minimumScaleFactor(0.9)
+                    
+                    if state.isCardio {
+                        CardioMetricsView(
+                            state: state,
+                            isFullColor: isFullColor,
+                            valueFont: .caption2.weight(.bold),
+                            iconFont: .system(size: 9),
+                            spacing: 10
+                        )
+                        .foregroundStyle(.secondary)
+                    } else if state.totalSets > 0 {
+                        Text("Set \(state.currentSet) of \(state.totalSets)")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    if let next = state.nextExerciseName {
+                        HStack(spacing: 4) {
+                            Text("NEXT:")
+                                .font(.system(size: 8, weight: .black))
+                                .foregroundStyle(.tertiary)
+                            Text(next)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.top, 2)
+                    }
+                    
+                    if state.totalExercises > 0 {
+                        WorkoutProgressView(
+                            label: "Exercise \(state.currentExerciseIndex + 1) of \(state.totalExercises)",
+                            progress: state.workoutProgress,
+                            tint: state.accentColor,
+                            isFullColor: isFullColor
+                        )
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .padding()
+            .widgetURL(URL(string: "lifeflow://gym"))
+        } else {
+            HStack(spacing: 16) {
+                Image(systemName: "dumbbell.fill")
+                    .font(.system(size: 40))
+                    .foregroundStyle(.orange)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("No Active Workout")
+                        .font(.headline)
+                    Text("Tap to start your session")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(.orange.opacity(0.6))
+            }
+            .padding()
+            .widgetURL(URL(string: "lifeflow://gym"))
         }
     }
 }
@@ -371,8 +259,9 @@ private struct MediumWidgetView: View {
 
 private struct LargeWidgetView: View {
     let state: WorkoutWidgetState
+    let referenceDate: Date
     
-    @Environment(\.widgetRenderingMode) var renderingMode
+    @Environment(\.widgetRenderingMode) private var renderingMode
     
     private var isFullColor: Bool {
         renderingMode == .fullColor
@@ -386,6 +275,7 @@ private struct LargeWidgetView: View {
                 idleStatePlaceholder
             }
         }
+        .widgetURL(URL(string: "lifeflow://gym"))
         // Removed containerBackground - parent handles this
     }
     
@@ -406,14 +296,14 @@ private struct LargeWidgetView: View {
                         setsCompleted: state.previousSetsCompleted,
                         totalSets: state.previousTotalSets,
                         isComplete: state.previousIsComplete,
-                        renderingMode: renderingMode
+                        isFullColor: isFullColor
                     )
                 }
                 
                 // Current Exercise (Hero)
                 CurrentExerciseCard(
                     state: state,
-                    renderingMode: renderingMode
+                    isFullColor: isFullColor
                 )
                 
                 // Next Exercise (if exists)
@@ -424,7 +314,7 @@ private struct LargeWidgetView: View {
                         setsCompleted: state.nextSetsCompleted,
                         totalSets: state.nextTotalSets,
                         isComplete: false,
-                        renderingMode: renderingMode
+                        isFullColor: isFullColor
                     )
                 }
             }
@@ -435,76 +325,70 @@ private struct LargeWidgetView: View {
     // MARK: - Header Section
     
     private var headerSection: some View {
-        HStack {
-            // Workout Title
-            VStack(alignment: .leading, spacing: 2) {
-                Text(state.workoutTitle.isEmpty ? "WORKOUT" : state.workoutTitle.uppercased())
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(.secondary)
-                
-                Text("Exercise \(state.currentExerciseIndex + 1) of \(state.totalExercises)")
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .foregroundStyle(.tertiary)
-            }
-            
-            Spacer()
-            
-            // Elapsed Timer
-            HStack(spacing: 6) {
-                Image(systemName: "clock.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                
-                if state.isPaused {
-                    Text(state.pausedDisplayTime ?? "--:--")
-                        .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
+        VStack(spacing: 6) {
+            HStack {
+                // Workout Title
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(state.workoutTitle.isEmpty ? "WORKOUT" : state.workoutTitle.uppercased())
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundStyle(.secondary)
-                } else if state.isCardio {
-                    if state.cardioModeIndex == 0, let cardioEnd = state.cardioEndTime {
-                        // Timed Cardio: Countdown
-                        Text(cardioEnd, style: .timer)
-                            .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
-                            .foregroundStyle(.orange)
-                    } else {
-                        // Freestyle Cardio: Count up
-                        let cardioStart = Date().addingTimeInterval(-state.cardioElapsedTime)
-                        Text(cardioStart, style: .timer)
-                            .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
-                            .foregroundStyle(.green)
+                    
+                    if state.totalExercises > 0 {
+                        Text("Exercise \(state.currentExerciseIndex + 1) of \(state.totalExercises)")
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundStyle(.tertiary)
                     }
-                } else {
-                    Text(state.workoutStartDate, style: .timer)
-                        .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
-                        .foregroundStyle(.primary)
-                        .widgetAccentable()
                 }
+                
+                Spacer()
+                
+                // Elapsed Timer
+                HStack(spacing: 6) {
+                    Image(systemName: "clock.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    
+                    WorkoutTimerText(
+                        state: state,
+                        referenceDate: referenceDate,
+                        fontSize: 14,
+                        isFullColor: isFullColor
+                    )
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.white.opacity(0.08), in: Capsule())
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color.white.opacity(0.08), in: Capsule())
+            
+            if state.totalExercises > 0 {
+                WorkoutProgressView(
+                    label: "Workout \(state.currentExerciseIndex + 1) of \(state.totalExercises)",
+                    progress: state.workoutProgress,
+                    tint: state.accentColor,
+                    isFullColor: isFullColor
+                )
+            }
         }
     }
     
     // MARK: - Idle State Placeholder
     
     private var idleStatePlaceholder: some View {
-        Link(destination: URL(string: "lifeflow://gym")!) {
-            VStack(spacing: 16) {
-                Image(systemName: "dumbbell.fill")
-                    .font(.system(size: 44))
-                    .foregroundStyle(.orange)
-                    .widgetAccentable()
-                
-                Text("Start Workout")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-                
-                Text("Tap to begin")
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        VStack(spacing: 16) {
+            Image(systemName: "dumbbell.fill")
+                .font(.system(size: 44))
+                .foregroundStyle(.orange)
+                .widgetAccentable()
+            
+            Text("Start Workout")
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+            
+            Text("Tap to begin")
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(16)
     }
 }
@@ -523,11 +407,7 @@ private struct ExerciseCard: View {
     let setsCompleted: Int
     let totalSets: Int
     let isComplete: Bool
-    let renderingMode: WidgetRenderingMode
-    
-    private var isFullColor: Bool {
-        renderingMode == .fullColor
-    }
+    let isFullColor: Bool
     
     var body: some View {
         HStack(spacing: 12) {
@@ -605,29 +485,16 @@ private struct ExerciseCard: View {
             }
         }
     }
-    
-    private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: 14)
-            .fill(Color.white.opacity(position == .previous ? 0.04 : 0.06))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
-            )
-    }
 }
 
 // MARK: - Current Exercise Card (Hero)
 
 private struct CurrentExerciseCard: View {
     let state: WorkoutWidgetState
-    let renderingMode: WidgetRenderingMode
-    
-    private var isFullColor: Bool {
-        renderingMode == .fullColor
-    }
+    let isFullColor: Bool
     
     private var accentColor: Color {
-        state.isResting ? .cyan : .green
+        state.accentColor
     }
     
     var body: some View {
@@ -689,38 +556,17 @@ private struct CurrentExerciseCard: View {
                         .foregroundStyle(isFullColor ? .cyan : .primary)
                         .widgetAccentable()
                 }
-            } else if state.isCardio && state.cardioSpeed > 0 {
+            } else if state.isCardio {
                 // Cardio: show speed and incline
                 VStack(spacing: 8) {
-                    HStack(spacing: 16) {
-                        // Speed
-                        VStack(spacing: 2) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "speedometer")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.green)
-                                Text(String(format: "%.1f", state.cardioSpeed))
-                                    .font(.system(size: 24, weight: .bold, design: .rounded).monospacedDigit())
-                            }
-                            Text("mph")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(.secondary)
-                        }
-                        
-                        // Incline
-                        VStack(spacing: 2) {
-                            HStack(spacing: 4) {
-                                Image(systemName: "arrow.up.right")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.orange)
-                                Text(String(format: "%.1f", state.cardioIncline))
-                                    .font(.system(size: 24, weight: .bold, design: .rounded).monospacedDigit())
-                            }
-                            Text("%")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+                    CardioMetricsView(
+                        state: state,
+                        isFullColor: isFullColor,
+                        valueFont: .system(size: 24, weight: .bold, design: .rounded).monospacedDigit(),
+                        iconFont: .system(size: 12),
+                        spacing: 16
+                    )
+                    .foregroundStyle(.secondary)
                 }
             } else {
                 // Set Progress (weights)
@@ -746,98 +592,261 @@ private struct CurrentExerciseCard: View {
     }
     
     private var progressBar: some View {
-        Group {
-            if state.isResting, let restEnd = state.restEndTime {
-                // Rest mode: Use ProgressView with timerInterval for animated countdown
-                let totalDuration = state.restDuration ?? 90
-                let restStart = restEnd.addingTimeInterval(-totalDuration)
-                
-                ProgressView(
-                    timerInterval: restStart...restEnd,
-                    countsDown: true
-                ) {
-                    EmptyView()
-                } currentValueLabel: {
-                    EmptyView()
-                }
-                .progressViewStyle(.linear)
-                .tint(isFullColor ? .cyan : .primary)
-            } else if state.isCardio {
-                if state.cardioModeIndex == 0, let cardioEnd = state.cardioEndTime {
-                    // Timed Cardio: Countdown progress bar
-                    let duration = state.cardioDuration > 0 ? state.cardioDuration : 600
-                    let startTime = cardioEnd.addingTimeInterval(-duration)
-                    
-                    ProgressView(
-                        timerInterval: startTime...cardioEnd,
-                        countsDown: true
-                    ) {
-                        EmptyView()
-                    } currentValueLabel: {
-                        EmptyView()
-                    }
-                    .progressViewStyle(.linear)
-                    .tint(isFullColor ? .orange : .primary)
-                } else {
-                    // Freestyle Cardio: Count up progress bar (based on cardioElapsedTime)
-                    // Since it's freestyle, we don't have a fixed end. 
-                    // Let's just use a simple capsule that is always filled or pulses?
-                    // Actually, lets just not show a bar for freestyle or show elapsed percentage of some goal?
-                    // User said "reflect progress going up for the freestyle".
-                    // Let's use 30 mins as a default goal for the bar if no duration.
-                    let goal: TimeInterval = 1800 // 30 mins default goal for bar visibility
-                    let progress = min(state.cardioElapsedTime / goal, 1.0)
-                    
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule()
-                                .fill(Color.white.opacity(0.12))
-                                .frame(height: 6)
-                            
-                            Capsule()
-                                .fill(isFullColor ? accentColor : Color.primary)
-                                .frame(width: geo.size.width * progress, height: 6)
-                                .widgetAccentable()
-                        }
-                    }
-                    .frame(height: 6)
-                }
-            } else {
-                // Work mode: show set progress (bar increases)
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.white.opacity(0.12))
-                            .frame(height: 6)
-                        
-                        if state.totalSets > 0 {
-                            let progress = Double(state.currentSet) / Double(state.totalSets)
-                            Capsule()
-                                .fill(isFullColor ? accentColor : Color.primary)
-                                .frame(width: max(geo.size.width * progress, 0), height: 6)
-                                .widgetAccentable()
-                        }
-                    }
-                }
-                .frame(height: 6)
-            }
+        StateProgressBar(
+            state: state,
+            isFullColor: isFullColor,
+            height: 6
+        )
+    }
+    
+}
+
+// MARK: - Shared Components
+
+private enum WorkoutPhase {
+    case paused
+    case resting
+    case cardioTimed
+    case cardioFreestyle
+    case active
+}
+
+private extension WorkoutWidgetState {
+    var phase: WorkoutPhase {
+        if isPaused { return .paused }
+        if isResting { return .resting }
+        if isCardio && cardioModeIndex == 0 { return .cardioTimed }
+        if isCardio { return .cardioFreestyle }
+        return .active
+    }
+    
+    var statusText: String {
+        switch phase {
+        case .paused: return "PAUSED"
+        case .resting: return "RESTING"
+        case .cardioTimed, .cardioFreestyle: return "CARDIO"
+        case .active: return "ACTIVE"
         }
     }
     
-    private var heroCardBackground: some View {
-        RoundedRectangle(cornerRadius: 18)
-            .fill(.ultraThinMaterial)
-            .overlay(
-                RoundedRectangle(cornerRadius: 18)
-                    .stroke(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.2), Color.white.opacity(0.05)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 0.5
-                    )
-            )
-            .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
+    var timerLabel: String {
+        switch phase {
+        case .paused: return "PAUSED"
+        case .resting: return "REST TIMER"
+        case .cardioTimed: return "COUNTDOWN"
+        case .cardioFreestyle: return "ELAPSED"
+        case .active: return "ELAPSED"
+        }
+    }
+    
+    var accentColor: Color {
+        switch phase {
+        case .paused: return .gray
+        case .resting: return .cyan
+        case .cardioTimed: return .orange
+        case .cardioFreestyle: return .green
+        case .active: return .green
+        }
+    }
+    
+    var timerColor: Color {
+        switch phase {
+        case .paused: return .secondary
+        case .resting: return .cyan
+        case .cardioTimed: return .orange
+        case .cardioFreestyle: return .green
+        case .active: return .green
+        }
+    }
+    
+    var workoutProgress: Double {
+        guard totalExercises > 0 else { return 0 }
+        return min(Double(currentExerciseIndex + 1) / Double(totalExercises), 1)
+    }
+    
+    var setProgress: Double {
+        guard totalSets > 0 else { return 0 }
+        return min(Double(currentSet) / Double(totalSets), 1)
+    }
+    
+    var restInterval: ClosedRange<Date>? {
+        guard isResting, let restEndTime, let restDuration, restDuration > 0 else { return nil }
+        return restEndTime.addingTimeInterval(-restDuration)...restEndTime
+    }
+    
+    var cardioInterval: ClosedRange<Date>? {
+        guard isCardio, cardioModeIndex == 0, let cardioEndTime, cardioDuration > 0 else { return nil }
+        return cardioEndTime.addingTimeInterval(-cardioDuration)...cardioEndTime
+    }
+    
+    var freestyleCardioProgress: Double {
+        let goal = cardioDuration > 0 ? cardioDuration : 1800
+        return min(cardioElapsedTime / goal, 1)
+    }
+}
+
+private struct StatusBadge: View {
+    let state: WorkoutWidgetState
+    let isFullColor: Bool
+    let font: Font
+    let dotSize: CGFloat
+    
+    var body: some View {
+        let tint = isFullColor ? state.timerColor : Color.primary
+        HStack(spacing: 4) {
+            Circle()
+                .fill(tint)
+                .frame(width: dotSize, height: dotSize)
+                .widgetAccentable()
+            Text(state.statusText)
+                .font(font)
+                .foregroundStyle(tint)
+                .widgetAccentable()
+        }
+    }
+}
+
+private struct WorkoutTimerText: View {
+    let state: WorkoutWidgetState
+    let referenceDate: Date
+    let fontSize: CGFloat
+    let isFullColor: Bool
+    
+    var body: some View {
+        let font = Font.system(size: fontSize, weight: .bold, design: .rounded).monospacedDigit()
+        let tint = isFullColor ? state.timerColor : Color.primary
+        
+        Group {
+            switch state.phase {
+            case .paused:
+                Text(state.pausedDisplayTime ?? "--:--")
+            case .resting:
+                if let restEnd = state.restEndTime {
+                    Text(restEnd, style: .timer)
+                } else {
+                    Text("--:--")
+                }
+            case .cardioTimed:
+                if let cardioEnd = state.cardioEndTime {
+                    Text(cardioEnd, style: .timer)
+                } else {
+                    Text("--:--")
+                }
+            case .cardioFreestyle:
+                let cardioStart = referenceDate.addingTimeInterval(-state.cardioElapsedTime)
+                Text(cardioStart, style: .timer)
+            case .active:
+                Text(state.workoutStartDate, style: .timer)
+            }
+        }
+        .font(font)
+        .foregroundStyle(tint)
+        .multilineTextAlignment(.center)
+        .widgetAccentable()
+    }
+}
+
+private struct StateProgressBar: View {
+    let state: WorkoutWidgetState
+    let isFullColor: Bool
+    let height: CGFloat
+    
+    var body: some View {
+        let tint = isFullColor ? state.accentColor : Color.primary
+        
+        Group {
+            if let restInterval = state.restInterval {
+                ProgressView(timerInterval: restInterval, countsDown: true)
+                    .progressViewStyle(.linear)
+                    .tint(tint)
+            } else if let cardioInterval = state.cardioInterval {
+                ProgressView(timerInterval: cardioInterval, countsDown: true)
+                    .progressViewStyle(.linear)
+                    .tint(tint)
+            } else if state.isCardio {
+                ProgressView(value: state.freestyleCardioProgress)
+                    .progressViewStyle(.linear)
+                    .tint(tint)
+            } else {
+                ProgressView(value: state.setProgress)
+                    .progressViewStyle(.linear)
+                    .tint(tint)
+            }
+        }
+        .frame(height: height)
+        .widgetAccentable()
+    }
+}
+
+private struct WorkoutProgressView: View {
+    let label: String
+    let progress: Double
+    let tint: Color
+    let isFullColor: Bool
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.secondary)
+            
+            ProgressView(value: progress)
+                .progressViewStyle(.linear)
+                .tint(isFullColor ? tint : .primary)
+                .frame(height: 4)
+                .widgetAccentable()
+        }
+    }
+}
+
+private struct CardioMetricsView: View {
+    let state: WorkoutWidgetState
+    let isFullColor: Bool
+    let valueFont: Font
+    let iconFont: Font
+    let spacing: CGFloat
+    
+    var body: some View {
+        let hasSpeed = state.cardioSpeed > 0
+        let hasIncline = state.cardioIncline > 0
+        
+        if hasSpeed || hasIncline {
+            let speedColor: Color = isFullColor ? .green : .primary
+            let inclineColor: Color = isFullColor ? .orange : .primary
+            
+            HStack(spacing: spacing) {
+                if hasSpeed {
+                    HStack(spacing: 4) {
+                        Image(systemName: "speedometer")
+                            .font(iconFont)
+                            .foregroundStyle(speedColor)
+                            .widgetAccentable()
+                        Text(String(format: "%.1f", state.cardioSpeed))
+                            .font(valueFont)
+                        Text("mph")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                if hasIncline {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.up.right")
+                            .font(iconFont)
+                            .foregroundStyle(inclineColor)
+                            .widgetAccentable()
+                        Text(String(format: "%.1f", state.cardioIncline))
+                            .font(valueFont)
+                        Text("%")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        } else {
+            Text(state.cardioModeIndex == 0 ? "Timed Cardio" : "Freestyle Cardio")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
     }
 }

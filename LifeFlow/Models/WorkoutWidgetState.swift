@@ -20,6 +20,7 @@ struct WorkoutWidgetState: Codable {
     var workoutStartDate: Date   // For Text(date, style: .timer) count-up
     var restEndTime: Date?       // For Text(date, style: .timer) countdown
     var restDuration: TimeInterval? // Total rest duration in seconds for progress bar
+    var restTimeRemaining: TimeInterval? // Stored remaining time when paused
     var pauseRequested: Bool     // Flag set by Live Activity intent to request pause
     var isPaused: Bool           // Whether the workout is currently paused
     var pausedDisplayTime: String? // Static time string to show when paused (e.g. "12:45")
@@ -35,6 +36,7 @@ struct WorkoutWidgetState: Codable {
     var nextTotalSets: Int
     
     var totalExercises: Int
+    /// 0-based index of the current exercise
     var currentExerciseIndex: Int
     
     // Cardio-specific state
@@ -46,6 +48,7 @@ struct WorkoutWidgetState: Codable {
     
     var cardioEndTime: Date?     // For countdown timers in timed cardio
     var cardioModeIndex: Int     // 0 for Timed, 1 for Freestyle
+    var cardioTimeRemaining: TimeInterval? // Stored remaining time when paused (for timed cardio)
     
     /// Default idle state
     static var idle: WorkoutWidgetState {
@@ -58,6 +61,7 @@ struct WorkoutWidgetState: Codable {
             workoutStartDate: Date(),
             restEndTime: nil,
             restDuration: nil,
+            restTimeRemaining: nil,
             pauseRequested: false,
             isPaused: false,
             pausedDisplayTime: nil,
@@ -76,14 +80,20 @@ struct WorkoutWidgetState: Codable {
             cardioSpeed: 0,
             cardioIncline: 0,
             cardioEndTime: nil,
-            cardioModeIndex: 0
+            cardioModeIndex: 0,
+            cardioTimeRemaining: nil
         )
     }
     
     /// Whether currently in rest period
     var isResting: Bool {
-        if let restEnd = restEndTime {
-            return restEnd > Date()
+        // Active rest timer
+        if let restEnd = restEndTime, restEnd > Date() {
+            return true
+        }
+        // Paused with remaining rest time
+        if isPaused, let remaining = restTimeRemaining, remaining > 0 {
+            return true
         }
         return false
     }
@@ -92,8 +102,8 @@ struct WorkoutWidgetState: Codable {
 // MARK: - App Group Storage
 
 extension WorkoutWidgetState {
-    private static let appGroupID = "group.com.Fez.LifeFlow"
-    private static let storageKey = "workoutWidgetState"
+    static let appGroupID = "group.com.Fez.LifeFlow"
+    static let storageKey = "workoutWidgetState"
     
     /// Save state to App Group UserDefaults and trigger widget reload
     func save() {

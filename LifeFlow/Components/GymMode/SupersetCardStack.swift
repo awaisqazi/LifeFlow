@@ -108,7 +108,6 @@ private struct SupersetExerciseRow: View {
                         .foregroundStyle(isActive ? .primary : .secondary)
                     
                     // Set progress
-                    let completedSets = exercise.sets.filter(\.isCompleted).count
                     let totalSets = exercise.sets.count
                     
                     Text("Set \(setIndex + 1) of \(totalSets)")

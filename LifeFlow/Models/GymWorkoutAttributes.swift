@@ -26,6 +26,9 @@ public struct GymWorkoutAttributes: ActivityAttributes {
         /// Total sets for current exercise
         public var totalSets: Int
         
+        /// Current exercise index within the workout (0-based)
+        public var currentExerciseIndex: Int
+        
         /// Elapsed workout time in seconds
         public var elapsedTime: Int
         
@@ -41,6 +44,9 @@ public struct GymWorkoutAttributes: ActivityAttributes {
         /// End date of the rest timer (for native countdown timer)
         public var restEndTime: Date?
         
+        /// Whether the workout is currently paused
+        public var isPaused: Bool
+        
         /// Cardio fields
         public var isCardio: Bool
         public var cardioModeIndex: Int   // 0 for Timed, 1 for Freestyle
@@ -48,6 +54,7 @@ public struct GymWorkoutAttributes: ActivityAttributes {
         public var cardioIncline: Double
         public var cardioEndTime: Date?   // For countdown in timed mode
         public var cardioDuration: TimeInterval // For progress bar in timed mode
+        public var cardioTimeRemaining: TimeInterval? // Frozen remaining time when paused
         
         /// Formatted elapsed time (MM:SS or H:MM:SS)
         public var formattedElapsedTime: String {
@@ -69,38 +76,58 @@ public struct GymWorkoutAttributes: ActivityAttributes {
             return String(format: "%d:%02d", minutes, seconds)
         }
         
+        /// Formatted cardio time remaining (MM:SS or H:MM:SS)
+        public var formattedCardioTime: String {
+            let totalSeconds = Int(cardioTimeRemaining ?? 0)
+            let hours = totalSeconds / 3600
+            let minutes = (totalSeconds % 3600) / 60
+            let seconds = totalSeconds % 60
+            
+            if hours > 0 {
+                return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+            } else {
+                return String(format: "%d:%02d", minutes, seconds)
+            }
+        }
+        
         public init(
             exerciseName: String,
             exerciseIcon: String = "dumbbell.fill",
             currentSet: Int,
             totalSets: Int,
+            currentExerciseIndex: Int = 0,
             elapsedTime: Int,
             workoutStartDate: Date = Date(),
             isResting: Bool = false,
             restTimeRemaining: Int = 0,
             restEndTime: Date? = nil,
+            isPaused: Bool = false,
             isCardio: Bool = false,
             cardioModeIndex: Int = 0,
             cardioSpeed: Double = 0,
             cardioIncline: Double = 0,
             cardioEndTime: Date? = nil,
-            cardioDuration: TimeInterval = 0
+            cardioDuration: TimeInterval = 0,
+            cardioTimeRemaining: TimeInterval? = nil
         ) {
             self.exerciseName = exerciseName
             self.exerciseIcon = exerciseIcon
             self.currentSet = currentSet
             self.totalSets = totalSets
+            self.currentExerciseIndex = currentExerciseIndex
             self.elapsedTime = elapsedTime
             self.workoutStartDate = workoutStartDate
             self.isResting = isResting
             self.restTimeRemaining = restTimeRemaining
             self.restEndTime = restEndTime
+            self.isPaused = isPaused
             self.isCardio = isCardio
             self.cardioModeIndex = cardioModeIndex
             self.cardioSpeed = cardioSpeed
             self.cardioIncline = cardioIncline
             self.cardioEndTime = cardioEndTime
             self.cardioDuration = cardioDuration
+            self.cardioTimeRemaining = cardioTimeRemaining
         }
     }
     

@@ -360,6 +360,17 @@ struct GymModeView: View {
             
             Spacer()
             
+            // Pause/Resume button
+            Button {
+                togglePauseResume()
+            } label: {
+                Image(systemName: manager.isPaused ? "play.fill" : "pause.fill")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(manager.isPaused ? .green : .orange)
+                    .frame(width: 44, height: 44)
+                    .background(Color.white.opacity(0.1), in: Circle())
+            }
+            
             // Add button (only in edit mode)
             if isEditMode {
                 Button {
@@ -505,6 +516,15 @@ struct GymModeView: View {
         try? modelContext.save()
         // Dismiss the full-screen cover to go back to Flow
         dismiss()
+    }
+    
+    /// Toggle pause/resume without leaving Gym Mode
+    private func togglePauseResume() {
+        if manager.isPaused {
+            manager.continueWorkout()
+        } else {
+            manager.pauseWorkout()
+        }
     }
     
     /// End workout completely and show summary
