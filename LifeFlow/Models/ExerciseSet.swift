@@ -21,6 +21,9 @@ final class ExerciseSet {
     /// Whether this set has been completed
     var isCompleted: Bool = false
     
+    /// Whether this set was ended early (for cardio)
+    var wasEndedEarly: Bool = false
+    
     // MARK: - Weight Training Data
     
     /// Weight lifted in pounds (optional for cardio)

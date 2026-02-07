@@ -11,7 +11,7 @@ import SwiftUI
 /// Handles mode selection and routes to Timed or Freestyle views
 struct CardioWorkoutView: View {
     let exercise: WorkoutExercise
-    let onComplete: (TimeInterval, Double, Double, [CardioInterval]?) -> Void
+    let onComplete: (TimeInterval, Double, Double, [CardioInterval]?, Bool) -> Void
     let onCancel: () -> Void
     
     @State private var selectedMode: CardioWorkoutMode? = nil
@@ -37,8 +37,8 @@ struct CardioWorkoutView: View {
                 case .timed:
                     TimedCardioView(
                         exerciseName: exercise.name,
-                        onComplete: { duration, speed, incline in
-                            onComplete(duration, speed, incline, nil)
+                        onComplete: { duration, speed, incline, intervals, early in
+                            onComplete(duration, speed, incline, intervals, early)
                         },
                         onCancel: {
                             withAnimation {
@@ -56,7 +56,7 @@ struct CardioWorkoutView: View {
                     FreestyleCardioView(
                         exerciseName: exercise.name,
                         onComplete: { duration, avgSpeed, avgIncline, intervals in
-                            onComplete(duration, avgSpeed, avgIncline, intervals)
+                            onComplete(duration, avgSpeed, avgIncline, intervals, false) // Freestyle usually not "ended early" in the same sense, but we could add it if needed. Plan said false.
                         },
                         onCancel: {
                             withAnimation {
@@ -82,7 +82,7 @@ struct CardioWorkoutView: View {
     
     return CardioWorkoutView(
         exercise: exercise,
-        onComplete: { _, _, _, _ in },
+        onComplete: { _, _, _, _, _ in },
         onCancel: { }
     )
 }

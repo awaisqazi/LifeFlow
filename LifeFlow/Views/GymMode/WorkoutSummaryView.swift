@@ -419,17 +419,52 @@ private struct SetDetailRow: View {
             }
             
         case .cardio:
-            HStack(spacing: 8) {
-                if let duration = set.duration {
-                    Label(formatDuration(duration), systemImage: "clock.fill")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.green)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    if let duration = set.duration {
+                        Label(formatDuration(duration), systemImage: "clock.fill")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.green)
+                    }
+                    
+                    if let speed = set.speed {
+                        Label("\(speed, specifier: "%.1f") mph", systemImage: "speedometer")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.cyan)
+                    }
+                    
+                    if set.wasEndedEarly {
+                        Text("Ended Early")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.red.opacity(0.8), in: Capsule())
+                    }
                 }
                 
-                if let speed = set.speed {
-                    Label("\(speed, specifier: "%.1f") mph", systemImage: "speedometer")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.cyan)
+                // Interval History
+                if let data = set.cardioIntervals,
+                   let intervals = try? JSONDecoder().decode([CardioInterval].self, from: data),
+                   !intervals.isEmpty {
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Pace History")
+                           .font(.caption2.weight(.semibold))
+                           .foregroundStyle(.secondary)
+                        
+                        FlowLayout(spacing: 4) {
+                            ForEach(Array(intervals.enumerated()), id: \.offset) { index, interval in
+                                Text("\(index + 1): \(String(format: "%.1f", interval.speed))mph")
+                                    .font(.caption2)
+                                    .foregroundStyle(.white.opacity(0.7))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.white.opacity(0.1), in: Capsule())
+                            }
+                        }
+                    }
+                    .padding(.top, 4)
                 }
             }
             
@@ -477,4 +512,70 @@ private struct SetDetailRow: View {
     session.exercises.append(benchPress)
     
     return GymWorkoutSummaryView(session: session, onDone: {})
+}
+
+// MARK: - Flow Layout Helper
+
+private struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+    
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = computeRows(proposal: proposal, subviews: subviews)
+        let width = proposal.width ?? rows.map { $0.width }.max() ?? 0
+        let height = rows.map { $0.height }.reduce(0, +) + CGFloat(max(0, rows.count - 1)) * spacing
+        return CGSize(width: width, height: height)
+    }
+    
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let rows = computeRows(proposal: proposal, subviews: subviews)
+        var y = bounds.minY
+        
+        for row in rows {
+            var x = bounds.minX
+            for item in row.items {
+                let size = item.sizeThatFits(.unspecified)
+                item.place(at: CGPoint(x: x, y: y), proposal: .unspecified)
+                x += size.width + spacing
+            }
+            y += row.height + spacing
+        }
+    }
+    
+    private func computeRows(proposal: ProposedViewSize, subviews: Subviews) -> [Row] {
+        var rows: [Row] = []
+        var currentRow = Row()
+        let maxWidth = proposal.width ?? .infinity
+        
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            
+            if currentRow.width + size.width + spacing > maxWidth {
+                rows.append(currentRow)
+                currentRow = Row()
+            }
+            
+            currentRow.add(item: subview, size: size, spacing: spacing)
+        }
+        
+        if !currentRow.items.isEmpty {
+            rows.append(currentRow)
+        }
+        
+        return rows
+    }
+    
+    struct Row {
+        var items: [LayoutSubview] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+        
+        mutating func add(item: LayoutSubview, size: CGSize, spacing: CGFloat) {
+            if !items.isEmpty {
+                width += spacing
+            }
+            items.append(item)
+            width += size.width
+            height = max(height, size.height)
+        }
+    }
 }

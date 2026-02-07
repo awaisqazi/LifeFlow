@@ -42,6 +42,10 @@ struct GymModeView: View {
     @State private var draggedItem: WorkoutExercise? = nil
     @State private var localExercises: [WorkoutExercise] = []
     
+    // Cardio safeguard state
+    @State private var showCardioExitAlert: Bool = false
+    @State private var pendingExerciseSwitch: WorkoutExercise? = nil
+    
     // Namespace for morphing glass effects
     @Namespace private var animationNamespace
     
@@ -161,6 +165,26 @@ struct GymModeView: View {
         } message: {
             Text("You've completed all your exercises. Would you like to finish your workout or add more exercises?")
         }
+        .alert("End Cardio Session?", isPresented: $showCardioExitAlert) {
+            Button("Cancel", role: .cancel) {
+                pendingExerciseSwitch = nil
+            }
+            Button("Switch & End", role: .destructive) {
+                if let newExercise = pendingExerciseSwitch {
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
+                        // Manually end the cardio state in manager before switching
+                        // Note: The view reconstruction will also kill the timer,
+                        // but explicit state update is safer.
+                        manager.isCardioInProgress = false
+                        manager.selectExercise(newExercise)
+                        loadCurrentSetDefaults()
+                    }
+                }
+                pendingExerciseSwitch = nil
+            }
+        } message: {
+            Text("Switching exercises will end your current cardio session. Are you sure you want to switch?")
+        }
     }
     
     // MARK: - Active Workout View (Liquid Dashboard)
@@ -266,10 +290,17 @@ struct GymModeView: View {
                                 isEditMode: false,
                                 namespace: animationNamespace,
                                 onTap: {
-                                    withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
-                                        manager.selectExercise(exercise)
-                                        loadCurrentSetDefaults()
-                                        scrollProxy.scrollTo(exercise.id, anchor: .center)
+                                    if manager.isCardioInProgress {
+                                        // Show alert if cardio is running
+                                        pendingExerciseSwitch = exercise
+                                        showCardioExitAlert = true
+                                    } else {
+                                        // Normal switch
+                                        withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
+                                            manager.selectExercise(exercise)
+                                            loadCurrentSetDefaults()
+                                            scrollProxy.scrollTo(exercise.id, anchor: .center)
+                                        }
                                     }
                                 }
                             )

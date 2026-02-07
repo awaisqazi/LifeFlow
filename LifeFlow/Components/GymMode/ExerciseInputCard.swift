@@ -528,6 +528,9 @@ struct ExerciseInputCard: View {
             duration: duration
         )
         
+        // Mark cardio as in progress
+        manager.isCardioInProgress = true
+        
         cardioTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
             cardioElapsedTime += 1
             
@@ -574,6 +577,9 @@ struct ExerciseInputCard: View {
             duration: 0
         )
         
+        // Mark cardio as in progress
+        manager.isCardioInProgress = true
+        
         cardioTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
             cardioElapsedTime += 1
             
@@ -610,6 +616,7 @@ struct ExerciseInputCard: View {
         intervalDebounceTimer?.invalidate()
         intervalDebounceTimer = nil
         isCardioActive = false
+        manager.isCardioInProgress = false
         
         // Clear widget cardio state
         manager.updateCardioState(mode: 0, endTime: nil as Date?, speed: 0, incline: 0, elapsedTime: 0, duration: 0)

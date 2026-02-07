@@ -10,7 +10,7 @@ import SwiftUI
 /// Timed cardio workout with countdown timer and celebration
 struct TimedCardioView: View {
     let exerciseName: String
-    let onComplete: (TimeInterval, Double, Double) -> Void  // duration, speed, incline
+    let onComplete: (TimeInterval, Double, Double, [CardioInterval]?, Bool) -> Void  // duration, speed, incline, history, endedEarly
     let onCancel: () -> Void
     
     @State private var phase: TimedPhase = .setup
@@ -21,6 +21,11 @@ struct TimedCardioView: View {
     @State private var remainingTime: TimeInterval = 0
     @State private var timer: Timer?
     @State private var showCelebration: Bool = false
+    @State private var showEndEarlyAlert: Bool = false
+    
+    // History tracking
+    @State private var intervals: [CardioInterval] = []
+    @State private var currentIntervalStart: Date = Date()
     
     enum TimedPhase {
         case setup
@@ -42,6 +47,14 @@ struct TimedCardioView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .alert("End Session Early?", isPresented: $showEndEarlyAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("End Session", role: .destructive) {
+                endWorkout(early: true)
+            }
+        } message: {
+            Text("Are you sure you want to end your timed workout early? Your progress will be saved.")
+        }
     }
     
     // MARK: - Setup View
@@ -163,16 +176,32 @@ struct TimedCardioView: View {
             }
             
             // Current settings
-            HStack(spacing: 32) {
-                SettingDisplay(icon: "speedometer", value: String(format: "%.1f", speed), unit: "mph", color: .green)
-                SettingDisplay(icon: "arrow.up.right", value: String(format: "%.1f", incline), unit: "%", color: .orange)
-            }
+            HStack(spacing: 16) {
+                 LiveSettingControl(
+                     label: "Speed",
+                     value: $speed,
+                     unit: "mph",
+                     color: .green,
+                     step: 0.5,
+                     range: 0.5...12.0
+                 )
+                 
+                 LiveSettingControl(
+                     label: "Incline",
+                     value: $incline,
+                     unit: "%",
+                     color: .orange,
+                     step: 0.5,
+                     range: 0...15.0
+                 )
+             }
+             .padding(.horizontal)
             
             Spacer()
             
             // End early button
             Button {
-                endWorkout(early: true)
+                showEndEarlyAlert = true
             } label: {
                 Text("End Early")
                     .font(.subheadline.weight(.semibold))
@@ -183,6 +212,12 @@ struct TimedCardioView: View {
             }
             .buttonStyle(.plain)
             .padding(.bottom, 40)
+        }
+        .onChange(of: speed) { oldValue, newValue in
+            recordInterval(oldSpeed: oldValue, oldIncline: incline)
+        }
+        .onChange(of: incline) { oldValue, newValue in
+            recordInterval(oldSpeed: speed, oldIncline: oldValue)
         }
     }
     
@@ -232,7 +267,9 @@ struct TimedCardioView: View {
             
             // Auto-complete after 3 seconds
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                onComplete(targetDuration, speed, incline)
+                // Compile final intervals
+                let finalIntervals = allIntervalsWithCurrent
+                onComplete(targetDuration, speed, incline, finalIntervals, false)
             }
         }
     }
@@ -250,11 +287,23 @@ struct TimedCardioView: View {
         return String(format: "%d:%02d", mins, secs)
     }
     
+    private var allIntervalsWithCurrent: [CardioInterval] {
+        let all = intervals
+        // Add current interval
+        var current = CardioInterval(speed: speed, incline: incline)
+        current.duration = Date().timeIntervalSince(currentIntervalStart) 
+        return all + [current]
+    }
+    
     // MARK: - Actions
     
     private func startWorkout() {
         remainingTime = targetDuration
         phase = .active
+        
+        // Init history
+        currentIntervalStart = Date()
+        intervals = []
         
         // Start timer
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
@@ -268,16 +317,101 @@ struct TimedCardioView: View {
         }
     }
     
+    private func recordInterval(oldSpeed: Double, oldIncline: Double) {
+        // The interval that JUST FINISHED used the OLD values.
+        var interval = CardioInterval(speed: oldSpeed, incline: oldIncline)
+        
+        // Calculate duration since last change
+        let duration = Date().timeIntervalSince(currentIntervalStart)
+        interval.duration = duration
+        
+        // Only record meaningful intervals (> 1s) to avoid jitter
+        if duration > 1 {
+            intervals.append(interval)
+        }
+        
+        // Reset start time for the NEW interval (which starts NOW with NEW values)
+        currentIntervalStart = Date()
+    }
+    
     private func endWorkout(early: Bool) {
         timer?.invalidate()
         timer = nil
         
         let actualDuration = targetDuration - remainingTime
-        onComplete(actualDuration, speed, incline)
+        let finalIntervals = allIntervalsWithCurrent
+        
+        // Capture final stats
+        onComplete(actualDuration, speed, incline, finalIntervals, early)
     }
 }
 
 // MARK: - Supporting Views
+
+private struct LiveSettingControl: View {
+    let label: String
+    @Binding var value: Double
+    let unit: String
+    let color: Color
+    let step: Double
+    let range: ClosedRange<Double>
+    var onChange: (() -> Void)? = nil
+    
+    var body: some View {
+        HStack {
+            Text(label)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 70, alignment: .leading)
+            
+            Spacer()
+            
+            HStack(spacing: 20) {
+                Button {
+                    if value > range.lowerBound {
+                        value = max(range.lowerBound, value - step)
+                        onChange?()
+                    }
+                } label: {
+                    Image(systemName: "minus")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(color)
+                        .frame(width: 50, height: 50)
+                        .background(color.opacity(0.15), in: Circle())
+                }
+                .buttonStyle(.plain)
+                
+                VStack(spacing: 0) {
+                    Text(String(format: "%.1f", value))
+                        .font(.title.weight(.bold).monospacedDigit())
+                        .foregroundStyle(.primary)
+                        .contentTransition(.numericText())
+                    
+                    Text(unit)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(width: 80)
+                
+                Button {
+                    if value < range.upperBound {
+                        value = min(range.upperBound, value + step)
+                        onChange?()
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 50, height: 50)
+                        .background(color.gradient, in: Circle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(16)
+        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 16))
+    }
+}
 
 private struct DurationChip: View {
     let minutes: Int
@@ -453,7 +587,7 @@ private struct CelebrationParticles: View {
 #Preview {
     TimedCardioView(
         exerciseName: "Treadmill",
-        onComplete: { _, _, _ in },
+        onComplete: { _, _, _, _, _ in },
         onCancel: { }
     )
 }

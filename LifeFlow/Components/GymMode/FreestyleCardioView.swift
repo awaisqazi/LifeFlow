@@ -23,6 +23,7 @@ struct FreestyleCardioView: View {
     
     @State private var timer: Timer?
     @State private var showSummary: Bool = false
+    @State private var showEndWorkoutAlert: Bool = false
     
     enum FreestylePhase {
         case countdown
@@ -44,6 +45,14 @@ struct FreestyleCardioView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .alert("End Workout?", isPresented: $showEndWorkoutAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("End Workout", role: .destructive) {
+                endWorkout()
+            }
+        } message: {
+            Text("Are you sure you want to end your freestyle workout?")
+        }
     }
     
     // MARK: - Countdown View
@@ -140,7 +149,7 @@ struct FreestyleCardioView: View {
             
             // End workout button
             Button {
-                endWorkout()
+                showEndWorkoutAlert = true
             } label: {
                 HStack {
                     Image(systemName: "stop.fill")
@@ -158,6 +167,7 @@ struct FreestyleCardioView: View {
             .padding(.bottom, 24)
         }
     }
+
     
     // MARK: - Summary View
     
@@ -242,7 +252,7 @@ struct FreestyleCardioView: View {
     }
     
     private var allIntervalsWithCurrent: [CardioInterval] {
-        var all = intervals
+        let all = intervals
         // Add current interval
         var current = CardioInterval(speed: speed, incline: incline)
         current.duration = Date().timeIntervalSince(currentIntervalStart)

@@ -55,7 +55,11 @@ final class GymModeManager {
     private(set) var cardioElapsedTime: TimeInterval = 0
     
     /// Current cardio total duration (for timed mode)
+    /// Current cardio total duration (for timed mode)
     private(set) var cardioDuration: TimeInterval = 0
+    
+    /// Whether a cardio session is currently running (timer active)
+    var isCardioInProgress: Bool = false
     
     // MARK: - Rest Timer
     
@@ -534,7 +538,9 @@ final class GymModeManager {
         reps: Int? = nil,
         duration: TimeInterval? = nil,
         speed: Double? = nil,
-        incline: Double? = nil
+        incline: Double? = nil,
+        intervals: [CardioInterval]? = nil,
+        endedEarly: Bool = false
     ) {
         guard let set = currentSet else { return }
         
@@ -545,10 +551,18 @@ final class GymModeManager {
         set.speed = speed
         set.incline = incline
         set.isCompleted = true
+        set.wasEndedEarly = endedEarly
+        
+        // Store intervals if provided
+        if let intervals = intervals {
+            if let encoded = try? JSONEncoder().encode(intervals) {
+                set.cardioIntervals = encoded
+            }
+        }
         
         // Haptic feedback
         let notification = UINotificationFeedbackGenerator()
-        notification.notificationOccurred(.success)
+        notification.notificationOccurred(endedEarly ? .warning : .success)
         
         // Advance to next set/exercise
         advanceToNext()
