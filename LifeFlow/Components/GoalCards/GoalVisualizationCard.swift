@@ -24,6 +24,40 @@ struct GoalVisualizationCard: View {
             StudyProgressCard(goal: goal)
         case .custom:
             DefaultProgressCard(goal: goal)
+        case .raceTraining:
+            RaceTrainingVisualizationCard(goal: goal)
+        }
+    }
+}
+
+// MARK: - Race Training Visualization Card
+
+/// Thin wrapper that connects a Goal (anchor) to the RaceTrackCard
+/// by fetching the active TrainingPlan from the MarathonCoachManager.
+struct RaceTrainingVisualizationCard: View {
+    let goal: Goal
+    @Environment(\.marathonCoachManager) private var coachManager
+
+    var body: some View {
+        if let plan = coachManager.activePlan {
+            RaceTrackCard(plan: plan, status: coachManager.trainingStatus)
+        } else {
+            // Fallback if plan isn't loaded yet
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Image(systemName: "figure.run")
+                        .font(.title2)
+                        .foregroundStyle(.green)
+                    Text(goal.title)
+                        .font(.headline)
+                    Spacer()
+                }
+                Text("Open the app to load your training plan.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+            .glassEffect(in: .rect(cornerRadius: 20))
         }
     }
 }

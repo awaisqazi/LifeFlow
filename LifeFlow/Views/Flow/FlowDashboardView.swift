@@ -12,8 +12,13 @@ import SwiftData
 /// Shows a snapshot of water intake, gym status, and momentum metrics.
 struct FlowDashboardView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.marathonCoachManager) private var coachManager
+    @Environment(\.enterGymMode) private var enterGymMode
+    @Environment(\.gymModeManager) private var gymModeManager
     @Query(sort: \DayLog.date, order: .reverse) private var dayLogs: [DayLog]
     @Query(sort: \Goal.deadline, order: .forward) private var goals: [Goal]
+    @State private var showPostRunCheckIn: Bool = false
+    @State private var checkInSession: TrainingSession?
     
     /// Get or create today's DayLog
     private var todayLog: DayLog {
@@ -44,7 +49,25 @@ struct FlowDashboardView: View {
                         // 1. System Cards
                         HydrationVesselCard(dayLog: todayLog)
                         GymCard(dayLog: todayLog)
-                        
+
+                        // 2. Training Day Card (if active plan)
+                        if let plan = coachManager.activePlan,
+                           let session = plan.todaysSession {
+                            TrainingDayCard(
+                                plan: plan,
+                                session: session,
+                                statusColor: coachManager.statusColor,
+                                onStartGuidedRun: { startGuidedRun(session) },
+                                onLifeHappens: {
+                                    _ = coachManager.lifeHappens(modelContext: modelContext)
+                                },
+                                onCheckIn: {
+                                    checkInSession = session
+                                    showPostRunCheckIn = true
+                                }
+                            )
+                        }
+
                         Divider()
                             .padding(.vertical, 8)
                         
@@ -79,9 +102,29 @@ struct FlowDashboardView: View {
         }
         .onAppear {
             ensureTodayLogExists()
+            coachManager.loadActivePlan(modelContext: modelContext)
+        }
+        .sheet(isPresented: $showPostRunCheckIn) {
+            if let session = checkInSession {
+                PostRunCheckInSheet(session: session) { distance, effort in
+                    coachManager.completeSession(
+                        session,
+                        actualDistance: distance,
+                        effort: effort,
+                        modelContext: modelContext
+                    )
+                }
+            }
         }
     }
     
+    private func startGuidedRun(_ trainingSession: TrainingSession) {
+        let workout = coachManager.buildGymModeSession(for: trainingSession)
+        modelContext.insert(workout)
+        gymModeManager.startWorkout(session: workout)
+        enterGymMode()
+    }
+
     private func ensureTodayLogExists() {
         let startOfDay = Calendar.current.startOfDay(for: Date())
         if dayLogs.first(where: { $0.date >= startOfDay }) == nil {

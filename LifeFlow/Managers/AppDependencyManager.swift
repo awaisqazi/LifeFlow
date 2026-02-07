@@ -17,6 +17,9 @@ final class AppDependencyManager {
     
     /// Shared GymModeManager instance that persists across view lifecycle
     let gymModeManager: GymModeManager = GymModeManager()
+
+    /// Shared MarathonCoachManager instance for race training plans
+    let marathonCoachManager: MarathonCoachManager = MarathonCoachManager()
     
     private init() {
         let appGroupIdentifier = "group.com.Fez.LifeFlow"
@@ -28,6 +31,8 @@ final class AppDependencyManager {
             Goal.self,
             DailyEntry.self,
             WorkoutRoutine.self,
+            TrainingPlan.self,
+            TrainingSession.self,
         ])
         
         // Use the shared App Group container

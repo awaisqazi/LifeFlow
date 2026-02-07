@@ -608,6 +608,7 @@ struct GoalActionCard: View {
         case .weightLoss: return .green
         case .habit: return .orange
         case .study: return .purple
+        case .raceTraining: return .green
         case .custom: return .blue
         }
     }

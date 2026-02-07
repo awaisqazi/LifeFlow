@@ -298,6 +298,32 @@ final class HealthKitManager {
         return try await fetchWorkouts(from: startDate, to: now)
     }
     
+    // MARK: - Running Workouts (Marathon Coach)
+
+    /// Fetch running workouts from a date range for marathon coach matching
+    func fetchRunningWorkouts(from startDate: Date, to endDate: Date) async throws -> [WorkoutSession] {
+        guard isAvailable else {
+            throw HealthKitError.notAvailable
+        }
+
+        let datePredicate = HKQuery.predicateForSamples(
+            withStart: startDate,
+            end: endDate,
+            options: .strictStartDate
+        )
+
+        let runningPredicate = HKQuery.predicateForWorkouts(with: .running)
+        let compoundPredicate = NSCompoundPredicate(andPredicateWithSubpredicates: [datePredicate, runningPredicate])
+
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.workout(compoundPredicate)],
+            sortDescriptors: [SortDescriptor(\.startDate, order: .reverse)]
+        )
+
+        let workouts = try await descriptor.result(for: healthStore)
+        return workouts.map { mapToWorkoutSession($0) }
+    }
+
     // MARK: - Mapping
     
     /// Convert an HKWorkout to our WorkoutSession model

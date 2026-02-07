@@ -30,6 +30,7 @@ struct LifeFlowApp: App {
                     GymModeView()
                 }
                 .environment(\.gymModeManager, AppDependencyManager.shared.gymModeManager)
+                .environment(\.marathonCoachManager, AppDependencyManager.shared.marathonCoachManager)
                 .onChange(of: scenePhase) { _, newPhase in
                     if newPhase == .active {
                         // Check for pending actions from Live Activity intents

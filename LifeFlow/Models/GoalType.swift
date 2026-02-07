@@ -13,7 +13,8 @@ enum GoalType: String, CaseIterable {
     case habit        // Daily habits → Heatmap
     case study        // Time accumulation → Progress bar
     case custom       // Generic → Simple progress
-    
+    case raceTraining // Marathon/race training → RaceTrackCard
+
     var title: String {
         switch self {
         case .savings: return "Savings Goal"
@@ -21,9 +22,10 @@ enum GoalType: String, CaseIterable {
         case .habit: return "Daily Habit"
         case .study: return "Study Goal"
         case .custom: return "Custom Goal"
+        case .raceTraining: return "Race Training"
         }
     }
-    
+
     var icon: String {
         switch self {
         case .savings: return "banknote.fill"
@@ -31,9 +33,10 @@ enum GoalType: String, CaseIterable {
         case .habit: return "flame.fill"
         case .study: return "book.fill"
         case .custom: return "target"
+        case .raceTraining: return "figure.run"
         }
     }
-    
+
     var description: String {
         switch self {
         case .savings: return "Track progress toward a financial target"
@@ -41,9 +44,10 @@ enum GoalType: String, CaseIterable {
         case .habit: return "Build consistent daily habits"
         case .study: return "Accumulate study hours"
         case .custom: return "Track any custom goal"
+        case .raceTraining: return "Train for a race with adaptive coaching"
         }
     }
-    
+
     var accentColor: String {
         switch self {
         case .savings: return "gold"
@@ -51,6 +55,7 @@ enum GoalType: String, CaseIterable {
         case .habit: return "orange"
         case .study: return "purple"
         case .custom: return "blue"
+        case .raceTraining: return "green"
         }
     }
 }
@@ -70,6 +75,8 @@ extension GoalType: Codable {
             self = .habit    // Old frequency → habit
         case "dailyHabit":
             self = .habit    // Old dailyHabit → habit
+        case "raceTraining":
+            self = .raceTraining
         default:
             // Try to decode as new value
             if let type = GoalType(rawValue: rawValue) {

@@ -18,7 +18,8 @@ struct AddGoalSheet: View {
     @State private var selectedUnit: UnitType = .currency
     @State private var selectedType: GoalType = .savings
     @State private var deadline: Date = Date().addingTimeInterval(86400 * 30) // 30 days default
-    
+    @State private var showRaceOnboarding: Bool = false
+
     // Type-specific unit options
     private var availableUnits: [UnitType] {
         switch selectedType {
@@ -30,6 +31,8 @@ struct AddGoalSheet: View {
             return [.time]
         case .habit:
             return [.count]
+        case .raceTraining:
+            return [.distance]
         case .custom:
             return UnitType.allCases
         }
@@ -42,10 +45,11 @@ struct AddGoalSheet: View {
         case .weightLoss: return "Target Weight (lbs)"
         case .study: return "Total Hours"
         case .habit: return "Times to Complete"
+        case .raceTraining: return "Race Distance (mi)"
         case .custom: return "Target Amount"
         }
     }
-    
+
     // Title placeholder based on goal type
     private var titlePlaceholder: String {
         switch selectedType {
@@ -53,6 +57,7 @@ struct AddGoalSheet: View {
         case .weightLoss: return "e.g. Summer Body, Healthy Weight"
         case .study: return "e.g. Swift Mastery, MCAT Prep"
         case .habit: return "e.g. Daily Meditation, Read Books"
+        case .raceTraining: return "e.g. Spring Half Marathon"
         case .custom: return "e.g. My Goal"
         }
     }
@@ -99,6 +104,9 @@ struct AddGoalSheet: View {
         case .habit:
             return "Complete \(Int(target)) times over \(Int(days)) days (\(String(format: "%.1f", dailyRate))/day avg)."
             
+        case .raceTraining:
+            return "Use the Race Training setup for a personalized plan."
+
         case .custom:
             let formattedDaily = String(format: "%.2f", dailyRate)
             return "Add \(formattedDaily) \(selectedUnit.symbol)/day to reach \(String(format: "%.0f", target)) in \(Int(days)) days."
@@ -157,7 +165,37 @@ struct AddGoalSheet: View {
                             }
                         }
                         
-                        // 2. Type-Specific Details
+                        // Race Training redirect
+                        if selectedType == .raceTraining {
+                            VStack(spacing: 16) {
+                                Image(systemName: "figure.run.circle.fill")
+                                    .font(.system(size: 48))
+                                    .foregroundStyle(.green)
+
+                                Text("Set up your race training plan with our guided onboarding.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.center)
+
+                                Button {
+                                    showRaceOnboarding = true
+                                } label: {
+                                    Label("Set Up Race Training", systemImage: "arrow.right.circle.fill")
+                                        .font(.headline)
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(.green, in: RoundedRectangle(cornerRadius: 16))
+                                        .foregroundStyle(.white)
+                                }
+                            }
+                            .padding()
+                            .background(Color(uiColor: .secondarySystemGroupedBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                            .padding(.horizontal)
+                        }
+
+                        // 2. Type-Specific Details (non-race types)
+                        if selectedType != .raceTraining {
                         VStack(spacing: 0) {
                             // Title
                             HStack {
@@ -206,7 +244,8 @@ struct AddGoalSheet: View {
                         .background(Color(uiColor: .secondarySystemGroupedBackground))
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                         .padding(.horizontal)
-                        
+                        } // end if selectedType != .raceTraining
+
                         // 3. Smart Preview
                         if !title.isEmpty || !targetAmountString.isEmpty {
                             VStack(alignment: .leading, spacing: 12) {
@@ -237,16 +276,22 @@ struct AddGoalSheet: View {
                 }
                 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
-                        createGoal()
+                    if selectedType != .raceTraining {
+                        Button("Create") {
+                            createGoal()
+                        }
+                        .disabled(!isFormValid)
+                        .fontWeight(.bold)
                     }
-                    .disabled(!isFormValid)
-                    .fontWeight(.bold)
                 }
+            }
+            .sheet(isPresented: $showRaceOnboarding) {
+                RaceOnboardingSheet()
+                    .onDisappear { dismiss() }
             }
         }
     }
-    
+
     // MARK: - Type-Specific Input
     
     @ViewBuilder
@@ -306,6 +351,10 @@ struct AddGoalSheet: View {
             }
             .padding()
             
+        case .raceTraining:
+            // Handled by RaceOnboardingSheet
+            EmptyView()
+
         case .custom:
             // Generic with unit picker
             HStack {
@@ -313,7 +362,7 @@ struct AddGoalSheet: View {
                     .foregroundStyle(.blue)
                 TextField("Target Amount", text: $targetAmountString)
                     .keyboardType(.decimalPad)
-                
+
                 Picker("Unit", selection: $selectedUnit) {
                     ForEach(UnitType.allCases, id: \.self) { unit in
                         Text(unit.rawValue.capitalized).tag(unit)
@@ -334,16 +383,18 @@ struct AddGoalSheet: View {
         case .weightLoss: return .weight
         case .study: return .time
         case .habit: return .count
+        case .raceTraining: return .distance
         case .custom: return .count
         }
     }
-    
+
     private func colorForType(_ type: GoalType) -> Color {
         switch type {
         case .savings: return .yellow
         case .weightLoss: return .green
         case .habit: return .orange
         case .study: return .purple
+        case .raceTraining: return .green
         case .custom: return .blue
         }
     }
