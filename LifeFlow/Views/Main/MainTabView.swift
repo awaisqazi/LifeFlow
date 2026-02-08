@@ -51,6 +51,9 @@ struct MainTabView: View {
         // Full-screen Gym Mode modal
         .fullScreenCover(isPresented: $isGymModeActive) {
             GymModeView()
+                .environment(AppDependencyManager.shared.gymModeManager)
+                .environment(AppDependencyManager.shared.marathonCoachManager)
+                .environment(AppDependencyManager.shared.healthKitManager)
         }
     }
 }

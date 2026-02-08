@@ -29,7 +29,8 @@ struct GymModeView: View {
         return incompleteWorkouts.filter { calendar.isDateInToday($0.startTime) }
     }
     
-    @Environment(\.gymModeManager) private var manager
+    @Environment(GymModeManager.self) private var manager
+    @Environment(HealthKitManager.self) private var healthKitManager
     @State private var showSetupSheet: Bool = false // Start false, will be set on appear
     @State private var showSummary: Bool = false
     @State private var showEndConfirmation: Bool = false

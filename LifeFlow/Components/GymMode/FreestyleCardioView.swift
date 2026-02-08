@@ -369,70 +369,7 @@ struct FreestyleCardioView: View {
 
 // MARK: - Supporting Views
 
-private struct LiveSettingControl: View {
-    let label: String
-    @Binding var value: Double
-    let unit: String
-    let color: Color
-    let step: Double
-    let range: ClosedRange<Double>
-    let onChange: () -> Void
-    
-    var body: some View {
-        HStack {
-            Text(label)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.secondary)
-                .frame(width: 70, alignment: .leading)
-            
-            Spacer()
-            
-            HStack(spacing: 20) {
-                Button {
-                    if value > range.lowerBound {
-                        value = max(range.lowerBound, value - step)
-                        onChange()
-                    }
-                } label: {
-                    Image(systemName: "minus")
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(color)
-                        .frame(width: 50, height: 50)
-                        .background(color.opacity(0.15), in: Circle())
-                }
-                .buttonStyle(.plain)
-                
-                VStack(spacing: 0) {
-                    Text(String(format: "%.1f", value))
-                        .font(.title.weight(.bold).monospacedDigit())
-                        .foregroundStyle(.primary)
-                        .contentTransition(.numericText())
-                    
-                    Text(unit)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(width: 80)
-                
-                Button {
-                    if value < range.upperBound {
-                        value = min(range.upperBound, value + step)
-                        onChange()
-                    }
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 50, height: 50)
-                        .background(color.gradient, in: Circle())
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(16)
-        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 16))
-    }
-}
+
 
 private struct StatBox: View {
     let label: String

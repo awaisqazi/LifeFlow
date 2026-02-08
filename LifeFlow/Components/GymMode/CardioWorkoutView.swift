@@ -69,6 +69,25 @@ struct CardioWorkoutView: View {
                         insertion: .move(edge: .trailing).combined(with: .opacity),
                         removal: .move(edge: .leading).combined(with: .opacity)
                     ))
+                    
+                case .distance:
+                    DistanceCardioView(
+                        exerciseName: exercise.name,
+                        targetDistance: exercise.targetDistance ?? 3.0,  // Default 3 miles if not set
+                        onComplete: { distance, speed, incline, intervals, early in
+                            onComplete(TimeInterval(distance * 3600 / max(speed, 1)), speed, incline, intervals, early)
+                        },
+                        onCancel: {
+                            withAnimation {
+                                showModeSelection = true
+                                selectedMode = nil
+                            }
+                        }
+                    )
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .leading).combined(with: .opacity)
+                    ))
                 }
             }
         }

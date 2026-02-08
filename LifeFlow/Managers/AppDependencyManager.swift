@@ -21,6 +21,9 @@ final class AppDependencyManager {
     /// Shared MarathonCoachManager instance for race training plans
     let marathonCoachManager: MarathonCoachManager = MarathonCoachManager()
     
+    /// Shared HealthKitManager instance for workout data syncing
+    let healthKitManager: HealthKitManager = HealthKitManager()
+    
     private init() {
         let appGroupIdentifier = "group.com.Fez.LifeFlow"
         let schema = Schema([

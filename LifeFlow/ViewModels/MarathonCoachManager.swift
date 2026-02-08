@@ -151,6 +151,11 @@ final class MarathonCoachManager {
             plan.isCompleted = true
         }
 
+        // Specific over-achievement feedback
+        if actualDistance > session.targetDistance * 1.15 && effort <= 2 {
+            lastAdaptationSummary = "Crushing it! Your confidence score just got a boost."
+        }
+
         try? modelContext.save()
         todaysSession = plan.todaysSession
     }
@@ -198,6 +203,20 @@ final class MarathonCoachManager {
         try? modelContext.save()
         todaysSession = plan.todaysSession
         return true
+    }
+
+    /// Take target volume from missed runs in the last week and spread across
+    /// next 3 Base/Recovery runs, capped at +15% per session.
+    func distributeMissedVolume(modelContext: ModelContext) {
+        guard let plan = activePlan else { return }
+        
+        let adjustments = TrainingAdaptationEngine.redistributeMissedVolume(plan: plan)
+        guard !adjustments.isEmpty else { return }
+        
+        TrainingAdaptationEngine.applyAdjustments(adjustments, to: plan)
+        lastAdaptationSummary = adjustments.first?.reason
+        
+        try? modelContext.save()
     }
 
     // MARK: - HealthKit Matching

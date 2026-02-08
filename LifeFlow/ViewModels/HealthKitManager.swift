@@ -39,6 +39,12 @@ final class HealthKitManager {
     /// Active calories burned during current workout
     private(set) var activeCalories: Double = 0
     
+    /// Current distance in miles during specialized running workout
+    private(set) var currentSessionDistance: Double = 0
+    
+    /// Current pace in seconds per mile
+    private(set) var currentPace: Double = 0
+    
     // MARK: - Private Properties
     
     private let healthStore = HKHealthStore()
@@ -129,6 +135,18 @@ final class HealthKitManager {
         isLiveWorkoutActive = true
         activeCalories = 0
         currentHeartRate = nil
+        currentSessionDistance = 0
+        currentPace = 0
+    }
+    
+    /// Start a running workout specifically for Marathon Coach
+    @available(iOS 26.0, *)
+    func startRunningWorkout() async throws {
+        try await startLiveWorkout(activityType: .running)
+        
+        // In a real device environment, we would assign a delegate 
+        // to handle live updates from HKLiveWorkoutBuilder.
+        // For now, we provide the infrastructure.
     }
     
     /// Pause the live workout session

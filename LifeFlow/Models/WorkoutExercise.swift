@@ -37,6 +37,9 @@ final class WorkoutExercise {
     /// Optional notes for this specific exercise
     var notes: String?
     
+    /// Target distance in miles for distance-based cardio (Marathon Coach integration)
+    var targetDistance: Double?
+    
     // MARK: - Relationships
     
     /// Sets performed for this exercise

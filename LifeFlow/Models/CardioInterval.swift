@@ -28,4 +28,5 @@ struct CardioInterval: Codable, Identifiable {
 enum CardioWorkoutMode: String, Codable {
     case timed      // Fixed duration countdown
     case freestyle  // Open-ended with interval tracking
+    case distance   // Target distance goal (for Marathon Coach)
 }

@@ -32,24 +32,35 @@ struct CardioModeSelectionView: View {
             }
             .padding(.top, 24)
             
-            // Mode options
-            HStack(spacing: 16) {
-                ModeCard(
-                    mode: .timed,
-                    icon: "timer",
-                    title: "Timed",
-                    description: "Set a fixed duration and pace",
-                    isSelected: selectedMode == .timed,
-                    onTap: { selectedMode = .timed }
-                )
+            // Mode options - stacked for 3 options
+            VStack(spacing: 12) {
+                HStack(spacing: 16) {
+                    ModeCard(
+                        mode: .timed,
+                        icon: "timer",
+                        title: "Timed",
+                        description: "Set a fixed duration",
+                        isSelected: selectedMode == .timed,
+                        onTap: { selectedMode = .timed }
+                    )
+                    
+                    ModeCard(
+                        mode: .freestyle,
+                        icon: "waveform.path.ecg",
+                        title: "Freestyle",
+                        description: "Go at your own pace",
+                        isSelected: selectedMode == .freestyle,
+                        onTap: { selectedMode = .freestyle }
+                    )
+                }
                 
                 ModeCard(
-                    mode: .freestyle,
-                    icon: "waveform.path.ecg",
-                    title: "Freestyle",
-                    description: "Go at your own pace",
-                    isSelected: selectedMode == .freestyle,
-                    onTap: { selectedMode = .freestyle }
+                    mode: .distance,
+                    icon: "figure.run",
+                    title: "Distance",
+                    description: "Target a specific distance",
+                    isSelected: selectedMode == .distance,
+                    onTap: { selectedMode = .distance }
                 )
             }
             .padding(.horizontal)
@@ -99,7 +110,11 @@ private struct ModeCard: View {
     let onTap: () -> Void
     
     private var accentColor: Color {
-        mode == .timed ? .cyan : .orange
+        switch mode {
+        case .timed: return .cyan
+        case .freestyle: return .orange
+        case .distance: return .purple
+        }
     }
     
     var body: some View {

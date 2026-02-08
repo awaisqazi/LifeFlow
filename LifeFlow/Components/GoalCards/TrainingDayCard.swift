@@ -38,7 +38,17 @@ struct TrainingDayCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        ZStack(alignment: .topLeading) {
+            // Liquid background glow
+            AnimatedMeshGradientView(theme: meshTheme)
+                .opacity(0.12)
+                .mask {
+                    RoundedRectangle(cornerRadius: 20)
+                }
+                .blur(radius: 20)
+                .ignoresSafeArea()
+
+            VStack(alignment: .leading, spacing: 16) {
             // Header: Day counter + run type
             HStack {
                 Image(systemName: session.runType.icon)
@@ -89,6 +99,7 @@ struct TrainingDayCard: View {
                 onLifeHappens()
             } label: {
                 Label("Life Happens (Push +1 Day)", systemImage: "calendar.badge.plus")
+            }
             }
         }
     }
@@ -231,9 +242,21 @@ struct TrainingDayCard: View {
                 }
             }
         }
+        .padding()
+        .glassEffect(in: .rect(cornerRadius: 20))
+        .animation(.spring(response: 0.4), value: session.runType)
     }
 
     // MARK: - Helpers
+
+    private var meshTheme: MeshGradientTheme {
+        switch session.runType {
+        case .recovery, .base: return .flow
+        case .longRun, .crossTraining: return .horizon
+        case .speedWork, .tempo: return .temple
+        case .rest: return .temple // Subtle orange/purple for rest
+        }
+    }
 
     private var deltaColor: Color {
         guard let actual = session.actualDistance else { return .secondary }

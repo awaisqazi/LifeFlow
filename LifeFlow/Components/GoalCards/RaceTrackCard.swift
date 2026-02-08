@@ -61,18 +61,24 @@ struct RaceTrackCard: View {
                     RaceTrackShape()
                         .stroke(Color.gray.opacity(0.2), style: StrokeStyle(lineWidth: 6, lineCap: .round))
 
-                    // Filled progress path
+                    // Filled progress path with Liquid Fill
                     RaceTrackShape()
                         .trim(from: 0, to: progress)
                         .stroke(
-                            LinearGradient(
-                                colors: [statusColor.opacity(0.7), statusColor],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            ),
                             style: StrokeStyle(lineWidth: 6, lineCap: .round)
                         )
+                        .overlay {
+                            // The actual liquid content, masked to the trimmed shape
+                            AnimatedMeshGradientView(theme: meshTheme)
+                                .scaleEffect(1.2)
+                                .mask {
+                                    RaceTrackShape()
+                                        .trim(from: 0, to: progress)
+                                        .stroke(style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                                }
+                        }
                         .animation(.spring(response: 0.6), value: progress)
+                        .shadow(color: statusColor.opacity(0.3), radius: 4)
 
                     // Milestone markers
                     ForEach(milestones, id: \.position) { milestone in
@@ -161,6 +167,14 @@ struct RaceTrackCard: View {
         let midY = size.height / 2
         let amplitude = size.height * 0.3
         return midY + sin(x * .pi * 2.5) * amplitude
+    }
+    
+    private var meshTheme: MeshGradientTheme {
+        switch status {
+        case .onTrack: return .flow
+        case .struggling: return .temple
+        case .crushingIt: return .horizon
+        }
     }
 }
 

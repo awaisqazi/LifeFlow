@@ -110,6 +110,7 @@ struct TrainingAdaptationEngine {
     // MARK: - Under-Achiever Logic
 
     /// When user falls short: distribute 80% of missed volume across next 3 easy/recovery runs.
+    /// Capped at +15% per session to prevent injury spikes.
     private static func handleUnderAchiever(
         plan: TrainingPlan,
         completedSession: TrainingSession,
@@ -126,11 +127,56 @@ struct TrainingAdaptationEngine {
         }.prefix(3)
 
         return easyRuns.map { session in
-            SessionAdjustment(
+            let cap = session.targetDistance * 0.15
+            let actualAddOn = min(addOn, cap)
+            
+            return SessionAdjustment(
                 sessionID: session.id,
-                newTargetDistance: session.targetDistance + addOn,
+                newTargetDistance: session.targetDistance + actualAddOn,
                 newRunType: nil,
-                reason: String(format: "Volume redistribution: +%.1f mi from missed run.", addOn)
+                reason: String(format: "Volume redistribution: +%.1f mi from under-achievement.", actualAddOn)
+            )
+        }
+    }
+
+    // MARK: - Missed Volume Redistribution
+
+    /// Take target volume from missed runs in the last week and spread across 
+    /// next 3 Base/Recovery runs, capped at +15% per session.
+    static func redistributeMissedVolume(plan: TrainingPlan) -> [SessionAdjustment] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        
+        guard let weekAgo = calendar.date(byAdding: .day, value: -7, to: today) else {
+            return []
+        }
+        
+        // Find missed sessions (past date, not completed, not rest)
+        let missedSessions = plan.sessions.filter {
+            $0.date >= weekAgo && $0.date < today && !$0.isCompleted && $0.runType != .rest
+        }
+        
+        let totalMissedVolume = missedSessions.reduce(0.0) { $0 + $1.targetDistance }
+        guard totalMissedVolume > 0.5 else { return [] }
+        
+        let futureSessions = plan.nextRunningSessions(count: 10)
+        let candidates = futureSessions.filter {
+            $0.runType == .base || $0.runType == .recovery
+        }.prefix(3)
+        
+        guard !candidates.isEmpty else { return [] }
+        
+        let addOnPerSession = totalMissedVolume / Double(candidates.count)
+        
+        return candidates.map { session in
+            let maxBoost = session.targetDistance * 0.15
+            let actualAddOn = min(addOnPerSession, maxBoost)
+            
+            return SessionAdjustment(
+                sessionID: session.id,
+                newTargetDistance: session.targetDistance + actualAddOn,
+                newRunType: nil,
+                reason: String(format: "Catching up: +%.1f mi from missed runs.", actualAddOn)
             )
         }
     }

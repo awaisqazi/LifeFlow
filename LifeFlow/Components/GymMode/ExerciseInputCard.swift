@@ -43,9 +43,11 @@ struct ExerciseInputCard: View {
                 // Header
                 exerciseHeader
                 
-                // Progressive overload hint
-                if let previous = previousData, let w = previous.weight, let r = previous.reps {
-                    previousSessionHint(weight: w, reps: r)
+                // Progressive overload hint (Hide for guided runs)
+                if !isGuidedRunActive {
+                    if let previous = previousData, let w = previous.weight, let r = previous.reps {
+                        previousSessionHint(weight: w, reps: r)
+                    }
                 }
                 
                 // Phase-specific content
@@ -57,7 +59,27 @@ struct ExerciseInputCard: View {
                         activePhaseView
                     }
                 case .cardio:
-                    cardioInputs
+                    if case .distance(let miles, _) = manager.activeTarget {
+                        DistanceCardioView(
+                            exerciseName: exercise.name,
+                            targetDistance: miles,
+                            onComplete: { actualDistance, finalSpeed, finalIncline, history, early in
+                                // Update state for save
+                                self.speed = finalSpeed
+                                self.incline = finalIncline
+                                self.duration = history?.reduce(0) { $0 + ($1.duration ?? 0) } ?? 0
+                                
+                                // Call complete through manager flow
+                                self.onComplete()
+                            },
+                            onCancel: {
+                                // Default to manual inputs if cancelled/skipped
+                                self.cardioMode = .timed
+                            }
+                        )
+                    } else {
+                        cardioInputs
+                    }
                 case .flexibility:
                     flexibilityInputs
                 }
@@ -65,6 +87,11 @@ struct ExerciseInputCard: View {
             .padding(20)
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.82), value: phase)
+    }
+    
+    private var isGuidedRunActive: Bool {
+        if case .distance = manager.activeTarget { return true }
+        return false
     }
     
     // MARK: - Header
@@ -77,16 +104,29 @@ struct ExerciseInputCard: View {
                     .foregroundStyle(.primary)
                 
                 HStack(spacing: 8) {
-                    Text("Set \(setNumber)")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    
-                    if phase == .active && setTimerActive {
+                    if isGuidedRunActive {
+                        Text("Guided Run")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.secondary)
+                        
                         Text("•")
-                            .foregroundStyle(.orange)
-                        Text(formatDuration(setDuration))
-                            .font(.subheadline.weight(.medium).monospacedDigit())
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(.purple)
+                        
+                        Text("\(String(format: "%.1f", manager.targetDistance)) mi")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(.purple)
+                    } else {
+                        Text("Set \(setNumber)")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.secondary)
+                        
+                        if phase == .active && setTimerActive {
+                            Text("•")
+                                .foregroundStyle(.orange)
+                            Text(formatDuration(setDuration))
+                                .font(.subheadline.weight(.medium).monospacedDigit())
+                                .foregroundStyle(.orange)
+                        }
                     }
                 }
             }
@@ -943,181 +983,6 @@ private struct StepperValue: View {
         }
     }
 }
-// MARK: - Cardio Setting Box (Tappable)
-
-private struct CardioSettingBox: View {
-    let label: String
-    let value: Double
-    let unit: String
-    let color: Color
-    let isExpanded: Bool
-    let onTap: () -> Void
-    
-    var body: some View {
-        Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(label.uppercased())
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
-                    
-                    Spacer()
-                    
-                    // Edit Indicator
-                    Image(systemName: "pencil")
-                        .font(.caption2)
-                        .foregroundStyle(color.opacity(0.8))
-                }
-                
-                HStack(alignment: .firstTextBaseline, spacing: 2) {
-                    Text(String(format: "%.1f", value))
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
-                    
-                    Text(unit)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding()
-            .frame(maxWidth: .infinity)
-            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 16))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(isExpanded ? color : color.opacity(0.3), lineWidth: isExpanded ? 2 : 1)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Cardio Increment Input (Expandable)
-
-private struct CardioIncrementInput: View {
-    @Binding var value: Double
-    let unit: String
-    let color: Color
-    let increments: [Double]
-    let onValueChanged: () -> Void
-    
-    @State private var selectedIncrement: Double
-    
-    init(value: Binding<Double>, unit: String, color: Color, increments: [Double], onValueChanged: @escaping () -> Void) {
-        self._value = value
-        self.unit = unit
-        self.color = color
-        self.increments = increments
-        self.onValueChanged = onValueChanged
-        // Initialize with second increment or first
-        self._selectedIncrement = State(initialValue: increments.count > 1 ? increments[1] : (increments.first ?? 0.5))
-    }
-    
-    var body: some View {
-        VStack(spacing: 16) {
-            // Main controls with +/-
-            HStack(spacing: 24) {
-                // Minus button
-                Button {
-                    if value >= selectedIncrement {
-                        value -= selectedIncrement
-                    } else {
-                        value = 0
-                    }
-                    let impact = UIImpactFeedbackGenerator(style: .light)
-                    impact.impactOccurred()
-                    onValueChanged()
-                } label: {
-                    Image(systemName: "minus")
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(color.opacity(0.8))
-                        .frame(width: 54, height: 54)
-                        .background {
-                            if #available(iOS 26.0, *) {
-                                Circle()
-                                    .fill(.clear)
-                                    .glassEffect(.regular.interactive())
-                            } else {
-                                Circle()
-                                    .fill(.ultraThinMaterial)
-                            }
-                        }
-                        .overlay {
-                            Circle()
-                                .stroke(color.opacity(0.2), lineWidth: 1)
-                        }
-                }
-                .buttonStyle(InteractingButtonStyle())
-                
-                // Value display
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(String(format: "%.1f", value))
-                        .font(.system(size: 44, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
-                        .contentTransition(.numericText())
-                        .animation(.snappy, value: value)
-                    
-                    Text(unit)
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-                .frame(minWidth: 90)
-                
-                // Plus button
-                Button {
-                    value += selectedIncrement
-                    let impact = UIImpactFeedbackGenerator(style: .medium)
-                    impact.impactOccurred()
-                    onValueChanged()
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(.black)
-                        .frame(width: 54, height: 54)
-                        .background {
-                            if #available(iOS 26.0, *) {
-                                Circle()
-                                    .fill(color.opacity(0.5))
-                                    .glassEffect(.regular.interactive())
-                            } else {
-                                Circle()
-                                    .fill(color.gradient)
-                            }
-                        }
-                        .clipShape(Circle())
-                        .shadow(color: color.opacity(0.3), radius: 8, x: 0, y: 4)
-                }
-                .buttonStyle(InteractingButtonStyle())
-            }
-            
-            // Increment selector (Segmented style)
-            Picker("Increment", selection: $selectedIncrement) {
-                ForEach(increments, id: \.self) { amount in
-                    Text(formatIncrement(amount)).tag(amount)
-                }
-            }
-            .pickerStyle(.segmented)
-            .onChange(of: selectedIncrement) {
-                let selection = UISelectionFeedbackGenerator()
-                selection.selectionChanged()
-            }
-        }
-        .padding(.vertical, 8)
-    }
-    
-    private func formatIncrement(_ increment: Double) -> String {
-        if increment == Double(Int(increment)) {
-            return String(format: "%.0f", increment)
-        } else {
-            return String(format: "%.1f", increment)
-        }
-    }
-    
-    private func triggerHaptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
-        let generator = UIImpactFeedbackGenerator(style: style)
-        generator.impactOccurred()
-    }
-}
-
 // MARK: - Interaction Styles
 
 private struct InteractingButtonStyle: ButtonStyle {

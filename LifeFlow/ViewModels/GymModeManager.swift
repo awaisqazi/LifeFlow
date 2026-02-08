@@ -14,6 +14,39 @@ import WidgetKit
 
 /// Manages the active workout state during Gym Mode.
 /// Handles exercise navigation, rest timer, screen wake lock, and superset flow.
+
+// MARK: - Workout Target Types
+
+/// Defines the goal type for a workout session, enabling context-aware workout launches
+/// from the Marathon Coach training plan.
+enum WorkoutTarget: Equatable {
+    /// No specific goal - freestyle workout
+    case open
+    /// Time-based goal
+    case duration(TimeInterval)
+    /// Distance-based goal (e.g., 5 miles)
+    case distance(Double, unit: UnitLength)
+    /// Interval training (e.g., 8x400m with 2 min rest)
+    case interval(repeats: Int, distanceMeters: Double, restSeconds: TimeInterval)
+    
+    var displayName: String {
+        switch self {
+        case .open: return "Freestyle"
+        case .duration(let time): 
+            let minutes = Int(time / 60)
+            return "\(minutes) min"
+        case .distance(let dist, let unit):
+            let formatter = MeasurementFormatter()
+            formatter.unitStyle = .short
+            let measurement = Measurement(value: dist, unit: unit)
+            return formatter.string(from: measurement)
+        case .interval(let repeats, let distance, _):
+            let meters = Int(distance)
+            return "\(repeats)x\(meters)m"
+        }
+    }
+}
+
 @Observable
 final class GymModeManager {
     
@@ -55,11 +88,29 @@ final class GymModeManager {
     private(set) var cardioElapsedTime: TimeInterval = 0
     
     /// Current cardio total duration (for timed mode)
-    /// Current cardio total duration (for timed mode)
     private(set) var cardioDuration: TimeInterval = 0
     
     /// Whether a cardio session is currently running (timer active)
     var isCardioInProgress: Bool = false
+    
+    // MARK: - Marathon Coach Integration
+    
+    /// The target goal for the current workout (from training plan)
+    var activeTarget: WorkoutTarget = .open
+    
+    /// Links this workout to a training plan session for post-workout adaptation
+    var associatedTrainingSessionID: UUID?
+    
+    /// Live distance from HealthKit during running sessions
+    var healthKitDistance: Double = 0
+    
+    /// Helper to extract target distance from activeTarget
+    var targetDistance: Double {
+        if case .distance(let miles, _) = activeTarget {
+            return miles
+        }
+        return 0
+    }
     
     // MARK: - Rest Timer
     
@@ -371,6 +422,51 @@ final class GymModeManager {
     
     // MARK: - Workout Lifecycle
     
+    // MARK: Marathon Coach Session Launch
+    
+    /// Start a workout pre-configured from a Marathon Coach training session.
+    /// This is the "Smart Start" entry point from the Horizon view.
+    /// - Parameter trainingSession: The training session from the plan
+    /// - Parameter marathonCoach: The marathon coach manager to build the workout
+    /// - Returns: The configured WorkoutSession ready to start
+    func startSession(from trainingSession: TrainingSession, using marathonCoach: MarathonCoachManager) -> WorkoutSession {
+        // Link this workout to the training plan
+        self.associatedTrainingSessionID = trainingSession.id
+        
+        // Configure the target based on run type
+        switch trainingSession.runType {
+        case .speedWork:
+            // Interval workout: e.g., 8x400m with 2 min rest
+            let repeatCount = max(4, Int(trainingSession.targetDistance / 0.5))
+            self.activeTarget = .interval(
+                repeats: repeatCount,
+                distanceMeters: 400,
+                restSeconds: 120
+            )
+            
+        case .tempo:
+            // Sustained effort distance
+            self.activeTarget = .distance(trainingSession.targetDistance, unit: .miles)
+            
+        case .longRun, .base, .recovery:
+            // Distance-based run
+            self.activeTarget = .distance(trainingSession.targetDistance, unit: .miles)
+            
+        case .crossTraining:
+            // Open/freestyle for cross training
+            self.activeTarget = .open
+            
+        case .rest:
+            // Shouldn't happen, but handle gracefully
+            self.activeTarget = .open
+        }
+        
+        // Build the workout session using the marathon coach
+        let workout = marathonCoach.buildGymModeSession(for: trainingSession)
+        
+        return workout
+    }
+    
     /// Start a new workout session
     /// - Parameter session: The workout session to start
     func startWorkout(session: WorkoutSession) {
@@ -413,6 +509,21 @@ final class GymModeManager {
         
         // Sync to widget
         syncWidgetState()
+    }
+    
+    /// Start a HealthKit running session if applicable
+    func startHealthKitRun(hkManager: HealthKitManager) {
+        guard case .distance = activeTarget else { return }
+        
+        Task {
+            do {
+                if #available(iOS 26.0, *) {
+                    try await hkManager.startRunningWorkout()
+                }
+            } catch {
+                print("Failed to start HealthKit run: \(error)")
+            }
+        }
     }
     
     /// Resume a paused workout session
@@ -552,6 +663,10 @@ final class GymModeManager {
         currentExerciseIndex = 0
         currentSetIndex = 0
         elapsedTime = 0
+        
+        // Reset Marathon Coach integration
+        activeTarget = .open
+        associatedTrainingSessionID = nil
         
         // Clear widget state
         WorkoutWidgetState.clear()
