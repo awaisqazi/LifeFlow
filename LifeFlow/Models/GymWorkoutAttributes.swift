@@ -56,6 +56,14 @@ public struct GymWorkoutAttributes: ActivityAttributes {
         public var cardioDuration: TimeInterval // For progress bar in timed mode
         public var cardioTimeRemaining: TimeInterval? // Frozen remaining time when paused
         
+        /// Optional interval metadata for guided speed workouts
+        public var intervalProgress: Double?
+        public var currentIntervalName: String?
+        
+        /// Optional distance target metadata for guided runs
+        public var targetDistanceRemaining: Double?
+        public var targetDistanceTotal: Double?
+        
         /// Formatted elapsed time (MM:SS or H:MM:SS)
         public var formattedElapsedTime: String {
             let hours = elapsedTime / 3600
@@ -90,6 +98,11 @@ public struct GymWorkoutAttributes: ActivityAttributes {
             }
         }
         
+        public var formattedDistanceRemaining: String {
+            guard let targetDistanceRemaining else { return "--" }
+            return String(format: "%.2f mi", max(0, targetDistanceRemaining))
+        }
+        
         public init(
             exerciseName: String,
             exerciseIcon: String = "dumbbell.fill",
@@ -108,7 +121,11 @@ public struct GymWorkoutAttributes: ActivityAttributes {
             cardioIncline: Double = 0,
             cardioEndTime: Date? = nil,
             cardioDuration: TimeInterval = 0,
-            cardioTimeRemaining: TimeInterval? = nil
+            cardioTimeRemaining: TimeInterval? = nil,
+            intervalProgress: Double? = nil,
+            currentIntervalName: String? = nil,
+            targetDistanceRemaining: Double? = nil,
+            targetDistanceTotal: Double? = nil
         ) {
             self.exerciseName = exerciseName
             self.exerciseIcon = exerciseIcon
@@ -128,6 +145,10 @@ public struct GymWorkoutAttributes: ActivityAttributes {
             self.cardioEndTime = cardioEndTime
             self.cardioDuration = cardioDuration
             self.cardioTimeRemaining = cardioTimeRemaining
+            self.intervalProgress = intervalProgress
+            self.currentIntervalName = currentIntervalName
+            self.targetDistanceRemaining = targetDistanceRemaining
+            self.targetDistanceTotal = targetDistanceTotal
         }
     }
     

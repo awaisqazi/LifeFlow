@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import HealthKit
 
 /// The Flow tab - displays the daily summary dashboard.
 /// Shows a snapshot of water intake, gym status, and momentum metrics.
@@ -19,6 +20,9 @@ struct FlowDashboardView: View {
     @Query(sort: \Goal.deadline, order: .forward) private var goals: [Goal]
     @State private var showPostRunCheckIn: Bool = false
     @State private var checkInSession: TrainingSession?
+    @State private var showCrossTrainingSheet: Bool = false
+    @State private var crossTrainingSession: TrainingSession?
+    @State private var crossTrainingSaveError: String?
     
     /// Get or create today's DayLog
     private var todayLog: DayLog {
@@ -32,6 +36,17 @@ struct FlowDashboardView: View {
         // but we need a bindable.
         // Let's use a safe unwrapper.
         return dayLogs.first ?? DayLog() // Should handle creation in onAppear
+    }
+    
+    private var hasRaceTrainingGoal: Bool {
+        goals.contains { $0.type == .raceTraining }
+    }
+    
+    private var raceTrainingGoalIDs: [UUID] {
+        goals
+            .filter { $0.type == .raceTraining }
+            .map(\.id)
+            .sorted { $0.uuidString < $1.uuidString }
     }
     
     var body: some View {
@@ -51,13 +66,14 @@ struct FlowDashboardView: View {
                         GymCard(dayLog: todayLog)
 
                         // 2. Training Day Card (if active plan)
-                        if let plan = coachManager.activePlan,
+                        if hasRaceTrainingGoal,
+                           let plan = coachManager.activePlan,
                            let session = plan.todaysSession {
                             TrainingDayCard(
                                 plan: plan,
                                 session: session,
                                 statusColor: coachManager.statusColor,
-                                onStartGuidedRun: { startGuidedRun(session) },
+                                onStartGuidedRun: { startTrainingSession(session) },
                                 onLifeHappens: {
                                     _ = coachManager.lifeHappens(modelContext: modelContext)
                                 },
@@ -103,6 +119,9 @@ struct FlowDashboardView: View {
         .onAppear {
             ensureTodayLogExists()
             coachManager.loadActivePlan(modelContext: modelContext)
+            if !hasRaceTrainingGoal, coachManager.activePlan != nil {
+                coachManager.cancelPlan(modelContext: modelContext)
+            }
         }
         .sheet(isPresented: $showPostRunCheckIn) {
             if let session = checkInSession {
@@ -116,6 +135,37 @@ struct FlowDashboardView: View {
                 }
             }
         }
+        .sheet(isPresented: $showCrossTrainingSheet) {
+            if let session = crossTrainingSession {
+                LogCrossTrainingSheet(session: session) { entry in
+                    handleCrossTrainingLog(entry, for: session)
+                }
+            }
+        }
+        .alert("Saved In LifeFlow", isPresented: Binding(
+            get: { crossTrainingSaveError != nil },
+            set: { if !$0 { crossTrainingSaveError = nil } }
+        )) {
+            Button("OK", role: .cancel) { crossTrainingSaveError = nil }
+        } message: {
+            Text(crossTrainingSaveError ?? "")
+        }
+        .onChange(of: raceTrainingGoalIDs) { _, newIDs in
+            if newIDs.isEmpty {
+                coachManager.cancelPlan(modelContext: modelContext)
+            } else if coachManager.activePlan == nil {
+                coachManager.loadActivePlan(modelContext: modelContext)
+            }
+        }
+    }
+    
+    private func startTrainingSession(_ trainingSession: TrainingSession) {
+        if trainingSession.runType == .crossTraining {
+            crossTrainingSession = trainingSession
+            showCrossTrainingSheet = true
+            return
+        }
+        startGuidedRun(trainingSession)
     }
     
     private func startGuidedRun(_ trainingSession: TrainingSession) {
@@ -132,6 +182,59 @@ struct FlowDashboardView: View {
             let newLog = DayLog(date: Date())
             modelContext.insert(newLog)
             try? modelContext.save()
+        }
+    }
+    
+    private func handleCrossTrainingLog(_ entry: CrossTrainingLogEntry, for session: TrainingSession) {
+        coachManager.markCrossTrainingComplete(
+            session: session,
+            activityName: entry.displayName,
+            durationMinutes: entry.durationMinutes,
+            modelContext: modelContext
+        )
+        
+        let workout = WorkoutSession(
+            title: "\(entry.displayName) Cross Training",
+            type: "Cross Training",
+            duration: TimeInterval(entry.durationMinutes * 60),
+            calories: Double(entry.durationMinutes * 6),
+            source: "Flow",
+            timestamp: Date()
+        )
+        workout.endTime = Date()
+        modelContext.insert(workout)
+        
+        let startOfDay = Calendar.current.startOfDay(for: Date())
+        if let today = dayLogs.first(where: { $0.date >= startOfDay }) {
+            if !today.workouts.contains(where: { $0.id == workout.id }) {
+                today.workouts.append(workout)
+            }
+        } else {
+            let newLog = DayLog(date: Date(), workouts: [workout])
+            modelContext.insert(newLog)
+        }
+        
+        try? modelContext.save()
+        
+        if entry.saveToHealth {
+            Task {
+                do {
+                    let healthKitManager = AppDependencyManager.shared.healthKitManager
+                    try await healthKitManager.requestAuthorization()
+                    let endDate = Date()
+                    let startDate = endDate.addingTimeInterval(-TimeInterval(entry.durationMinutes * 60))
+                    _ = try await healthKitManager.saveManualWorkout(
+                        activityType: entry.activityType,
+                        startDate: startDate,
+                        endDate: endDate,
+                        duration: TimeInterval(entry.durationMinutes * 60)
+                    )
+                } catch {
+                    await MainActor.run {
+                        crossTrainingSaveError = "Cross-training was logged, but Apple Health save failed."
+                    }
+                }
+            }
         }
     }
 }

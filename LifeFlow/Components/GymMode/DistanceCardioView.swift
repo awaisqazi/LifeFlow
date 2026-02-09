@@ -62,7 +62,7 @@ struct DistanceCardioView: View {
                 endWorkout(early: true)
             }
         } message: {
-            Text("Are you sure you want to end your run early? Your \(String(format: "%.2f", currentDistance)) mi will be saved.")
+            Text("Are you sure you want to end your run early? Your \(String(format: "%.2f", displayDistance)) mi will be saved.")
         }
     }
     
@@ -227,12 +227,13 @@ struct DistanceCardioView: View {
                         onValueChanged: {
                             // Sync with widget
                             gymModeManager.updateCardioState(
-                                mode: 0,
-                                endTime: Date().addingTimeInterval(remainingTimeFromPace),
+                                mode: 2,
+                                endTime: nil,
                                 speed: speed,
                                 incline: incline,
                                 elapsedTime: elapsedTime,
-                                duration: targetDistance // Using distance as base
+                                duration: targetDistance,
+                                currentDistance: displayDistance
                             )
                         }
                     )
@@ -257,12 +258,6 @@ struct DistanceCardioView: View {
             }
             .buttonStyle(.plain)
         }
-    }
-    
-    private var remainingTimeFromPace: TimeInterval {
-        guard currentDistance > 0 else { return 0 }
-        let paceSeconds = elapsedTime / currentDistance
-        return paceSeconds * remainingDistance
     }
     
     // MARK: - Celebration View
@@ -317,7 +312,7 @@ struct DistanceCardioView: View {
             // Auto-complete after 3 seconds
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                 let finalIntervals = allIntervalsWithCurrent
-                onComplete(currentDistance, speed, incline, finalIntervals, false)
+                onComplete(displayDistance, speed, incline, finalIntervals, false)
             }
         }
     }
@@ -374,9 +369,19 @@ struct DistanceCardioView: View {
         currentDistance = 0
         elapsedTime = 0
         phase = .active
+        gymModeManager.isCardioInProgress = true
         
         // Start live tracking if possible
         gymModeManager.startHealthKitRun(hkManager: healthKitManager)
+        gymModeManager.updateCardioState(
+            mode: 2,
+            endTime: nil,
+            speed: speed,
+            incline: incline,
+            elapsedTime: 0,
+            duration: targetDistance,
+            currentDistance: 0
+        )
         
         // Init history
         currentIntervalStart = Date()
@@ -391,10 +396,21 @@ struct DistanceCardioView: View {
             let distanceThisSecond = speed / 3600.0
             currentDistance += distanceThisSecond
             
+            gymModeManager.updateCardioState(
+                mode: 2,
+                endTime: nil,
+                speed: speed,
+                incline: incline,
+                elapsedTime: elapsedTime,
+                duration: targetDistance,
+                currentDistance: displayDistance
+            )
+            
             // Check if target reached
             if currentDistance >= targetDistance {
                 timer?.invalidate()
                 timer = nil
+                gymModeManager.isCardioInProgress = false
                 phase = .complete
             }
         }
@@ -415,9 +431,19 @@ struct DistanceCardioView: View {
     private func endWorkout(early: Bool) {
         timer?.invalidate()
         timer = nil
+        gymModeManager.isCardioInProgress = false
         
         let finalIntervals = allIntervalsWithCurrent
-        onComplete(currentDistance, speed, incline, finalIntervals, early)
+        gymModeManager.updateCardioState(
+            mode: 2,
+            endTime: nil,
+            speed: speed,
+            incline: incline,
+            elapsedTime: elapsedTime,
+            duration: targetDistance,
+            currentDistance: displayDistance
+        )
+        onComplete(displayDistance, speed, incline, finalIntervals, early)
     }
 }
 

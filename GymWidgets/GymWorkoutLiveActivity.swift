@@ -10,6 +10,7 @@ import WidgetKit
 import SwiftUI
 import ActivityKit
 import AppIntents
+import Foundation
 
 /// Live Activity widget configuration for Gym Workouts
 struct GymWorkoutLiveActivity: Widget {
@@ -35,11 +36,11 @@ struct GymWorkoutLiveActivity: Widget {
                                 .tracking(1)
                         }
                         
-                        Text(context.state.exerciseName)
+                        Text(context.state.primaryLabel)
                             .font(.headline)
                             .lineLimit(1)
                         
-                        Text("Set \(context.state.currentSet) of \(context.state.totalSets)")
+                        Text(context.state.secondaryLabel)
                             .font(.caption2.weight(.medium))
                             .foregroundStyle(.secondary)
                     }
@@ -124,12 +125,12 @@ private struct LockScreenView: View {
                         .foregroundStyle(context.state.accentColor)
                         .tracking(1)
                     
-                    Text(context.state.exerciseName)
+                    Text(context.state.primaryLabel)
                         .font(.headline)
                         .foregroundStyle(.white)
                         .lineLimit(1)
                     
-                    Text("Set \(context.state.currentSet) of \(context.state.totalSets)")
+                    Text(context.state.secondaryLabel)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -218,6 +219,31 @@ private extension GymWorkoutAttributes.ContentState {
     var isTimedCardio: Bool {
         isCardio && cardioModeIndex == 0 && cardioEndTime != nil
     }
+    
+    var hasDistanceTarget: Bool {
+        guard let total = targetDistanceTotal else { return false }
+        return total > 0
+    }
+    
+    var distanceProgress: Double {
+        guard hasDistanceTarget,
+              let total = targetDistanceTotal,
+              let remaining = targetDistanceRemaining else {
+            return 0
+        }
+        return min(max((total - remaining) / total, 0), 1)
+    }
+    
+    var primaryLabel: String {
+        currentIntervalName ?? exerciseName
+    }
+    
+    var secondaryLabel: String {
+        if let remaining = targetDistanceRemaining {
+            return String(format: "%.2f mi remaining", max(0, remaining))
+        }
+        return "Set \(currentSet) of \(totalSets)"
+    }
 }
 
 private struct LiveActivityTimerText: View {
@@ -269,7 +295,15 @@ private struct LiveActivityStateProgressBar: View {
         let tint = state.accentColor
         
         Group {
-            if state.isPaused {
+            if state.hasDistanceTarget {
+                ProgressView(value: state.distanceProgress)
+                    .progressViewStyle(.linear)
+                    .tint(tint)
+            } else if let intervalProgress = state.intervalProgress {
+                ProgressView(value: intervalProgress, total: 1)
+                    .progressViewStyle(.linear)
+                    .tint(tint)
+            } else if state.isPaused {
                 ProgressView(
                     value: Double(state.currentSet),
                     total: Double(max(state.totalSets, 1))

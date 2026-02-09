@@ -84,6 +84,8 @@ struct TrainingDayCard: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
+            } else if session.runType == .crossTraining && !session.isCompleted {
+                crossTrainingView
             } else if session.isCompleted {
                 // Completed run summary
                 completedView
@@ -190,10 +192,62 @@ struct TrainingDayCard: View {
             }
         }
     }
+    
+    private var crossTrainingView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Cross-Training Day")
+                .font(.title3.weight(.bold))
+                .foregroundStyle(runTypeColor)
+            
+            Text("Log strength, yoga, cycling, or swimming to keep your plan on track.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            
+            Button(action: onStartGuidedRun) {
+                Label("Log Cross Training", systemImage: "plus.circle.fill")
+                    .font(.subheadline.weight(.bold))
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(runTypeColor, in: Capsule())
+                    .foregroundStyle(.white)
+            }
+        }
+    }
 
     // MARK: - Completed View
 
+    @ViewBuilder
     private var completedView: some View {
+        if session.runType == .crossTraining {
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Cross-Training Logged", systemImage: "checkmark.circle.fill")
+                    .font(.headline)
+                    .foregroundStyle(.green)
+                
+                if let notes = session.notes, !notes.isEmpty {
+                    Text(notes)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Great consistency. Recovery and strength work support your run performance.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                
+                if let effort = session.perceivedEffort {
+                    HStack(spacing: 4) {
+                        Text("Effort:")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(effortLabel(effort))
+                            .font(.caption.weight(.semibold))
+                    }
+                }
+            }
+            .padding()
+            .glassEffect(in: .rect(cornerRadius: 20))
+        }
+        
         VStack(alignment: .leading, spacing: 12) {
             // Visual delta: planned vs actual
             HStack(spacing: 16) {

@@ -11,6 +11,7 @@ import SwiftData
 import Observation
 import Combine
 import WidgetKit
+import HealthKit
 
 /// Manages the active workout state during Gym Mode.
 /// Handles exercise navigation, rest timer, screen wake lock, and superset flow.
@@ -47,6 +48,21 @@ enum WorkoutTarget: Equatable {
     }
 }
 
+struct HealthKitWorkoutSnapshot: Equatable {
+    let workoutID: UUID
+    let startDate: Date
+    let endDate: Date
+    let duration: TimeInterval
+    let distanceMiles: Double?
+}
+
+struct WorkoutFinishPayload {
+    let completedSession: WorkoutSession?
+    let linkedTrainingSession: TrainingSession?
+    let bestDistanceMiles: Double?
+    let healthKitSnapshot: HealthKitWorkoutSnapshot?
+}
+
 @Observable
 final class GymModeManager {
     
@@ -72,7 +88,7 @@ final class GymModeManager {
     
     // MARK: - Cardio State
     
-    /// Current cardio mode (0: Timed, 1: Freestyle)
+    /// Current cardio mode (0: Timed, 1: Freestyle, 2: Distance)
     private(set) var cardioModeIndex: Int = 0
     
     /// When the timed cardio ends
@@ -202,6 +218,7 @@ final class GymModeManager {
                     workoutStartTime = Date().addingTimeInterval(-elapsedTime)
                     startElapsedTimer()
                     UIApplication.shared.isIdleTimerDisabled = true
+                    syncHealthKitPauseState(paused: false)
                     
                     // Restore rest timer if there was remaining time
                     if let restRemaining = widgetState.restTimeRemaining, restRemaining > 0 {
@@ -219,10 +236,12 @@ final class GymModeManager {
                     // Pausing - stop the elapsed timer
                     stopElapsedTimer()
                     UIApplication.shared.isIdleTimerDisabled = false
+                    syncHealthKitPauseState(paused: true)
                 }
             }
             
             // Update Live Activity with current state
+            let context = liveContextValues()
             if isRestTimerActive, let endTime = restEndTime {
                 // Use startRest to update Live Activity with rest state
                 workoutLiveActivityManager.startRest(
@@ -233,7 +252,11 @@ final class GymModeManager {
                     elapsedTime: Int(elapsedTime),
                     restEndTime: endTime,
                     workoutStartDate: workoutStartTime ?? Date(),
-                    isPaused: widgetState.isPaused
+                    isPaused: widgetState.isPaused,
+                    intervalProgress: context.intervalProgress,
+                    currentIntervalName: context.intervalName,
+                    targetDistanceRemaining: context.distanceRemaining,
+                    targetDistanceTotal: context.distanceTotal
                 )
             } else {
                 workoutLiveActivityManager.updateWorkout(
@@ -249,7 +272,11 @@ final class GymModeManager {
                     cardioSpeed: cardioSpeed,
                     cardioIncline: cardioIncline,
                     cardioEndTime: cardioEndTime,
-                    cardioDuration: cardioDuration
+                    cardioDuration: cardioDuration,
+                    intervalProgress: context.intervalProgress,
+                    currentIntervalName: context.intervalName,
+                    targetDistanceRemaining: context.distanceRemaining,
+                    targetDistanceTotal: context.distanceTotal
                 )
             }
         }
@@ -300,6 +327,106 @@ final class GymModeManager {
         }
     }
     
+    // MARK: - Live Context Helpers
+    
+    private func intervalLiveContext() -> (progress: Double?, name: String?) {
+        guard case .interval(let repeats, _, _) = activeTarget else {
+            return (nil, nil)
+        }
+        
+        let effectiveRepeats = max(1, repeats)
+        
+        if currentSetIndex == 0 {
+            return (0, "Warm-up")
+        }
+        
+        let relativeIndex = currentSetIndex - 1
+        let intervalBlockCount = max(1, (effectiveRepeats * 2) - 1)
+        
+        if relativeIndex >= intervalBlockCount {
+            return (1, "Cool-down")
+        }
+        
+        if relativeIndex % 2 == 0 {
+            let intervalNumber = (relativeIndex / 2) + 1
+            let progress = min(Double(intervalNumber) / Double(effectiveRepeats), 1)
+            return (progress, "Interval \(intervalNumber) of \(effectiveRepeats)")
+        }
+        
+        let restNumber = (relativeIndex + 1) / 2
+        let progress = min(Double(restNumber) / Double(effectiveRepeats), 1)
+        return (progress, "Rest \(restNumber)")
+    }
+    
+    private func distanceLiveContext(distanceOverride: Double? = nil) -> (remaining: Double?, total: Double?) {
+        guard case .distance(let targetMiles, _) = activeTarget else {
+            return (nil, nil)
+        }
+        
+        let currentDistanceMiles = max(0, distanceOverride ?? healthKitDistance)
+        let remaining = max(0, targetMiles - currentDistanceMiles)
+        return (remaining, targetMiles)
+    }
+    
+    private func syncHealthKitPauseState(paused: Bool) {
+        guard case .distance = activeTarget else { return }
+        let healthKitManager = AppDependencyManager.shared.healthKitManager
+        guard healthKitManager.isLiveWorkoutActive else { return }
+        
+        if #available(iOS 26.0, *) {
+            if paused {
+                healthKitManager.pauseLiveWorkout()
+            } else {
+                healthKitManager.resumeLiveWorkout()
+            }
+        }
+    }
+    
+    private func liveContextValues(distanceOverride: Double? = nil) -> (intervalProgress: Double?, intervalName: String?, distanceRemaining: Double?, distanceTotal: Double?) {
+        let intervalContext = intervalLiveContext()
+        let distanceContext = distanceLiveContext(distanceOverride: distanceOverride)
+        return (
+            intervalProgress: intervalContext.progress,
+            intervalName: intervalContext.name,
+            distanceRemaining: distanceContext.remaining,
+            distanceTotal: distanceContext.total
+        )
+    }
+    
+    /// Push current distance from HealthKit into Live Activity + widget state.
+    func updateHealthKitDistance(_ distanceMiles: Double) {
+        healthKitDistance = max(0, distanceMiles)
+        
+        guard let currentEx = currentExercise else {
+            syncWidgetState()
+            return
+        }
+        
+        let context = liveContextValues(distanceOverride: healthKitDistance)
+        
+        workoutLiveActivityManager.updateWorkout(
+            exerciseName: currentEx.name,
+            currentSet: currentSetIndex + 1,
+            totalSets: currentEx.sets.count,
+            currentExerciseIndex: currentExerciseIndex,
+            elapsedTime: Int(elapsedTime),
+            workoutStartDate: workoutStartTime ?? Date(),
+            isPaused: isPaused,
+            isCardio: currentEx.type == .cardio,
+            cardioModeIndex: cardioModeIndex,
+            cardioSpeed: cardioSpeed,
+            cardioIncline: cardioIncline,
+            cardioEndTime: cardioEndTime,
+            cardioDuration: cardioDuration,
+            intervalProgress: context.intervalProgress,
+            currentIntervalName: context.intervalName,
+            targetDistanceRemaining: context.distanceRemaining,
+            targetDistanceTotal: context.distanceTotal
+        )
+        
+        syncWidgetState()
+    }
+    
     // MARK: - Widget Sync
     
     /// Sync current workout state to widget via App Group UserDefaults
@@ -336,6 +463,7 @@ final class GymModeManager {
         
         // Determine if current exercise is cardio
         let isCardioExercise = currentExercise?.type == .cardio
+        let context = liveContextValues()
         
         let state = WorkoutWidgetState(
             isActive: isWorkoutActive,
@@ -364,7 +492,11 @@ final class GymModeManager {
             cardioSpeed: cardioSpeed,
             cardioIncline: cardioIncline,
             cardioEndTime: cardioEndTime,
-            cardioModeIndex: cardioModeIndex
+            cardioModeIndex: cardioModeIndex,
+            intervalProgress: context.intervalProgress,
+            currentIntervalName: context.intervalName,
+            targetDistanceRemaining: context.distanceRemaining,
+            targetDistanceTotal: context.distanceTotal
         )
         state.save()
     }
@@ -375,6 +507,7 @@ final class GymModeManager {
         
         // Also update Live Activity if active
         if let currentEx = currentExercise {
+            let context = liveContextValues()
             workoutLiveActivityManager.updateWorkout(
                 exerciseName: currentEx.name,
                 currentSet: currentSetIndex + 1,
@@ -388,23 +521,39 @@ final class GymModeManager {
                 cardioSpeed: cardioSpeed,
                 cardioIncline: cardioIncline,
                 cardioEndTime: cardioEndTime,
-                cardioDuration: cardioDuration
+                cardioDuration: cardioDuration,
+                intervalProgress: context.intervalProgress,
+                currentIntervalName: context.intervalName,
+                targetDistanceRemaining: context.distanceRemaining,
+                targetDistanceTotal: context.distanceTotal
             )
         }
     }
     
     /// Update cardio-specific state for widget/Live Activity sync
-    func updateCardioState(mode: Int, endTime: Date? = nil, speed: Double, incline: Double, elapsedTime: TimeInterval = 0, duration: TimeInterval = 0) {
+    func updateCardioState(
+        mode: Int,
+        endTime: Date? = nil,
+        speed: Double,
+        incline: Double,
+        elapsedTime: TimeInterval = 0,
+        duration: TimeInterval = 0,
+        currentDistance: Double? = nil
+    ) {
         self.cardioModeIndex = mode
         self.cardioEndTime = endTime
         self.cardioSpeed = speed
         self.cardioIncline = incline
         self.cardioElapsedTime = elapsedTime
         self.cardioDuration = duration
+        if let currentDistance {
+            self.healthKitDistance = max(0, currentDistance)
+        }
         syncWidgetState()
         
         // Also update Live Activity if active
         if let currentEx = currentExercise {
+            let context = liveContextValues(distanceOverride: currentDistance)
             workoutLiveActivityManager.updateWorkout(
                 exerciseName: currentEx.name,
                 currentSet: currentSetIndex + 1,
@@ -418,7 +567,11 @@ final class GymModeManager {
                 cardioSpeed: speed,
                 cardioIncline: incline,
                 cardioEndTime: endTime,
-                cardioDuration: duration
+                cardioDuration: duration,
+                intervalProgress: context.intervalProgress,
+                currentIntervalName: context.intervalName,
+                targetDistanceRemaining: context.distanceRemaining,
+                targetDistanceTotal: context.distanceTotal
             )
         }
     }
@@ -482,6 +635,7 @@ final class GymModeManager {
         workoutStartTime = Date()
         elapsedTime = 0
         isPaused = false
+        healthKitDistance = 0
         
         // Enable screen wake lock
         UIApplication.shared.isIdleTimerDisabled = true
@@ -492,6 +646,7 @@ final class GymModeManager {
         // Start Live Activity
         let firstExercise = session.sortedExercises.first?.name ?? "Workout"
         let firstSets = session.sortedExercises.first?.sets.count ?? 0
+        let context = liveContextValues()
         print("🔥 Calling workoutLiveActivityManager.startWorkout...")
         workoutLiveActivityManager.startWorkout(
             workoutTitle: session.title,
@@ -508,7 +663,11 @@ final class GymModeManager {
             cardioSpeed: cardioSpeed,
             cardioIncline: cardioIncline,
             cardioEndTime: cardioEndTime,
-            cardioDuration: cardioDuration
+            cardioDuration: cardioDuration,
+            intervalProgress: context.intervalProgress,
+            currentIntervalName: context.intervalName,
+            targetDistanceRemaining: context.distanceRemaining,
+            targetDistanceTotal: context.distanceTotal
         )
         
         // Sync to widget
@@ -519,12 +678,17 @@ final class GymModeManager {
     func startHealthKitRun(hkManager: HealthKitManager) {
         guard case .distance = activeTarget else { return }
         
+        hkManager.onDistanceUpdate = { [weak self] distanceMiles in
+            self?.updateHealthKitDistance(distanceMiles)
+        }
+        
         Task {
             do {
                 if #available(iOS 26.0, *) {
                     try await hkManager.startRunningWorkout()
                 }
             } catch {
+                hkManager.onDistanceUpdate = nil
                 print("Failed to start HealthKit run: \(error)")
             }
         }
@@ -564,9 +728,11 @@ final class GymModeManager {
         // Adjust start time to account for already elapsed time
         workoutStartTime = Date().addingTimeInterval(-elapsedTime)
         startElapsedTimer()
+        syncHealthKitPauseState(paused: false)
         
         // Resume Live Activity
         if let currentEx = currentExercise {
+            let context = liveContextValues()
             workoutLiveActivityManager.updateWorkout(
                 exerciseName: currentEx.name,
                 currentSet: currentSetIndex + 1,
@@ -580,7 +746,11 @@ final class GymModeManager {
                 cardioSpeed: cardioSpeed,
                 cardioIncline: cardioIncline,
                 cardioEndTime: cardioEndTime,
-                cardioDuration: cardioDuration
+                cardioDuration: cardioDuration,
+                intervalProgress: context.intervalProgress,
+                currentIntervalName: context.intervalName,
+                targetDistanceRemaining: context.distanceRemaining,
+                targetDistanceTotal: context.distanceTotal
             )
         }
         
@@ -607,9 +777,11 @@ final class GymModeManager {
         
         // Restart timer
         startElapsedTimer()
+        syncHealthKitPauseState(paused: false)
         
         // Resume Live Activity
         if let currentEx = currentExercise {
+            let context = liveContextValues()
             workoutLiveActivityManager.updateWorkout(
                 exerciseName: currentEx.name,
                 currentSet: currentSetIndex + 1,
@@ -623,7 +795,11 @@ final class GymModeManager {
                 cardioSpeed: cardioSpeed,
                 cardioIncline: cardioIncline,
                 cardioEndTime: cardioEndTime,
-                cardioDuration: cardioDuration
+                cardioDuration: cardioDuration,
+                intervalProgress: context.intervalProgress,
+                currentIntervalName: context.intervalName,
+                targetDistanceRemaining: context.distanceRemaining,
+                targetDistanceTotal: context.distanceTotal
             )
         }
         
@@ -648,6 +824,53 @@ final class GymModeManager {
         return completedSession
     }
     
+    func finishWorkout(healthKitManager: HealthKitManager) async -> WorkoutFinishPayload {
+        let linkedTrainingSession = activeTrainingSession
+        let fallbackSetDistance = estimatedDistanceFromSets(in: activeSession)
+        let liveHealthKitDistance = healthKitManager.currentSessionDistance > 0 ? healthKitManager.currentSessionDistance : nil
+        
+        var healthKitSnapshot: HealthKitWorkoutSnapshot?
+        var healthKitDistance: Double?
+        
+        if #available(iOS 26.0, *), healthKitManager.isLiveWorkoutActive {
+            do {
+                if let workout = try await healthKitManager.endLiveWorkout() {
+                    let distanceMiles = workout.totalDistance?.doubleValue(for: .mile())
+                    healthKitDistance = distanceMiles
+                    healthKitSnapshot = HealthKitWorkoutSnapshot(
+                        workoutID: workout.uuid,
+                        startDate: workout.startDate,
+                        endDate: workout.endDate,
+                        duration: workout.duration,
+                        distanceMiles: distanceMiles
+                    )
+                }
+            } catch {
+                print("Failed to end HealthKit workout cleanly: \(error)")
+                if #available(iOS 26.0, *) {
+                    await healthKitManager.discardLiveWorkout()
+                }
+            }
+        }
+        
+        let completedSession = endWorkout()
+        let bestDistance = healthKitDistance ?? liveHealthKitDistance ?? fallbackSetDistance
+        
+        return WorkoutFinishPayload(
+            completedSession: completedSession,
+            linkedTrainingSession: linkedTrainingSession,
+            bestDistanceMiles: bestDistance,
+            healthKitSnapshot: healthKitSnapshot
+        )
+    }
+    
+    func discardWorkout(healthKitManager: HealthKitManager) async {
+        if #available(iOS 26.0, *), healthKitManager.isLiveWorkoutActive {
+            await healthKitManager.discardLiveWorkout()
+        }
+        resetState()
+    }
+    
     /// Reset internal state without saving/modifying the session (e.g. for discard)
     func resetState() {
         // Stop timers
@@ -667,11 +890,20 @@ final class GymModeManager {
         currentExerciseIndex = 0
         currentSetIndex = 0
         elapsedTime = 0
+        cardioModeIndex = 0
+        cardioEndTime = nil
+        cardioSpeed = 0
+        cardioIncline = 0
+        cardioElapsedTime = 0
+        cardioDuration = 0
+        isCardioInProgress = false
+        healthKitDistance = 0
         
         // Reset Marathon Coach integration
         activeTarget = .open
         associatedTrainingSessionID = nil
         activeTrainingSession = nil
+        AppDependencyManager.shared.healthKitManager.onDistanceUpdate = nil
         
         // Clear widget state
         WorkoutWidgetState.clear()
@@ -689,12 +921,14 @@ final class GymModeManager {
         // Stop timers
         stopElapsedTimer()
         stopRestTimer()
+        syncHealthKitPauseState(paused: true)
         
         // Disable screen wake lock
         UIApplication.shared.isIdleTimerDisabled = false
         
         // Update Live Activity to show paused state with frozen timer
         if let currentEx = currentExercise {
+            let context = liveContextValues()
             workoutLiveActivityManager.updateWorkout(
                 exerciseName: currentEx.name,
                 currentSet: currentSetIndex + 1,
@@ -708,7 +942,11 @@ final class GymModeManager {
                 cardioSpeed: cardioSpeed,
                 cardioIncline: cardioIncline,
                 cardioEndTime: cardioEndTime,
-                cardioDuration: cardioDuration
+                cardioDuration: cardioDuration,
+                intervalProgress: context.intervalProgress,
+                currentIntervalName: context.intervalName,
+                targetDistanceRemaining: context.distanceRemaining,
+                targetDistanceTotal: context.distanceTotal
             )
         }
         
@@ -755,6 +993,7 @@ final class GymModeManager {
             print("DEBUG: New currentExerciseIndex: \(currentExerciseIndex), currentSetIndex: \(currentSetIndex)")
             
             // Synchronize Live Activity
+            let context = liveContextValues()
             workoutLiveActivityManager.updateWorkout(
                 exerciseName: exercise.name,
                 currentSet: currentSetIndex + 1,
@@ -762,7 +1001,11 @@ final class GymModeManager {
                 currentExerciseIndex: currentExerciseIndex,
                 elapsedTime: Int(elapsedTime),
                 workoutStartDate: self.workoutStartTime ?? Date(),
-                isPaused: isPaused
+                isPaused: isPaused,
+                intervalProgress: context.intervalProgress,
+                currentIntervalName: context.intervalName,
+                targetDistanceRemaining: context.distanceRemaining,
+                targetDistanceTotal: context.distanceTotal
             )
             
             // Sync widget state with new exercise selection
@@ -836,6 +1079,7 @@ final class GymModeManager {
         weight: Double? = nil,
         reps: Int? = nil,
         duration: TimeInterval? = nil,
+        distance: Double? = nil,
         speed: Double? = nil,
         incline: Double? = nil,
         intervals: [CardioInterval]? = nil,
@@ -847,6 +1091,7 @@ final class GymModeManager {
         set.weight = weight
         set.reps = reps
         set.duration = duration
+        set.distance = distance
         set.speed = speed
         set.incline = incline
         set.isCompleted = true
@@ -884,6 +1129,7 @@ final class GymModeManager {
         // Update Live Activity if there's a next exercise
         if currentExerciseIndex < exercises.count {
             let nextExercise = exercises[currentExerciseIndex]
+            let context = liveContextValues()
             workoutLiveActivityManager.updateWorkout(
                 exerciseName: nextExercise.name,
                 currentSet: 1,
@@ -891,7 +1137,11 @@ final class GymModeManager {
                 currentExerciseIndex: currentExerciseIndex,
                 elapsedTime: Int(elapsedTime),
                 workoutStartDate: workoutStartTime ?? Date(),
-                isPaused: isPaused
+                isPaused: isPaused,
+                intervalProgress: context.intervalProgress,
+                currentIntervalName: context.intervalName,
+                targetDistanceRemaining: context.distanceRemaining,
+                targetDistanceTotal: context.distanceTotal
             )
         }
         
@@ -968,6 +1218,7 @@ final class GymModeManager {
         
         // Update Live Activity immediately after advancing
         if let newExercise = self.currentExercise {
+            let context = liveContextValues()
             workoutLiveActivityManager.updateWorkout(
                 exerciseName: newExercise.name,
                 currentSet: currentSetIndex + 1,
@@ -975,7 +1226,11 @@ final class GymModeManager {
                 currentExerciseIndex: currentExerciseIndex,
                 elapsedTime: Int(elapsedTime),
                 workoutStartDate: self.workoutStartTime ?? Date(),
-                isPaused: isPaused
+                isPaused: isPaused,
+                intervalProgress: context.intervalProgress,
+                currentIntervalName: context.intervalName,
+                targetDistanceRemaining: context.distanceRemaining,
+                targetDistanceTotal: context.distanceTotal
             )
         }
     }
@@ -988,6 +1243,7 @@ final class GymModeManager {
             
             // Update Live Activity
             if let nextExercise = self.currentExercise {
+                let context = liveContextValues()
                 workoutLiveActivityManager.updateWorkout(
                     exerciseName: nextExercise.name,
                     currentSet: currentSetIndex + 1,
@@ -995,7 +1251,11 @@ final class GymModeManager {
                     currentExerciseIndex: currentExerciseIndex,
                     elapsedTime: Int(elapsedTime),
                     workoutStartDate: self.workoutStartTime ?? Date(),
-                    isPaused: isPaused
+                    isPaused: isPaused,
+                    intervalProgress: context.intervalProgress,
+                    currentIntervalName: context.intervalName,
+                    targetDistanceRemaining: context.distanceRemaining,
+                    targetDistanceTotal: context.distanceTotal
                 )
             }
         }
@@ -1014,6 +1274,7 @@ final class GymModeManager {
         let exerciseName = currentExercise?.name ?? "Rest"
         let nextSet = currentSetIndex + 1
         let totalSets = currentExercise?.sets.count ?? 3
+        let context = liveContextValues()
         
         workoutLiveActivityManager.startRest(
             exerciseName: exerciseName,
@@ -1023,7 +1284,11 @@ final class GymModeManager {
             elapsedTime: Int(elapsedTime),
             restEndTime: restEndTime!,
             workoutStartDate: self.workoutStartTime ?? Date(),
-            isPaused: isPaused
+            isPaused: isPaused,
+            intervalProgress: context.intervalProgress,
+            currentIntervalName: context.intervalName,
+            targetDistanceRemaining: context.distanceRemaining,
+            targetDistanceTotal: context.distanceTotal
         )
         
         // Sync rest state to widget
@@ -1072,6 +1337,7 @@ final class GymModeManager {
             let exerciseName = currentExercise?.name ?? "Rest"
             let nextSet = currentSetIndex + 1
             let totalSets = currentExercise?.sets.count ?? 3
+            let context = liveContextValues()
             
             restDuration += seconds
             
@@ -1083,7 +1349,11 @@ final class GymModeManager {
                 elapsedTime: Int(elapsedTime),
                 restEndTime: newEndTime,
                 workoutStartDate: self.workoutStartTime ?? Date(),
-                isPaused: isPaused
+                isPaused: isPaused,
+                intervalProgress: context.intervalProgress,
+                currentIntervalName: context.intervalName,
+                targetDistanceRemaining: context.distanceRemaining,
+                targetDistanceTotal: context.distanceTotal
             )
             
             // Sync updated rest time to widget
@@ -1104,6 +1374,7 @@ final class GymModeManager {
         
         // Resume normal workout state in Live Activity
         if let currentActiveExercise = self.currentExercise {
+            let context = liveContextValues()
             workoutLiveActivityManager.endRest(
                 exerciseName: currentActiveExercise.name,
                 currentSet: currentSetIndex + 1,
@@ -1111,7 +1382,11 @@ final class GymModeManager {
                 currentExerciseIndex: currentExerciseIndex,
                 elapsedTime: Int(elapsedTime),
                 workoutStartDate: self.workoutStartTime ?? Date(),
-                isPaused: isPaused
+                isPaused: isPaused,
+                intervalProgress: context.intervalProgress,
+                currentIntervalName: context.intervalName,
+                targetDistanceRemaining: context.distanceRemaining,
+                targetDistanceTotal: context.distanceTotal
             )
         }
         
@@ -1147,6 +1422,17 @@ final class GymModeManager {
         }
         elapsedTimer?.invalidate()
         elapsedTimer = nil
+    }
+    
+    private func estimatedDistanceFromSets(in session: WorkoutSession?) -> Double? {
+        guard let session else { return nil }
+        
+        let totalDistance = session.exercises
+            .flatMap { $0.sets }
+            .compactMap { $0.distance }
+            .reduce(0, +)
+        
+        return totalDistance > 0 ? totalDistance : nil
     }
     
     // MARK: - Progressive Overload

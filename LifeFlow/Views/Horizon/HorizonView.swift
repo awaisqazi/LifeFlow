@@ -12,6 +12,7 @@ import SwiftData
 /// Tracks debt payoff, skill building, and major life challenges.
 struct HorizonView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.marathonCoachManager) private var coachManager
     @Query(sort: \Goal.deadline, order: .forward) private var goals: [Goal]
     @State private var showingAddGoal = false
     @State private var isEditing = false
@@ -171,6 +172,13 @@ struct HorizonView: View {
     
     private func deleteGoal(_ goal: Goal) {
         withAnimation {
+            if goal.type == .raceTraining {
+                let hasOtherRaceGoals = goals.contains { $0.id != goal.id && $0.type == .raceTraining }
+                if !hasOtherRaceGoals {
+                    coachManager.cancelPlan(modelContext: modelContext)
+                }
+            }
+            
             modelContext.delete(goal)
             try? modelContext.save()
         }

@@ -20,6 +20,7 @@ struct ExerciseInputCard: View {
     @Binding var weight: Double
     @Binding var reps: Double
     @Binding var duration: TimeInterval
+    @Binding var distance: Double
     @Binding var speed: Double
     @Binding var incline: Double
     
@@ -65,6 +66,7 @@ struct ExerciseInputCard: View {
                             targetDistance: miles,
                             onComplete: { actualDistance, finalSpeed, finalIncline, history, early in
                                 // Update state for save
+                                self.distance = actualDistance
                                 self.speed = finalSpeed
                                 self.incline = finalIncline
                                 self.duration = history?.reduce(0) { $0 + ($1.duration ?? 0) } ?? 0
@@ -1006,6 +1008,7 @@ private struct InteractingButtonStyle: ButtonStyle {
             weight: .constant(135),
             reps: .constant(0),
             duration: .constant(0),
+            distance: .constant(0),
             speed: .constant(0),
             incline: .constant(0),
             onComplete: {}

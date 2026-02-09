@@ -249,7 +249,11 @@ private func updateLiveActivity(with state: WorkoutWidgetState) async {
         cardioIncline: state.cardioIncline,
         cardioEndTime: state.cardioEndTime,
         cardioDuration: state.cardioDuration,
-        cardioTimeRemaining: state.cardioTimeRemaining
+        cardioTimeRemaining: state.cardioTimeRemaining,
+        intervalProgress: state.intervalProgress,
+        currentIntervalName: state.currentIntervalName,
+        targetDistanceRemaining: state.targetDistanceRemaining,
+        targetDistanceTotal: state.targetDistanceTotal
     )
     
     let content = ActivityContent(state: contentState, staleDate: nil)

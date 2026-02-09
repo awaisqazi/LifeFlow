@@ -41,7 +41,11 @@ final class GymWorkoutLiveActivityManager {
         cardioSpeed: Double = 0,
         cardioIncline: Double = 0,
         cardioEndTime: Date? = nil,
-        cardioDuration: TimeInterval = 0
+        cardioDuration: TimeInterval = 0,
+        intervalProgress: Double? = nil,
+        currentIntervalName: String? = nil,
+        targetDistanceRemaining: Double? = nil,
+        targetDistanceTotal: Double? = nil
     ) {
         // Check authorization status first
         let authInfo = ActivityAuthorizationInfo()
@@ -72,7 +76,11 @@ final class GymWorkoutLiveActivityManager {
                     cardioSpeed: cardioSpeed,
                     cardioIncline: cardioIncline,
                     cardioEndTime: cardioEndTime,
-                    cardioDuration: cardioDuration
+                    cardioDuration: cardioDuration,
+                    intervalProgress: intervalProgress,
+                    currentIntervalName: currentIntervalName,
+                    targetDistanceRemaining: targetDistanceRemaining,
+                    targetDistanceTotal: targetDistanceTotal
                 )
             }
         }
@@ -93,7 +101,11 @@ final class GymWorkoutLiveActivityManager {
         cardioSpeed: Double,
         cardioIncline: Double,
         cardioEndTime: Date?,
-        cardioDuration: TimeInterval
+        cardioDuration: TimeInterval,
+        intervalProgress: Double?,
+        currentIntervalName: String?,
+        targetDistanceRemaining: Double?,
+        targetDistanceTotal: Double?
     ) {
         // Create attributes and initial state
         let attributes = GymWorkoutAttributes(
@@ -115,7 +127,11 @@ final class GymWorkoutLiveActivityManager {
             cardioSpeed: cardioSpeed,
             cardioIncline: cardioIncline,
             cardioEndTime: cardioEndTime,
-            cardioDuration: cardioDuration
+            cardioDuration: cardioDuration,
+            intervalProgress: intervalProgress,
+            currentIntervalName: currentIntervalName,
+            targetDistanceRemaining: targetDistanceRemaining,
+            targetDistanceTotal: targetDistanceTotal
         )
         
         print("🏋️ Starting Live Activity with title: \(workoutTitle), exercise: \(exerciseName)")
@@ -152,7 +168,11 @@ final class GymWorkoutLiveActivityManager {
         cardioSpeed: Double = 0,
         cardioIncline: Double = 0,
         cardioEndTime: Date? = nil,
-        cardioDuration: TimeInterval = 0
+        cardioDuration: TimeInterval = 0,
+        intervalProgress: Double? = nil,
+        currentIntervalName: String? = nil,
+        targetDistanceRemaining: Double? = nil,
+        targetDistanceTotal: Double? = nil
     ) {
         guard let activity = currentActivity else { return }
         
@@ -170,7 +190,11 @@ final class GymWorkoutLiveActivityManager {
             cardioSpeed: cardioSpeed,
             cardioIncline: cardioIncline,
             cardioEndTime: cardioEndTime,
-            cardioDuration: cardioDuration
+            cardioDuration: cardioDuration,
+            intervalProgress: intervalProgress,
+            currentIntervalName: currentIntervalName,
+            targetDistanceRemaining: targetDistanceRemaining,
+            targetDistanceTotal: targetDistanceTotal
         )
         
         let content = ActivityContent(state: updatedState, staleDate: nil)
@@ -196,7 +220,11 @@ final class GymWorkoutLiveActivityManager {
         elapsedTime: Int,
         restEndTime: Date,
         workoutStartDate: Date,
-        isPaused: Bool = false
+        isPaused: Bool = false,
+        intervalProgress: Double? = nil,
+        currentIntervalName: String? = nil,
+        targetDistanceRemaining: Double? = nil,
+        targetDistanceTotal: Double? = nil
     ) {
         guard let activity = currentActivity else { return }
         
@@ -211,7 +239,11 @@ final class GymWorkoutLiveActivityManager {
             restTimeRemaining: Int(restEndTime.timeIntervalSinceNow),
             restEndTime: restEndTime,
             isPaused: isPaused,
-            isCardio: false // Rest is not a cardio activity state per se
+            isCardio: false, // Rest is not a cardio activity state per se
+            intervalProgress: intervalProgress,
+            currentIntervalName: currentIntervalName,
+            targetDistanceRemaining: targetDistanceRemaining,
+            targetDistanceTotal: targetDistanceTotal
         )
         
         let content = ActivityContent(state: restState, staleDate: nil)
@@ -229,7 +261,11 @@ final class GymWorkoutLiveActivityManager {
         currentExerciseIndex: Int,
         elapsedTime: Int,
         workoutStartDate: Date,
-        isPaused: Bool = false
+        isPaused: Bool = false,
+        intervalProgress: Double? = nil,
+        currentIntervalName: String? = nil,
+        targetDistanceRemaining: Double? = nil,
+        targetDistanceTotal: Double? = nil
     ) {
         updateWorkout(
             exerciseName: exerciseName,
@@ -238,7 +274,11 @@ final class GymWorkoutLiveActivityManager {
             currentExerciseIndex: currentExerciseIndex,
             elapsedTime: elapsedTime,
             workoutStartDate: workoutStartDate,
-            isPaused: isPaused
+            isPaused: isPaused,
+            intervalProgress: intervalProgress,
+            currentIntervalName: currentIntervalName,
+            targetDistanceRemaining: targetDistanceRemaining,
+            targetDistanceTotal: targetDistanceTotal
         )
     }
     

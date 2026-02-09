@@ -59,6 +59,7 @@ struct GymModeView: View {
     @State private var currentDuration: TimeInterval = 0
     @State private var currentSpeed: Double = 0
     @State private var currentIncline: Double = 0
+    @State private var currentDistance: Double = 0
     
     var body: some View {
         ZStack {
@@ -141,7 +142,7 @@ struct GymModeView: View {
         }) {
             if let session = completedTrainingSession {
                 PostRunCheckInSheet(session: session) { distance, effort in
-                    coachManager.completeSession(
+                    coachManager.refineCompletedSession(
                         session,
                         actualDistance: distance,
                         effort: effort,
@@ -292,6 +293,7 @@ struct GymModeView: View {
                                 weight: $currentWeight,
                                 reps: $currentReps,
                                 duration: $currentDuration,
+                                distance: $currentDistance,
                                 speed: $currentSpeed,
                                 incline: $currentIncline,
                                 onComplete: { completeCurrentSet() }
@@ -436,6 +438,7 @@ struct GymModeView: View {
             weight: $currentWeight,
             reps: $currentReps,
             duration: $currentDuration,
+            distance: $currentDistance,
             speed: $currentSpeed,
             incline: $currentIncline,
             onComplete: {
@@ -480,9 +483,12 @@ struct GymModeView: View {
             weight: currentWeight,
             reps: Int(currentReps),
             duration: currentDuration,
+            distance: currentDistance > 0 ? currentDistance : nil,
             speed: currentSpeed,
             incline: currentIncline
         )
+        
+        currentDistance = 0
         
         // Check if workout is complete - prompt user instead of auto-completing
         if manager.isWorkoutComplete {
@@ -525,6 +531,7 @@ struct GymModeView: View {
         currentDuration = 0
         currentSpeed = 0
         currentIncline = 0
+        currentDistance = 0
     }
     
     /// Pause workout and return to flow - can continue later
@@ -548,39 +555,40 @@ struct GymModeView: View {
     
     /// End workout completely and show summary
     private func endAndCompleteWorkout() {
-        // Capture training session before endWorkout() clears it via resetState()
-        let trainingSession = manager.activeTrainingSession
-        let liveDistance = healthKitManager.currentSessionDistance
-
-        completedSession = manager.endWorkout()
-
-        // Add completed session to today's DayLog so hasWorkedOut returns true
-        if let session = completedSession {
-            let startOfDay = Calendar.current.startOfDay(for: Date())
-            if let todayLog = dayLogs.first(where: { $0.date >= startOfDay }) {
-                // Add to existing DayLog
-                if !todayLog.workouts.contains(where: { $0.id == session.id }) {
-                    todayLog.workouts.append(session)
+        Task { @MainActor in
+            let finishPayload = await manager.finishWorkout(healthKitManager: healthKitManager)
+            completedSession = finishPayload.completedSession
+            
+            if let session = completedSession {
+                let startOfDay = Calendar.current.startOfDay(for: Date())
+                if let todayLog = dayLogs.first(where: { $0.date >= startOfDay }) {
+                    if !todayLog.workouts.contains(where: { $0.id == session.id }) {
+                        todayLog.workouts.append(session)
+                    }
+                } else {
+                    let newLog = DayLog(date: Date(), workouts: [session])
+                    modelContext.insert(newLog)
                 }
+            }
+            
+            try? modelContext.save()
+            
+            if let trainingSession = finishPayload.linkedTrainingSession {
+                let resolvedDistance = finishPayload.bestDistanceMiles
+                    ?? trainingSession.actualDistance
+                    ?? trainingSession.targetDistance
+                
+                coachManager.autoCompleteSession(
+                    trainingSession,
+                    actualDistance: resolvedDistance,
+                    modelContext: modelContext
+                )
+                
+                completedTrainingSession = trainingSession
+                showPostRunCheckIn = true
             } else {
-                // Create new DayLog for today
-                let newLog = DayLog(date: Date(), workouts: [session])
-                modelContext.insert(newLog)
+                showSummary = true
             }
-        }
-
-        try? modelContext.save()
-
-        // If this was a Marathon Coach session, show post-run check-in first
-        if let trainingSession = trainingSession, !trainingSession.isCompleted {
-            // Pre-fill HealthKit distance if available
-            if liveDistance > 0 {
-                trainingSession.actualDistance = liveDistance
-            }
-            completedTrainingSession = trainingSession
-            showPostRunCheckIn = true
-        } else {
-            showSummary = true
         }
     }
     
@@ -591,18 +599,16 @@ struct GymModeView: View {
         
         // Capture the session to delete BEFORE resetting state (which sets activeSession to nil)
         let sessionToDelete = manager.activeSession
-        
-        // Use resetState() to clear manager state safely
-        manager.resetState()
-        
-        // Delete the captured session
-        if let session = sessionToDelete {
-            modelContext.delete(session)
-            // Explicitly save context to ensure deletion persists immediately
-            try? modelContext.save()
+        Task { @MainActor in
+            await manager.discardWorkout(healthKitManager: healthKitManager)
+            
+            if let session = sessionToDelete {
+                modelContext.delete(session)
+                try? modelContext.save()
+            }
+            
+            dismiss()
         }
-        
-        dismiss()
     }
     
     /// Complete a cardio exercise with timed/freestyle data

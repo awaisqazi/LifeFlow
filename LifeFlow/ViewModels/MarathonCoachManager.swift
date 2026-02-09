@@ -46,6 +46,21 @@ final class MarathonCoachManager {
     var showPostRunCheckIn: Bool = false
     var showPreRunAdjustment: Bool = false
     var completedSessionForCheckIn: TrainingSession?
+    
+    private struct SessionBaseline {
+        let targetDistance: Double
+        let runType: RunType
+    }
+    
+    private struct AutoCompletionSnapshot {
+        let sessionBaselines: [UUID: SessionBaseline]
+        let originalActualDistance: Double?
+        let originalPerceivedEffort: Int?
+        let originalIsCompleted: Bool
+        let originalSummary: String?
+    }
+    
+    private var autoCompletionSnapshots: [UUID: AutoCompletionSnapshot] = [:]
 
     // MARK: - Plan Lifecycle
 
@@ -108,6 +123,7 @@ final class MarathonCoachManager {
         try? modelContext.save()
         activePlan = nil
         todaysSession = nil
+        autoCompletionSnapshots.removeAll()
     }
 
     // MARK: - Session Completion
@@ -119,44 +135,123 @@ final class MarathonCoachManager {
         effort: Int,
         modelContext: ModelContext
     ) {
+        autoCompletionSnapshots[session.id] = nil
+        applyCompletion(to: session, actualDistance: actualDistance, effort: effort)
+        try? modelContext.save()
+    }
+    
+    /// Immediately auto-complete a session after guided workout finish.
+    /// Uses a moderate default effort until user refines in post-run check-in.
+    func autoCompleteSession(
+        _ session: TrainingSession,
+        actualDistance: Double,
+        modelContext: ModelContext,
+        defaultEffort: Int = 2
+    ) {
+        guard let plan = activePlan else { return }
+        
+        let baseline = Dictionary(uniqueKeysWithValues: plan.sessions.map { session in
+            (session.id, SessionBaseline(targetDistance: session.targetDistance, runType: session.runType))
+        })
+        
+        autoCompletionSnapshots[session.id] = AutoCompletionSnapshot(
+            sessionBaselines: baseline,
+            originalActualDistance: session.actualDistance,
+            originalPerceivedEffort: session.perceivedEffort,
+            originalIsCompleted: session.isCompleted,
+            originalSummary: lastAdaptationSummary
+        )
+        
+        applyCompletion(to: session, actualDistance: actualDistance, effort: defaultEffort)
+        try? modelContext.save()
+    }
+    
+    /// Refine a previously auto-completed session with user-provided check-in data.
+    /// Reverts the auto-adaptation baseline first to avoid compounding adjustments.
+    func refineCompletedSession(
+        _ session: TrainingSession,
+        actualDistance: Double,
+        effort: Int,
+        modelContext: ModelContext
+    ) {
+        if let snapshot = autoCompletionSnapshots[session.id],
+           let plan = activePlan {
+            for planSession in plan.sessions {
+                guard let baseline = snapshot.sessionBaselines[planSession.id] else { continue }
+                planSession.targetDistance = baseline.targetDistance
+                planSession.runType = baseline.runType
+            }
+            
+            session.actualDistance = snapshot.originalActualDistance
+            session.perceivedEffort = snapshot.originalPerceivedEffort
+            session.isCompleted = snapshot.originalIsCompleted
+            lastAdaptationSummary = snapshot.originalSummary
+        }
+        
+        autoCompletionSnapshots[session.id] = nil
+        applyCompletion(to: session, actualDistance: actualDistance, effort: effort)
+        try? modelContext.save()
+    }
+    
+    /// Log a cross-training day as complete and refresh plan status.
+    func markCrossTrainingComplete(
+        session: TrainingSession,
+        activityName: String,
+        durationMinutes: Int,
+        modelContext: ModelContext
+    ) {
+        session.actualDistance = session.actualDistance ?? 0
+        session.perceivedEffort = session.perceivedEffort ?? 2
+        session.isCompleted = true
+        session.notes = "\(activityName) - \(durationMinutes) min"
+        
+        if let plan = activePlan {
+            plan.complianceScore = TrainingAdaptationEngine.calculateComplianceScore(plan: plan)
+            plan.confidenceScore = TrainingAdaptationEngine.calculateConfidenceScore(plan: plan)
+            lastAdaptationSummary = "\(activityName) logged. Great consistency."
+            todaysSession = plan.todaysSession
+        }
+        
+        autoCompletionSnapshots[session.id] = nil
+        try? modelContext.save()
+    }
+    
+    private func applyCompletion(
+        to session: TrainingSession,
+        actualDistance: Double,
+        effort: Int
+    ) {
         session.actualDistance = actualDistance
         session.perceivedEffort = effort
         session.isCompleted = true
-
+        
         guard let plan = activePlan else { return }
-
-        // Run adaptation engine
+        
         let adjustments = TrainingAdaptationEngine.adaptPlan(
             plan: plan,
             completedSession: session,
             effort: effort
         )
-
-        // Apply adjustments
+        
         TrainingAdaptationEngine.applyAdjustments(adjustments, to: plan)
-
-        // Update scores
+        
         plan.complianceScore = TrainingAdaptationEngine.calculateComplianceScore(plan: plan)
         plan.confidenceScore = TrainingAdaptationEngine.calculateConfidenceScore(plan: plan)
-
-        // Store adaptation summary
+        
         if let firstAdjustment = adjustments.first {
             lastAdaptationSummary = firstAdjustment.reason
         } else {
             lastAdaptationSummary = nil
         }
-
-        // Check if plan is complete (all sessions done or past race date)
+        
         if plan.raceDate < Date() {
             plan.isCompleted = true
         }
-
-        // Specific over-achievement feedback
+        
         if actualDistance > session.targetDistance * 1.15 && effort <= 2 {
             lastAdaptationSummary = "Crushing it! Your confidence score just got a boost."
         }
-
-        try? modelContext.save()
+        
         todaysSession = plan.todaysSession
     }
 

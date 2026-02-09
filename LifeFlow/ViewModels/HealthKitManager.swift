@@ -42,6 +42,9 @@ final class HealthKitManager: NSObject {
     /// Current distance in miles during specialized running workout
     private(set) var currentSessionDistance: Double = 0
     
+    /// Callback for live distance updates (used by GymMode Live Activity sync)
+    var onDistanceUpdate: ((Double) -> Void)?
+    
     /// Current pace in seconds per mile
     private(set) var currentPace: Double = 0
     
@@ -232,6 +235,67 @@ final class HealthKitManager: NSObject {
         
         let event = HKWorkoutEvent(type: type, dateInterval: DateInterval(start: date, duration: 0), metadata: nil)
         try await builder.addWorkoutEvents([event])
+    }
+    
+    /// Save a manually logged workout to HealthKit (used for cross-training logs)
+    /// - Parameters:
+    ///   - activityType: Workout activity type
+    ///   - startDate: Workout start date
+    ///   - endDate: Workout end date
+    ///   - duration: Duration in seconds
+    ///   - energyBurned: Optional calories burned in kcal
+    ///   - distanceMiles: Optional total distance in miles
+    /// - Returns: The saved HKWorkout object
+    func saveManualWorkout(
+        activityType: HKWorkoutActivityType,
+        startDate: Date,
+        endDate: Date,
+        duration: TimeInterval,
+        energyBurned: Double? = nil,
+        distanceMiles: Double? = nil
+    ) async throws -> HKWorkout {
+        guard isAvailable else {
+            throw HealthKitError.notAvailable
+        }
+        
+        if authorizationStatus == .notDetermined {
+            try await requestAuthorization()
+        }
+        
+        guard authorizationStatus == .sharingAuthorized else {
+            throw HealthKitError.authorizationDenied
+        }
+        
+        let energyQuantity = energyBurned.map { HKQuantity(unit: .kilocalorie(), doubleValue: $0) }
+        let distanceQuantity = distanceMiles.map { HKQuantity(unit: .mile(), doubleValue: $0) }
+        
+        let workout = HKWorkout(
+            activityType: activityType,
+            start: startDate,
+            end: endDate,
+            duration: duration,
+            totalEnergyBurned: energyQuantity,
+            totalDistance: distanceQuantity,
+            metadata: nil
+        )
+        
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            healthStore.save(workout) { success, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else if success {
+                    continuation.resume()
+                } else {
+                    continuation.resume(throwing: HealthKitError.queryFailed(NSError(
+                        domain: "HealthKitManager",
+                        code: -2,
+                        userInfo: [NSLocalizedDescriptionKey: "Failed to save workout to HealthKit."]
+                    )))
+                }
+            }
+        }
+        
+        return workout
     }
     
     // MARK: - Fetching Workouts
@@ -450,6 +514,7 @@ extension HealthKitManager: HKLiveWorkoutBuilderDelegate {
                 case HKQuantityType(.distanceWalkingRunning):
                     let meterValue = statistics.sumQuantity()?.doubleValue(for: .meter()) ?? 0
                     self.currentSessionDistance = meterValue / 1609.34 // Convert meters to miles
+                    self.onDistanceUpdate?(self.currentSessionDistance)
                     
                 case HKQuantityType(.activeEnergyBurned):
                     let kcalValue = statistics.sumQuantity()?.doubleValue(for: .kilocalorie()) ?? 0

@@ -47,8 +47,14 @@ struct WorkoutWidgetState: Codable {
     var cardioIncline: Double
     
     var cardioEndTime: Date?     // For countdown timers in timed cardio
-    var cardioModeIndex: Int     // 0 for Timed, 1 for Freestyle
+    var cardioModeIndex: Int     // 0 for Timed, 1 for Freestyle, 2 for Distance
     var cardioTimeRemaining: TimeInterval? // Stored remaining time when paused (for timed cardio)
+    
+    // Guided run metadata for Live Activity context
+    var intervalProgress: Double?
+    var currentIntervalName: String?
+    var targetDistanceRemaining: Double?
+    var targetDistanceTotal: Double?
     
     /// Default idle state
     static var idle: WorkoutWidgetState {
@@ -81,7 +87,11 @@ struct WorkoutWidgetState: Codable {
             cardioIncline: 0,
             cardioEndTime: nil,
             cardioModeIndex: 0,
-            cardioTimeRemaining: nil
+            cardioTimeRemaining: nil,
+            intervalProgress: nil,
+            currentIntervalName: nil,
+            targetDistanceRemaining: nil,
+            targetDistanceTotal: nil
         )
     }
     
