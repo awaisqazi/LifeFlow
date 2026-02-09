@@ -18,13 +18,29 @@ struct ProfileCenterSheet: View {
             List {
                 Section("Profile") {
                     HStack(spacing: 10) {
-                        Image(systemName: "person.crop.circle.fill")
-                            .font(.title2)
-                            .foregroundStyle(.cyan)
+                        ZStack(alignment: .bottomTrailing) {
+                            Image("icon_runner_fluid")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 60, height: 60)
+                                .clipShape(Circle())
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.white.opacity(0.22), lineWidth: 1)
+                                )
+                                .shadow(color: .cyan.opacity(0.25), radius: 10)
+
+                            Image("medal_early_bird")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 22, height: 22)
+                                .offset(x: 3, y: 3)
+                        }
+                        
                         VStack(alignment: .leading, spacing: 2) {
                             Text("LifeFlow Beta")
                                 .font(.subheadline.weight(.semibold))
-                            Text("Polish pass in progress")
+                            Text("Early Adopter")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }

@@ -102,9 +102,7 @@ struct MainTabView: View {
             isGymModeActive = false
         }
         .environment(\.openTab) { tab in
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
-                selectedTab = tab
-            }
+            selectedTab = tab
         }
         // Inject shared GymModeManager for workout state persistence
         .environment(\.gymModeManager, AppDependencyManager.shared.gymModeManager)
@@ -124,21 +122,52 @@ struct MainTabView: View {
 /// Switches between tab content views based on selection
 struct TabContentView: View {
     let selectedTab: LifeFlowTab
+    @State private var loadedTabs: Set<LifeFlowTab> = [.flow]
     
     var body: some View {
+        ZStack {
+            page(for: .flow)
+            page(for: .temple)
+            page(for: .horizon)
+        }
+        // Keep tab content switching seamless by avoiding blended crossfades
+        // between full-screen pages (which can ghost headers during transition).
+        .transaction { transaction in
+            transaction.animation = nil
+        }
+        .onAppear {
+            loadedTabs.insert(selectedTab)
+        }
+        .onChange(of: selectedTab) { _, newValue in
+            loadedTabs.insert(newValue)
+        }
+    }
+    
+    @ViewBuilder
+    private func page(for tab: LifeFlowTab) -> some View {
         Group {
-            switch selectedTab {
-            case .flow:
-                FlowDashboardView()
-            case .temple:
-                TempleView()
-            case .horizon:
-                HorizonView()
+            if loadedTabs.contains(tab) {
+                content(for: tab)
+            } else {
+                Color.clear
             }
         }
-        .id(selectedTab) // Force view identity change for animation
-        .transition(.opacity.combined(with: .scale(scale: 0.98)))
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: selectedTab)
+        .opacity(selectedTab == tab ? 1 : 0)
+        .allowsHitTesting(selectedTab == tab)
+        .accessibilityHidden(selectedTab != tab)
+        .zIndex(selectedTab == tab ? 1 : 0)
+    }
+    
+    @ViewBuilder
+    private func content(for tab: LifeFlowTab) -> some View {
+        switch tab {
+        case .flow:
+            FlowDashboardView()
+        case .temple:
+            TempleView()
+        case .horizon:
+            HorizonView()
+        }
     }
 }
 

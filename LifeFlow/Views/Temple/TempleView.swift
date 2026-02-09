@@ -509,34 +509,39 @@ private struct TempleChronicleEmptyState: View {
     let onRecordWorkout: () -> Void
     
     var body: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "moon.stars.fill")
-                .font(.title2)
-                .foregroundStyle(.cyan.opacity(0.7))
+        VStack(spacing: 20) {
+            Image("sculpture_zen_stone")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(height: 180)
+                .shadow(color: .white.opacity(0.1), radius: 20)
                 .accessibilityHidden(true)
 
-            Text("Your digital twin is waiting to be born.")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
+            Text("Your digital sanctuary is quiet.")
+                .font(.system(.title3, design: .serif).weight(.semibold))
+                .foregroundStyle(.white.opacity(0.9))
 
-            Text("Record your first workout to start the archive.")
-                .font(.caption)
+            Text("Record your first workout to begin the chronicle.")
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
             
             Button(action: onRecordWorkout) {
-                Label("Record First Workout", systemImage: "figure.run")
+                Label("Initialize Temple", systemImage: "figure.run")
                     .font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(Color.white.opacity(0.15), in: Capsule())
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(Color.white.opacity(0.12), in: Capsule())
                     .foregroundStyle(.white)
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                    )
             }
             .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
-        .background(Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 16))
+        .padding(.vertical, 30)
     }
 }
 

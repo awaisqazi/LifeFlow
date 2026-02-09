@@ -103,7 +103,6 @@ struct FloatingTabBar: View {
     
     var body: some View {
         tabBarContent
-            .animation(.interpolatingSpring(stiffness: 340, damping: 30), value: selectedTab)
             .padding(.horizontal, 40)
             .padding(.bottom, 20)
     }
@@ -166,66 +165,19 @@ struct FloatingTabBar: View {
     }
     
     private var tabButtons: some View {
-        ZStack {
-            HStack(spacing: 0) {
-                ForEach(LifeFlowTab.allCases, id: \.self) { tab in
-                    Group {
-                        if selectedTab == tab {
-                            selectedTabBackground
-                                .matchedGeometryEffect(id: "TAB_INDICATOR", in: tabNamespace)
-                        } else {
-                            Color.clear
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 4)
+        HStack(spacing: 0) {
+            ForEach(LifeFlowTab.allCases, id: \.self) { tab in
+                TabButton(
+                    tab: tab,
+                    isSelected: selectedTab == tab,
+                    namespace: tabNamespace
+                ) {
+                    guard selectedTab != tab else { return }
+                    selectedTab = tab
+                    // Haptic feedback - grounding digital in physical sensation
+                    let impact = UIImpactFeedbackGenerator(style: .light)
+                    impact.impactOccurred()
                 }
-            }
-            
-            HStack(spacing: 0) {
-                ForEach(LifeFlowTab.allCases, id: \.self) { tab in
-                    TabButton(
-                        tab: tab,
-                        isSelected: selectedTab == tab
-                    ) {
-                        withAnimation(.interpolatingSpring(stiffness: 360, damping: 30)) {
-                            selectedTab = tab
-                        }
-                        // Haptic feedback - grounding digital in physical sensation
-                        let impact = UIImpactFeedbackGenerator(style: .light)
-                        impact.impactOccurred()
-                    }
-                }
-            }
-        }
-    }
-    
-    @ViewBuilder
-    private var selectedTabBackground: some View {
-        if #available(iOS 26.0, *) {
-            Capsule()
-                .fill(.tint.opacity(0.32))
-                .glassEffect(.regular.interactive())
-                .overlay {
-                    Capsule()
-                        .strokeBorder(Color.white.opacity(0.22), lineWidth: 0.5)
-                }
-        } else {
-            // Fallback for older iOS
-            ZStack {
-                Capsule()
-                    .fill(.tint.opacity(0.32))
-                
-                UltraThinBlurView(
-                    style: .systemThinMaterialDark,
-                    cornerRadius: 20
-                )
-                .clipShape(Capsule())
-                .opacity(0.5)
-                
-                Capsule()
-                    .strokeBorder(Color.white.opacity(0.22), lineWidth: 0.5)
             }
         }
     }
@@ -237,6 +189,7 @@ struct FloatingTabBar: View {
 struct TabButton: View {
     let tab: LifeFlowTab
     let isSelected: Bool
+    let namespace: Namespace.ID
     let action: () -> Void
     @State private var isPressedPop: Bool = false
     
@@ -268,12 +221,47 @@ struct TabButton: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
             .padding(.horizontal, 8)
+            .background {
+                if isSelected {
+                    selectedTabBackground
+                        .matchedGeometryEffect(id: "TAB_INDICATOR", in: namespace)
+                }
+            }
             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSelected)
         }
         .buttonStyle(.plain)
         .contentShape(Capsule())
         .scaleEffect(isSelected ? 1.02 : 1.0)
         .animation(.spring(response: 0.3, dampingFraction: 0.75), value: isSelected)
+    }
+    
+    @ViewBuilder
+    private var selectedTabBackground: some View {
+        if #available(iOS 26.0, *) {
+            Capsule()
+                .fill(.tint.opacity(0.3))
+                .glassEffect(.regular.interactive())
+                .overlay {
+                    Capsule()
+                        .strokeBorder(Color.white.opacity(0.2), lineWidth: 0.5)
+                }
+        } else {
+            // Fallback for older iOS
+            ZStack {
+                Capsule()
+                    .fill(.tint.opacity(0.3))
+                
+                UltraThinBlurView(
+                    style: .systemThinMaterialDark,
+                    cornerRadius: 20
+                )
+                .clipShape(Capsule())
+                .opacity(0.5)
+                
+                Capsule()
+                    .strokeBorder(Color.white.opacity(0.2), lineWidth: 0.5)
+            }
+        }
     }
 }
 

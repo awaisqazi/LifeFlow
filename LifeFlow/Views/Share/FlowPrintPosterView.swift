@@ -56,6 +56,20 @@ struct FlowPrintPosterView: View {
     var body: some View {
         ZStack {
             backgroundLayer
+            
+            // The "Verified" Stamp
+            VStack {
+                HStack {
+                    Spacer()
+                    Image("stamp_verified_glass")
+                        .resizable()
+                        .frame(width: 80, height: 80)
+                        .opacity(0.8)
+                        .blendMode(.screen)
+                }
+                Spacer()
+            }
+            .padding(30) // Assuming padding from snippet, adjusted if needed relative to safe area
 
             VStack(spacing: isStory ? 20 : 14) {
                 header

@@ -13,6 +13,14 @@ enum LifeFlowTab: String, CaseIterable {
     case temple = "Temple"
     case horizon = "Horizon"
     
+    var orderIndex: Int {
+        switch self {
+        case .flow: return 0
+        case .temple: return 1
+        case .horizon: return 2
+        }
+    }
+    
     /// SF Symbol icon for each tab
     var icon: String {
         switch self {

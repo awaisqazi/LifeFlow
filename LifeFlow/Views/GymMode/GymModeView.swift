@@ -117,6 +117,17 @@ struct GymModeView: View {
                 .transition(.opacity)
                 .zIndex(100)
             }
+            
+            // AI Coach Orb Overlay (Placeholder for future state)
+            // if manager.isCoachSpeaking {
+            //    Image("ai_coach_orb")
+            //        .resizable()
+            //        .frame(width: 120, height: 120)
+            //        .shadow(color: .cyan.opacity(0.6), radius: 30)
+            //        .position(x: UIScreen.main.bounds.width / 2, y: 150)
+            //        .transition(.scale.combined(with: .opacity))
+            //        .zIndex(200)
+            // }
         }
         .preferredColorScheme(.dark)
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: showEndConfirmation)

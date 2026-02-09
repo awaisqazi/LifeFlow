@@ -49,10 +49,26 @@ struct LiquidBackgroundView: View {
     }
     
     var body: some View {
-        AnimatedMeshGradientView(
-            theme: currentTheme,
-            successPulseIntensity: successPulseIntensity
-        )
+        ZStack {
+            AnimatedMeshGradientView(
+                theme: currentTheme,
+                successPulseIntensity: successPulseIntensity
+            )
+            
+            // Atmosphere Layer
+            Image("light_leak_dawn")
+                .resizable()
+                .blendMode(.screen)
+                .opacity(0.4)
+                .ignoresSafeArea()
+            
+            // Subtle dusk leak for contrast
+            Image("light_leak_dusk")
+                .resizable()
+                .blendMode(.screen)
+                .opacity(0.2)
+                .ignoresSafeArea()
+        }
         .onChange(of: currentTab) { oldValue, newValue in
             // Trigger smooth theme transition
             withAnimation(.easeInOut(duration: 0.8)) {

@@ -281,6 +281,16 @@ struct DistanceCardioView: View {
                 gymModeManager.toggleVoiceCoachMute()
             } label: {
                 HStack(spacing: 8) {
+                    Image("ai_coach_orb")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 22, height: 22)
+                        .clipShape(Circle())
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white.opacity(0.18), lineWidth: 0.8)
+                        )
+
                     Image(systemName: gymModeManager.isVoiceCoachMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                     Text(gymModeManager.isVoiceCoachMuted ? "Voice Muted" : "Voice On")
                         .font(.subheadline.weight(.semibold))

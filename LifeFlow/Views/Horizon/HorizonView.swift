@@ -144,23 +144,44 @@ struct HorizonView: View {
             SanctuarySectionHeader(title: "Aspiration Windows")
 
             if goals.isEmpty {
-                VStack(spacing: 14) {
-                    GhostExampleGoalCard()
+                VStack(spacing: 24) {
+                    Image("sculpture_mountain")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(height: 220)
+                        .shadow(color: .indigo.opacity(0.4), radius: 30)
+                        .accessibilityHidden(true)
                     
+                    VStack(spacing: 8) {
+                        Text("The Horizon Awaits")
+                            .font(.system(.title2, design: .serif).weight(.semibold))
+                            .foregroundStyle(.white)
+                        
+                        Text("Set an aspiration to begin your journey.")
+                            .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.6))
+                    }
+
                     Button {
                         showingAddGoal = true
                     } label: {
-                        Label("Create First Goal", systemImage: "plus.circle.fill")
-                            .font(.subheadline.weight(.semibold))
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(Color.white.opacity(0.16), in: Capsule())
+                        Label("Create Aspiration", systemImage: "plus")
+                            .font(.headline)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 14)
+                            .background(
+                                LinearGradient(colors: [.indigo, .purple], startPoint: .topLeading, endPoint: .bottomTrailing)
+                                    .opacity(0.8),
+                                in: Capsule()
+                            )
                             .foregroundStyle(.white)
+                            .shadow(color: .purple.opacity(0.4), radius: 10, y: 4)
                     }
                     .buttonStyle(.plain)
                     .accessibilityHint("Opens goal creation.")
                 }
-                .padding(.vertical, 20)
+                .padding(.vertical, 30)
+                .frame(maxWidth: .infinity)
             } else {
                 GeometryReader { geometry in
                     let viewportWidth = max(geometry.size.width, 320)

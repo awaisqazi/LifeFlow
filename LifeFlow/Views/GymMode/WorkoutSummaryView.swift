@@ -96,13 +96,16 @@ struct GymWorkoutSummaryView: View {
     private var celebrationHeader: some View {
         VStack(spacing: 16) {
             ZStack {
+                // Fallback background in case image loading fails or creates gaps
                 Circle()
-                    .fill(Color.green.opacity(0.15))
-                    .frame(width: 100, height: 100)
+                    .fill(Color.orange.opacity(0.1))
+                    .frame(width: 90, height: 90)
                 
-                Image(systemName: "trophy.fill")
-                    .font(.system(size: 44))
-                    .foregroundStyle(.green)
+                Image(celebrationMedalAssetName)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 120, height: 120)
+                    .shadow(color: .orange.opacity(0.5), radius: 20)
             }
             
             Text("Great Work! 💪")
@@ -454,6 +457,23 @@ struct GymWorkoutSummaryView: View {
     
     private var resolvedCaloriesForShare: Int {
         max(estimatedCalories, Int(session.calories.rounded()))
+    }
+
+    private var celebrationMedalAssetName: String {
+        let distance = session.totalDistanceMiles
+        if distance >= 3.0 && distance <= 3.25 {
+            return "medal_fastest_5k"
+        }
+        if distance >= 8 {
+            return "medal_longest_run"
+        }
+        
+        let hour = Calendar.current.component(.hour, from: session.startTime)
+        if hour < 9 {
+            return "medal_early_bird"
+        }
+        
+        return "medal_longest_run"
     }
     
     private var completedExercisesForShare: Int {
