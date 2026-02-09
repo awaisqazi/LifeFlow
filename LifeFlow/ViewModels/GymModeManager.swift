@@ -101,6 +101,9 @@ final class GymModeManager {
     /// Links this workout to a training plan session for post-workout adaptation
     var associatedTrainingSessionID: UUID?
     
+    /// The active training session context (if launched from a plan)
+    var activeTrainingSession: TrainingSession?
+    
     /// Live distance from HealthKit during running sessions
     var healthKitDistance: Double = 0
     
@@ -424,14 +427,15 @@ final class GymModeManager {
     
     // MARK: Marathon Coach Session Launch
     
-    /// Start a workout pre-configured from a Marathon Coach training session.
-    /// This is the "Smart Start" entry point from the Horizon view.
+    /// Start a "Smart" workout pre-configured from a Marathon Coach training session.
+    /// This is the context-aware entry point from the Horizon view.
     /// - Parameter trainingSession: The training session from the plan
     /// - Parameter marathonCoach: The marathon coach manager to build the workout
     /// - Returns: The configured WorkoutSession ready to start
-    func startSession(from trainingSession: TrainingSession, using marathonCoach: MarathonCoachManager) -> WorkoutSession {
-        // Link this workout to the training plan
+    func startSmartSession(for trainingSession: TrainingSession, using marathonCoach: MarathonCoachManager) -> WorkoutSession {
+        // Link this workout to the training plan context
         self.associatedTrainingSessionID = trainingSession.id
+        self.activeTrainingSession = trainingSession
         
         // Configure the target based on run type
         switch trainingSession.runType {

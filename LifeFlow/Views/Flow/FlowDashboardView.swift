@@ -120,7 +120,7 @@ struct FlowDashboardView: View {
     
     private func startGuidedRun(_ trainingSession: TrainingSession) {
         // Use the new context-aware session launch
-        let workout = gymModeManager.startSession(from: trainingSession, using: coachManager)
+        let workout = gymModeManager.startSmartSession(for: trainingSession, using: coachManager)
         modelContext.insert(workout)
         gymModeManager.startWorkout(session: workout)
         enterGymMode()

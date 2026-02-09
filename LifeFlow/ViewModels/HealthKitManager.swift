@@ -15,7 +15,7 @@ import Observation
 /// Uses iOS 17+ async/await patterns for querying workout samples.
 /// iOS 26+: Supports live workout sessions with HKWorkoutSession and HKWorkoutBuilder.
 @Observable
-final class HealthKitManager {
+final class HealthKitManager: NSObject {
     // MARK: - Published State
     
     /// Current authorization status for workouts
@@ -77,7 +77,8 @@ final class HealthKitManager {
     
     // MARK: - Initialization
     
-    init() {
+    override init() {
+        super.init()
         isAvailable = HKHealthStore.isHealthDataAvailable()
         if isAvailable {
             checkAuthorizationStatus()
@@ -116,27 +117,50 @@ final class HealthKitManager {
         // Create workout configuration
         let configuration = HKWorkoutConfiguration()
         configuration.activityType = activityType
-        configuration.locationType = .indoor
+        configuration.locationType = .outdoor // Default to outdoor for GPS tracking
         
         // Create workout session
         let session = try HKWorkoutSession(healthStore: healthStore, configuration: configuration)
         workoutSession = session
         
-        // Create workout builder
-        let builder = HKWorkoutBuilder(healthStore: healthStore, configuration: configuration, device: .local())
+        // Set session delegate (needed for state changes)
+        // session.delegate = self // Defined in extension if needed
+        
+        // Create live workout builder associated with the session
+        let builder = session.associatedWorkoutBuilder()
         workoutBuilder = builder
+        
+        // Set builder data source to automatically collect data from reliable sources
+        builder.dataSource = HKLiveWorkoutDataSource(healthStore: healthStore, workoutConfiguration: configuration)
+        
+        // Set delegate to receive live data updates
+        builder.delegate = self
         
         // Start the session
         session.startActivity(with: Date())
         
         // Begin data collection
-        try await builder.beginCollection(at: Date())
+        // Begin data collection
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            builder.beginCollection(withStart: Date()) { (success, error) in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else if success {
+                    continuation.resume()
+                } else {
+                    continuation.resume(throwing: HealthKitError.queryFailed(NSError(domain: "HKLiveWorkoutBuilder", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unknown error starting collection"])))
+                }
+            }
+        }
         
-        isLiveWorkoutActive = true
-        activeCalories = 0
-        currentHeartRate = nil
-        currentSessionDistance = 0
-        currentPace = 0
+        // Reset local state
+        await MainActor.run {
+            self.isLiveWorkoutActive = true
+            self.activeCalories = 0
+            self.currentHeartRate = nil
+            self.currentSessionDistance = 0
+            self.currentPace = 0
+        }
     }
     
     /// Start a running workout specifically for Marathon Coach
@@ -408,6 +432,53 @@ final class HealthKitManager {
     }
 }
 
+// MARK: - HKLiveWorkoutBuilderDelegate
+
+@available(iOS 26.0, *)
+extension HealthKitManager: HKLiveWorkoutBuilderDelegate {
+    func workoutBuilder(_ workoutBuilder: HKLiveWorkoutBuilder, didCollectDataOf collectedTypes: Set<HKSampleType>) {
+        for type in collectedTypes {
+            guard let quantityType = type as? HKQuantityType else { continue }
+            
+            // Dispatch to main actor to update published properties
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                
+                guard let statistics = workoutBuilder.statistics(for: quantityType) else { return }
+                
+                switch quantityType {
+                case HKQuantityType(.distanceWalkingRunning):
+                    let meterValue = statistics.sumQuantity()?.doubleValue(for: .meter()) ?? 0
+                    self.currentSessionDistance = meterValue / 1609.34 // Convert meters to miles
+                    
+                case HKQuantityType(.activeEnergyBurned):
+                    let kcalValue = statistics.sumQuantity()?.doubleValue(for: .kilocalorie()) ?? 0
+                    self.activeCalories = kcalValue
+                    
+                case HKQuantityType(.heartRate):
+                    // Heart rate is usually discrete, but builder gives stats. 
+                    // Use most recent if available, or average.
+                    if let quantity = statistics.mostRecentQuantity() {
+                        self.currentHeartRate = quantity.doubleValue(for: countPerMinuteUnit)
+                    }
+                    
+                default:
+                    break
+                }
+            }
+        }
+    }
+    
+    func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {
+        // Handle events like auto-pause/resume
+        DispatchQueue.main.async {
+            // Potential future use: sync UI state if builder auto-pauses
+        }
+    }
+}
+
+// Helper unit
+private let countPerMinuteUnit = HKUnit.count().unitDivided(by: .minute())
 // MARK: - Error Types
 
 extension HealthKitManager {

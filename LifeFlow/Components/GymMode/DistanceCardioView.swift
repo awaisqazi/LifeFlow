@@ -326,7 +326,7 @@ struct DistanceCardioView: View {
     
     private var progress: Double {
         guard targetDistance > 0 else { return 0 }
-        return min(1.0, currentDistance / targetDistance)
+        return min(1.0, displayDistance / targetDistance)
     }
     
     private var remainingDistance: Double {
@@ -334,7 +334,12 @@ struct DistanceCardioView: View {
     }
     
     private var displayDistance: Double {
-        gymModeManager.healthKitDistance > 0 ? gymModeManager.healthKitDistance : currentDistance
+        // Use live HealthKit data if available, otherwise fallback to local sim (e.g. for treadmill)
+        // For outdoor runs, HealthKitManager.currentSessionDistance is the source of truth.
+        if healthKitManager.currentSessionDistance > 0 {
+            return healthKitManager.currentSessionDistance
+        }
+        return currentDistance
     }
     
     private var formattedElapsedTime: String {
