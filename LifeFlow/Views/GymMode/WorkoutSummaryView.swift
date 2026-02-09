@@ -9,6 +9,7 @@ import SwiftUI
 import HealthKit
 import MapKit
 import Charts
+import UIKit
 
 /// Post-workout summary with stats and HealthKit save option.
 /// Tap exercises to see detailed set information.
@@ -29,6 +30,13 @@ struct GymWorkoutSummaryView: View {
     @State private var mapRegion: MKCoordinateRegion?
     @State private var isLoadingAnalysis: Bool = false
     @State private var analysisMessage: String?
+    @State private var selectedFlowPrintFormat: FlowPrintFormat = .story
+    @State private var isRenderingFlowPrint: Bool = false
+    @State private var flowPrintImage: UIImage?
+    @State private var flowPrintFileURL: URL?
+    @State private var flowPrintCaption: String = ""
+    @State private var flowPrintError: String?
+    @State private var showFlowPrintShareSheet: Bool = false
     
     var body: some View {
         NavigationStack {
@@ -41,6 +49,8 @@ struct GymWorkoutSummaryView: View {
                     statsGrid
                     
                     raceDayAnalysisSection
+                    
+                    flowPrintSection
                     
                     Divider()
                         .background(Color.white.opacity(0.1))
@@ -65,6 +75,11 @@ struct GymWorkoutSummaryView: View {
         .preferredColorScheme(.dark)
         .task(id: session.id) {
             await loadRaceAnalysis()
+        }
+        .sheet(isPresented: $showFlowPrintShareSheet) {
+            if let fileURL = flowPrintFileURL {
+                ActivityShareSheet(items: [flowPrintCaption, fileURL])
+            }
         }
     }
     
@@ -204,6 +219,92 @@ struct GymWorkoutSummaryView: View {
         }
     }
     
+    private var flowPrintSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("FLOW PRINT")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .tracking(1)
+                
+                Spacer()
+                
+                Picker("Format", selection: $selectedFlowPrintFormat) {
+                    ForEach(FlowPrintFormat.allCases) { format in
+                        Text(format.title).tag(format)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 170)
+            }
+            
+            if let flowPrintImage {
+                Image(uiImage: flowPrintImage)
+                    .resizable()
+                    .scaledToFit()
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
+            }
+            
+            if let flowPrintError, !flowPrintError.isEmpty {
+                Text(flowPrintError)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+            }
+            
+            HStack(spacing: 10) {
+                Button {
+                    Task {
+                        await generateFlowPrint()
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        if isRenderingFlowPrint {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Image(systemName: "sparkles.rectangle.stack.fill")
+                        }
+                        Text(flowPrintImage == nil ? "Generate Poster" : "Regenerate")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.cyan.opacity(0.24), in: RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+                .disabled(isRenderingFlowPrint)
+                
+                Button {
+                    showFlowPrintShareSheet = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "square.and.arrow.up.fill")
+                        Text("Share Win")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(Color.green.opacity(0.22), in: RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+                .disabled(flowPrintFileURL == nil)
+            }
+            
+            Text("Designed for social + text. Best moments to share: first run, personal best, and streak milestones.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+    }
+    
     // MARK: - Exercise Breakdown
     
     private var exerciseBreakdown: some View {
@@ -327,6 +428,34 @@ struct GymWorkoutSummaryView: View {
         let setsCalories = totalCompletedSets * 5
         let durationCalories = Int(session.duration / 60) * 3
         return setsCalories + durationCalories
+    }
+    
+    private var flowPrintRunLine: String {
+        if let miles = session.runAnalysisMetadata?.completedDistanceMiles ?? (session.totalDistanceMiles > 0 ? session.totalDistanceMiles : nil) {
+            if abs(miles - 3.10686) < 0.2 { return "5K Run" }
+            if abs(miles - 6.21371) < 0.25 { return "10K Run" }
+            if abs(miles - 13.1094) < 0.35 { return "Half Marathon" }
+            if abs(miles - 26.2188) < 0.45 { return "Marathon" }
+            return String(format: "%.1f mi Run", miles)
+        }
+        return session.type == "Running" ? "Run Session" : session.title
+    }
+    
+    private var flowPrintDurationLine: String {
+        let totalSeconds = Int(session.duration.rounded())
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        let seconds = totalSeconds % 60
+        
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+    
+    private var flowPrintPaceLine: String? {
+        guard let targetPaceMinutesPerMile else { return nil }
+        return "Target Pace \(formatPace(targetPaceMinutesPerMile))/mi"
     }
     
     private func mapLegendDot(color: Color, label: String) -> some View {
@@ -560,6 +689,41 @@ struct GymWorkoutSummaryView: View {
                 isSaving = false
                 onDone()
             }
+        }
+    }
+    
+    @MainActor
+    private func generateFlowPrint() async {
+        isRenderingFlowPrint = true
+        defer { isRenderingFlowPrint = false }
+        flowPrintError = nil
+        
+        do {
+            let renderInput = FlowPrintRenderInput(
+                sessionTitle: session.title,
+                runLine: flowPrintRunLine,
+                durationLine: flowPrintDurationLine,
+                templeLine: "The Temple",
+                weatherLine: weatherStamp,
+                paceLine: flowPrintPaceLine,
+                completionDate: session.endTime ?? session.startTime,
+                format: selectedFlowPrintFormat,
+                routeSegments: routeSegments.map { segment in
+                    FlowPrintRouteSegment(
+                        coordinates: segment.coordinates,
+                        isAhead: segment.isAhead
+                    )
+                }
+            )
+            
+            let result = try FlowPrintRenderer.shared.renderPoster(input: renderInput)
+            flowPrintImage = result.image
+            flowPrintFileURL = result.fileURL
+            flowPrintCaption = result.caption
+            
+            SoundManager.shared.play(.successChime, volume: 0.56)
+        } catch {
+            flowPrintError = error.localizedDescription
         }
     }
 }
