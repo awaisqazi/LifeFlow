@@ -20,6 +20,7 @@ struct TrainingDayCard: View {
     @State private var feelingScore: Double = 0.7
     @State private var showFeelingSlider: Bool = false
     @State private var adjustedDistance: Double? = nil
+    @State private var showFuelSheet: Bool = false
 
     private var displayDistance: Double {
         adjustedDistance ?? session.targetDistance
@@ -110,6 +111,13 @@ struct TrainingDayCard: View {
                 // Active training content
                 activeTrainingView
             }
+            
+            if canShowFuelStrategy {
+                HStack {
+                    fuelStrategyButton
+                    Spacer()
+                }
+            }
         }
         .padding()
         .glassEffect(in: .rect(cornerRadius: 20))
@@ -119,6 +127,11 @@ struct TrainingDayCard: View {
             } label: {
                 Label("Life Happens (Push +1 Day)", systemImage: "calendar.badge.plus")
             }
+            }
+            .sheet(isPresented: $showFuelSheet) {
+                FuelingStrategyView(session: session)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
             }
         }
     }
@@ -372,6 +385,24 @@ struct TrainingDayCard: View {
         if feelingScore >= 0.7 { return "Feeling great! Stick to the plan." }
         if feelingScore >= 0.3 { return "Adjusted distance. Volume redistributed to your next easy run." }
         return "Take it easy. Consider a light recovery or rest."
+    }
+    
+    private var canShowFuelStrategy: Bool {
+        session.runType != .rest
+    }
+    
+    private var fuelStrategyButton: some View {
+        Button {
+            showFuelSheet = true
+        } label: {
+            Label("Fuel Strategy", systemImage: "fork.knife.circle.fill")
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(.ultraThinMaterial, in: Capsule())
+                .foregroundStyle(.primary)
+        }
+        .buttonStyle(.plain)
     }
 
     private func effortLabel(_ effort: Int) -> String {
