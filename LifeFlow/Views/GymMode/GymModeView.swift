@@ -31,6 +31,7 @@ struct GymModeView: View {
     
     @Environment(GymModeManager.self) private var manager
     @Environment(HealthKitManager.self) private var healthKitManager
+    @Environment(\.marathonCoachManager) private var coachManager
     @State private var showSetupSheet: Bool = false // Start false, will be set on appear
     @State private var showSummary: Bool = false
     @State private var showEndConfirmation: Bool = false
@@ -38,6 +39,8 @@ struct GymModeView: View {
     @State private var completedSession: WorkoutSession? = nil
     @State private var showAddExerciseSheet: Bool = false
     @State private var showWorkoutCompleteConfirmation: Bool = false
+    @State private var showPostRunCheckIn: Bool = false
+    @State private var completedTrainingSession: TrainingSession? = nil
     
     // Drag and drop state for live reordering
     @State private var draggedItem: WorkoutExercise? = nil
@@ -131,6 +134,21 @@ struct GymModeView: View {
                 loadCurrentSetDefaults()
             }
             .interactiveDismissDisabled(false) // Allow dismiss with cancel
+        }
+        .sheet(isPresented: $showPostRunCheckIn, onDismiss: {
+            // After check-in, show workout summary
+            showSummary = true
+        }) {
+            if let session = completedTrainingSession {
+                PostRunCheckInSheet(session: session) { distance, effort in
+                    coachManager.completeSession(
+                        session,
+                        actualDistance: distance,
+                        effort: effort,
+                        modelContext: modelContext
+                    )
+                }
+            }
         }
         .sheet(isPresented: $showSummary, onDismiss: {
             // After summary is dismissed, exit gym mode
@@ -530,8 +548,12 @@ struct GymModeView: View {
     
     /// End workout completely and show summary
     private func endAndCompleteWorkout() {
+        // Capture training session before endWorkout() clears it via resetState()
+        let trainingSession = manager.activeTrainingSession
+        let liveDistance = healthKitManager.currentSessionDistance
+
         completedSession = manager.endWorkout()
-        
+
         // Add completed session to today's DayLog so hasWorkedOut returns true
         if let session = completedSession {
             let startOfDay = Calendar.current.startOfDay(for: Date())
@@ -546,9 +568,20 @@ struct GymModeView: View {
                 modelContext.insert(newLog)
             }
         }
-        
+
         try? modelContext.save()
-        showSummary = true
+
+        // If this was a Marathon Coach session, show post-run check-in first
+        if let trainingSession = trainingSession, !trainingSession.isCompleted {
+            // Pre-fill HealthKit distance if available
+            if liveDistance > 0 {
+                trainingSession.actualDistance = liveDistance
+            }
+            completedTrainingSession = trainingSession
+            showPostRunCheckIn = true
+        } else {
+            showSummary = true
+        }
     }
     
     /// Discard workout without saving

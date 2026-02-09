@@ -671,6 +671,7 @@ final class GymModeManager {
         // Reset Marathon Coach integration
         activeTarget = .open
         associatedTrainingSessionID = nil
+        activeTrainingSession = nil
         
         // Clear widget state
         WorkoutWidgetState.clear()
