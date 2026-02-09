@@ -47,6 +47,7 @@ struct HydrationCard: View {
                     Button {
                         if dayLog.waterIntake >= 8 {
                             dayLog.waterIntake -= 8
+                            HydrationSettings.saveCurrentIntake(dayLog.waterIntake)
                             try? modelContext.save()
                             WidgetCenter.shared.reloadAllTimelines()
                         }
@@ -59,6 +60,7 @@ struct HydrationCard: View {
                     
                     Button {
                         dayLog.waterIntake += 8
+                        HydrationSettings.saveCurrentIntake(dayLog.waterIntake)
                         try? modelContext.save()
                         WidgetCenter.shared.reloadAllTimelines()
                     } label: {

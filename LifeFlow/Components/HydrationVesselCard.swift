@@ -284,6 +284,7 @@ struct HydrationVesselCard: View {
         guard newValue != dayLog.waterIntake else { return }
         
         dayLog.waterIntake = newValue
+        HydrationSettings.saveCurrentIntake(newValue)
         waterManager.triggerSplash(direction: ounces >= 0 ? .up : .down)
         SoundManager.shared.play(ounces > 0 ? .waterSplash : .glassTap, volume: ounces >= 16 ? 0.65 : 0.5)
         triggerHaptic(style: ounces >= 16 ? .medium : .soft)

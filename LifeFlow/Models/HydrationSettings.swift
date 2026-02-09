@@ -36,6 +36,8 @@ struct HydrationSettings: Codable {
 extension HydrationSettings {
     private static let appGroupID = "group.com.Fez.LifeFlow"
     private static let storageKey = "hydrationSettings"
+    private static let intakeStorageKey = "hydrationCurrentIntake"
+    private static let intakeDateStorageKey = "hydrationCurrentIntakeDate"
     
     /// Save settings to App Group UserDefaults and trigger widget reload
     func save() {
@@ -55,5 +57,21 @@ extension HydrationSettings {
             return .default
         }
         return settings
+    }
+    
+    /// Save today's water intake in shared defaults for fast widget reads.
+    static func saveCurrentIntake(_ intake: Double, for date: Date = Date()) {
+        guard let defaults = UserDefaults(suiteName: appGroupID) else { return }
+        defaults.set(max(0, intake), forKey: intakeStorageKey)
+        defaults.set(Calendar.current.startOfDay(for: date).timeIntervalSince1970, forKey: intakeDateStorageKey)
+    }
+    
+    /// Returns cached intake if it belongs to the requested day.
+    static func loadCurrentIntake(for date: Date = Date()) -> Double? {
+        guard let defaults = UserDefaults(suiteName: appGroupID) else { return nil }
+        let dayStamp = Calendar.current.startOfDay(for: date).timeIntervalSince1970
+        let storedStamp = defaults.double(forKey: intakeDateStorageKey)
+        guard storedStamp == dayStamp else { return nil }
+        return defaults.object(forKey: intakeStorageKey) as? Double
     }
 }

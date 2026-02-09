@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import Charts
+import CoreLocation
 
 /// The Temple tab - Digital Sanctuary.
 /// Distinguishes LifeFlow-native work from imported workouts while keeping analytics in one place.
@@ -544,6 +545,13 @@ private struct TempleChronicleEmptyState: View {
 struct WorkoutDetailModal: View {
     let workout: WorkoutSession
     @Environment(\.dismiss) private var dismiss
+    @State private var selectedFlowPrintFormat: FlowPrintFormat = .story
+    @State private var isRenderingFlowPrint: Bool = false
+    @State private var flowPrintFileURL: URL?
+    @State private var flowPrintCaption: String = ""
+    @State private var flowPrintError: String?
+    @State private var showFlowPrintShareSheet: Bool = false
+    @State private var healthKitManager = HealthKitManager()
 
     private var formattedDate: String {
         let formatter = DateFormatter()
@@ -595,6 +603,8 @@ struct WorkoutDetailModal: View {
                             .padding(.horizontal)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    
+                    flowPrintShareSection
 
                     Divider()
                         .padding(.horizontal)
@@ -639,6 +649,197 @@ struct WorkoutDetailModal: View {
             }
         }
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $showFlowPrintShareSheet) {
+            if let fileURL = flowPrintFileURL {
+                ActivityShareSheet(items: [flowPrintCaption, fileURL])
+            }
+        }
+    }
+    
+    private var flowPrintShareSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("FLOW PRINT")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .tracking(1)
+                
+                Spacer()
+                
+                Picker("Format", selection: $selectedFlowPrintFormat) {
+                    ForEach(FlowPrintFormat.allCases) { format in
+                        Text(format.title).tag(format)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 170)
+            }
+            
+            HStack(spacing: 10) {
+                Button {
+                    Task {
+                        await generateFlowPrint()
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        if isRenderingFlowPrint {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Image(systemName: "sparkles.rectangle.stack.fill")
+                        }
+                        Text(flowPrintFileURL == nil ? "Generate Poster" : "Regenerate")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .background(Color.cyan.opacity(0.24), in: RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+                .disabled(isRenderingFlowPrint)
+                
+                Button {
+                    showFlowPrintShareSheet = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "square.and.arrow.up.fill")
+                        Text("Share")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 11)
+                    .background(Color.green.opacity(0.24), in: RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+                .disabled(flowPrintFileURL == nil)
+            }
+            
+            if let flowPrintError, !flowPrintError.isEmpty {
+                Text(flowPrintError)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            } else {
+                Text("Share your progress to social or messages. Route glow is included when HealthKit route data is available.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.top, 2)
+    }
+    
+    private var flowPrintRunLine: String {
+        if let miles = workout.runAnalysisMetadata?.completedDistanceMiles ?? (workout.totalDistanceMiles > 0 ? workout.totalDistanceMiles : nil) {
+            if abs(miles - 3.10686) < 0.2 { return "5K Run" }
+            if abs(miles - 6.21371) < 0.25 { return "10K Run" }
+            if abs(miles - 13.1094) < 0.35 { return "Half Marathon" }
+            if abs(miles - 26.2188) < 0.45 { return "Marathon" }
+            return String(format: "%.1f mi Run", miles)
+        }
+        return workout.type == "Running" ? "Run Session" : workout.title
+    }
+    
+    private var flowPrintDurationLine: String {
+        let totalSeconds = Int(workout.duration.rounded())
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        let seconds = totalSeconds % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+    
+    private var flowPrintPaceLine: String? {
+        guard let targetPace = workout.runAnalysisMetadata?.targetPaceMinutesPerMile,
+              targetPace.isFinite, targetPace > 0 else {
+            return nil
+        }
+        let totalSeconds = Int((targetPace * 60).rounded())
+        return String(format: "Target Pace %d:%02d/mi", totalSeconds / 60, totalSeconds % 60)
+    }
+    
+    @MainActor
+    private func generateFlowPrint() async {
+        guard !isRenderingFlowPrint else { return }
+        isRenderingFlowPrint = true
+        defer { isRenderingFlowPrint = false }
+        flowPrintError = nil
+        
+        var segments: [FlowPrintRouteSegment] = []
+        
+        if let workoutID = workout.runAnalysisMetadata?.healthKitWorkoutID {
+            do {
+                try? await healthKitManager.requestAuthorization()
+                let routeLocations = try await healthKitManager.fetchWorkoutRouteLocations(for: workoutID)
+                segments = buildFlowPrintSegments(
+                    from: routeLocations,
+                    targetPace: workout.runAnalysisMetadata?.targetPaceMinutesPerMile
+                )
+            } catch {
+                // Non-blocking: Flow Print still works with stats-only composition.
+            }
+        }
+        
+        do {
+            let renderInput = FlowPrintRenderInput(
+                sessionTitle: workout.title,
+                runLine: flowPrintRunLine,
+                durationLine: flowPrintDurationLine,
+                templeLine: "The Temple",
+                weatherLine: workout.weatherStampText,
+                paceLine: flowPrintPaceLine,
+                completionDate: workout.endTime ?? workout.startTime,
+                format: selectedFlowPrintFormat,
+                routeSegments: segments
+            )
+            
+            let result = try FlowPrintRenderer.shared.renderPoster(input: renderInput)
+            flowPrintFileURL = result.fileURL
+            flowPrintCaption = result.caption
+            SoundManager.shared.play(.successChime, volume: 0.56)
+        } catch {
+            flowPrintError = error.localizedDescription
+        }
+    }
+    
+    private func buildFlowPrintSegments(
+        from locations: [CLLocation],
+        targetPace: Double?
+    ) -> [FlowPrintRouteSegment] {
+        let sorted = locations.sorted { $0.timestamp < $1.timestamp }
+        guard sorted.count > 1 else { return [] }
+        
+        var segments: [FlowPrintRouteSegment] = []
+        segments.reserveCapacity(sorted.count - 1)
+        
+        for index in 1..<sorted.count {
+            let previous = sorted[index - 1]
+            let current = sorted[index]
+            
+            let segmentDistanceMiles = max(0, current.distance(from: previous) / 1609.34)
+            let segmentDuration = max(0, current.timestamp.timeIntervalSince(previous.timestamp))
+            guard segmentDistanceMiles > 0.0003, segmentDuration > 0 else { continue }
+            
+            let segmentPace = (segmentDuration / 60) / segmentDistanceMiles
+            let isAhead: Bool
+            if let targetPace, targetPace > 0 {
+                isAhead = segmentPace <= targetPace
+            } else {
+                isAhead = true
+            }
+            
+            segments.append(
+                FlowPrintRouteSegment(
+                    coordinates: [previous.coordinate, current.coordinate],
+                    isAhead: isAhead
+                )
+            )
+        }
+        
+        return segments
     }
 }
 

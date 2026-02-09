@@ -6,11 +6,11 @@
 //
 
 import AppIntents
-import SwiftData
+import WidgetKit
 
 struct LogWaterIntent: AppIntent {
     static var title: LocalizedStringResource = "Log Water"
-    static var description = IntentDescription("Increments daily water intake.")
+    static var description = IntentDescription("Adds water to today's hydration log.")
     
     @Parameter(title: "Amount")
     var amount: Double
@@ -24,26 +24,8 @@ struct LogWaterIntent: AppIntent {
     }
     
     func perform() async throws -> some IntentResult {
-        let context = ModelContext(WidgetDataLayer.shared.modelContainer)
-        
-        // Find or create today's log
-        let today = Calendar.current.startOfDay(for: Date())
-        let descriptor = FetchDescriptor<DayLog>(
-            predicate: #Predicate<DayLog> { $0.date >= today }
-        )
-        
-        let existingLogs = try? context.fetch(descriptor)
-        let dayLog = existingLogs?.first ?? DayLog(date: Date())
-        
-        if existingLogs?.isEmpty == true || existingLogs == nil {
-            context.insert(dayLog)
-        }
-        
-        dayLog.waterIntake = max(0, dayLog.waterIntake + amount)
-        
-        try? context.save()
-        
-        // Reload widget timeline
+        _ = WidgetDataLayer.shared.updateTodayWaterIntake(by: amount)
+        WidgetCenter.shared.reloadTimelines(ofKind: "HydrationWidget")
         return .result()
     }
 }

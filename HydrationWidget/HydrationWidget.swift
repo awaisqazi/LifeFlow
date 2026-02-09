@@ -7,23 +7,19 @@
 
 import WidgetKit
 import SwiftUI
-import SwiftData
 
 struct Provider: TimelineProvider {
-    // Helper to fetch today's data directly
-    func getTodayLog() -> DayLog {
-        let context = ModelContext(WidgetDataLayer.shared.modelContainer)
-        let today = Calendar.current.startOfDay(for: Date())
-        let descriptor = FetchDescriptor<DayLog>(
-            predicate: #Predicate<DayLog> { $0.date >= today }
-        )
-        let results = try? context.fetch(descriptor)
-        return results?.first ?? DayLog(date: Date())
-    }
-    
     /// Load hydration goal from shared settings
     private func getDailyGoal() -> Double {
         HydrationSettings.load().dailyOuncesGoal
+    }
+    
+    private func makeEntry(for date: Date) -> SimpleEntry {
+        SimpleEntry(
+            date: date,
+            waterIntake: WidgetDataLayer.shared.todayWaterIntake(),
+            dailyGoal: getDailyGoal()
+        )
     }
 
     func placeholder(in context: Context) -> SimpleEntry {
@@ -31,23 +27,14 @@ struct Provider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> ()) {
-        let log = getTodayLog()
-        let entry = SimpleEntry(date: Date(), waterIntake: log.waterIntake, dailyGoal: getDailyGoal())
-        completion(entry)
+        completion(makeEntry(for: Date()))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<SimpleEntry>) -> ()) {
-        let log = getTodayLog()
-        
-        // Create an entry for now
-        let entry = SimpleEntry(
-            date: Date(),
-            waterIntake: log.waterIntake,
-            dailyGoal: getDailyGoal()
-        )
+        let entry = makeEntry(for: Date())
 
-        // Reload policy: update next time the app is opened or every hour, but Intent will trigger reload too.
-        let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(3600)))
+        // Refresh passively every 30 minutes. Interactive intent updates trigger immediate reloads.
+        let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(1800)))
         completion(timeline)
     }
 }
@@ -56,6 +43,11 @@ struct SimpleEntry: TimelineEntry {
     let date: Date
     let waterIntake: Double
     let dailyGoal: Double
+    
+    var progress: Double {
+        guard dailyGoal > 0 else { return 0 }
+        return max(0, min(waterIntake / dailyGoal, 1))
+    }
 }
 
 struct HydrationWidget: Widget {
