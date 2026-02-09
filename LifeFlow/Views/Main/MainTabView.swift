@@ -46,6 +46,11 @@ struct MainTabView: View {
         .environment(\.exitGymMode) {
             isGymModeActive = false
         }
+        .environment(\.openTab) { tab in
+            withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+                selectedTab = tab
+            }
+        }
         // Inject shared GymModeManager for workout state persistence
         .environment(\.gymModeManager, AppDependencyManager.shared.gymModeManager)
         // Full-screen Gym Mode modal
@@ -83,4 +88,3 @@ struct TabContentView: View {
     MainTabView()
         .modelContainer(for: DayLog.self, inMemory: true)
 }
-

@@ -123,6 +123,10 @@ struct TempleView: View {
                             endPoint: .bottom
                         )
                     )
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.75)
+                    .allowsTightening(true)
+                    .accessibilityAddTraits(.isHeader)
 
                 Text("Inner work from LifeFlow. Outer work from your ecosystem.")
                     .font(.subheadline)
@@ -155,6 +159,8 @@ struct TempleView: View {
             .buttonStyle(.plain)
             .foregroundStyle(.white)
             .disabled(healthKitManager.isSyncing)
+            .accessibilityLabel(healthKitManager.isSyncing ? "Syncing Health Data" : "Sync Health Data")
+            .accessibilityHint("Imports workouts from Apple Health.")
         }
     }
 
@@ -270,6 +276,7 @@ struct TempleView: View {
                                 SanctuaryWorkoutRow(workout: workout)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityHint("Opens workout details.")
                             .contextMenu {
                                 Button {
                                     selectedWorkoutForDetail = workout
@@ -301,6 +308,7 @@ struct TempleView: View {
                                 SanctuaryWorkoutRow(workout: workout)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityHint("Opens workout details.")
                         }
                     }
                 }
@@ -456,6 +464,8 @@ private struct TempleInsightTile: View {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(accent.opacity(0.25), lineWidth: 1)
         )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(title): \(value), \(caption)")
     }
 }
 
@@ -472,6 +482,7 @@ private struct TempleSectionHeader: View {
                 .foregroundStyle(accent)
                 .frame(width: 22, height: 22)
                 .background(accent.opacity(0.18), in: Circle())
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
@@ -485,6 +496,8 @@ private struct TempleSectionHeader: View {
             Spacer()
         }
         .padding(.top, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
 }
 
@@ -494,6 +507,7 @@ private struct TempleChronicleEmptyState: View {
             Image(systemName: "moon.stars.fill")
                 .font(.title2)
                 .foregroundStyle(.cyan.opacity(0.7))
+                .accessibilityHidden(true)
 
             Text("No sessions in this range")
                 .font(.subheadline.weight(.semibold))
@@ -636,6 +650,8 @@ private struct StatBubble: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label): \(value)")
     }
 }
 
@@ -699,6 +715,7 @@ private struct ExerciseDetailCard: View {
         .padding(12)
         .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
         .padding(.horizontal)
+        .accessibilityElement(children: .combine)
     }
 
     private func colorForType(_ type: ExerciseType) -> Color {

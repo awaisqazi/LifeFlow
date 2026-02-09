@@ -16,6 +16,7 @@ struct TrainingDayCard: View {
     let onStartGuidedRun: () -> Void
     let onLifeHappens: () -> Void
     let onCheckIn: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var feelingScore: Double = 0.7
     @State private var showFeelingSlider: Bool = false
@@ -57,6 +58,10 @@ struct TrainingDayCard: View {
 
     private var cardAccentColor: Color {
         session.isCompleted ? .green : statusColor
+    }
+    
+    private var springAnimation: Animation? {
+        reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.8)
     }
 
     var body: some View {
@@ -149,6 +154,7 @@ struct TrainingDayCard: View {
                 Image(systemName: session.runType.icon)
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(runTypeColor)
+                    .accessibilityHidden(true)
             }
 
             VStack(alignment: .leading, spacing: 2) {
@@ -160,6 +166,8 @@ struct TrainingDayCard: View {
                 Text(session.runType.displayName)
                     .font(.title2.weight(.bold))
                     .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
 
             Spacer()
@@ -188,11 +196,14 @@ struct TrainingDayCard: View {
                         .font(.system(size: 56, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                         .contentTransition(.numericText(value: displayDistance))
-                        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: displayDistance)
+                        .animation(springAnimation, value: displayDistance)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
 
                     Text("mi")
                         .font(.title2.weight(.semibold))
                         .foregroundStyle(.white.opacity(0.75))
+                        .lineLimit(1)
                 }
 
                 Text(session.runType.effortDescription)
@@ -227,12 +238,12 @@ struct TrainingDayCard: View {
 
             if showFeelingSlider {
                 feelingSliderPanel
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
             }
 
             HStack(spacing: 10) {
                 Button {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                    withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82)) {
                         showFeelingSlider.toggle()
                     }
                 } label: {
@@ -247,6 +258,8 @@ struct TrainingDayCard: View {
                     .foregroundStyle(.white)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(showFeelingSlider ? "Finish Run Adjustment" : "Adjust Run Plan")
+                .accessibilityHint("Adjusts today's distance based on how you feel.")
 
                 Button(action: onStartGuidedRun) {
                     HStack(spacing: 8) {
@@ -285,6 +298,8 @@ struct TrainingDayCard: View {
                     .shadow(color: runTypeColor.opacity(0.38), radius: 10, x: 0, y: 5)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Start Guided Run")
+                .accessibilityHint("Begins your scheduled distance run.")
             }
         }
     }
@@ -306,10 +321,12 @@ struct TrainingDayCard: View {
                             session: session,
                             feelingScore: newValue
                         )
-                        withAnimation(.spring(response: 0.3)) {
+                        withAnimation(reduceMotion ? nil : .spring(response: 0.3)) {
                             adjustedDistance = adjusted
                         }
                     }
+                    .accessibilityLabel("How are you feeling")
+                    .accessibilityValue(feelingLabel)
 
                 Image(systemName: "face.smiling.fill")
                     .foregroundStyle(.green)
@@ -368,6 +385,8 @@ struct TrainingDayCard: View {
                 .foregroundStyle(.white)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Log Cross Training")
+            .accessibilityHint("Records a cross-training workout for today's plan.")
         }
         .padding(14)
         .background(.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 16))
@@ -464,11 +483,12 @@ struct TrainingDayCard: View {
                         .foregroundStyle(.white)
                 }
                 .buttonStyle(.plain)
+                .accessibilityHint("Refine distance and effort for this completed session.")
             }
         }
         .padding(14)
         .background(.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 16))
-        .animation(.spring(response: 0.4), value: session.runType)
+        .animation(reduceMotion ? nil : .spring(response: 0.4), value: session.runType)
     }
 
     // MARK: - Helpers
@@ -516,6 +536,7 @@ struct TrainingDayCard: View {
                 .foregroundStyle(.white)
         }
         .buttonStyle(.plain)
+        .accessibilityHint("Shows a fueling timeline for this session.")
     }
 
     private func effortLabel(_ effort: Int) -> String {

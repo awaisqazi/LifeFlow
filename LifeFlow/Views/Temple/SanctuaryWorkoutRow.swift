@@ -19,6 +19,9 @@ struct SanctuaryWorkoutRow: View {
             }
         }
         .contentShape(RoundedRectangle(cornerRadius: 24))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilitySummary)
+        .accessibilityHint("Opens workout details.")
     }
 
     private var nativeRow: some View {
@@ -208,6 +211,37 @@ struct SanctuaryWorkoutRow: View {
 
         let summedDistance = workout.totalDistanceMiles
         return summedDistance > 0 ? summedDistance : nil
+    }
+    
+    private var accessibilitySummary: String {
+        var parts: [String] = []
+        let title = workout.resolvedIsLifeFlowNative ? nativeTitle : importedTitle
+        parts.append(title)
+        parts.append("Source \(workout.resolvedSourceName)")
+        parts.append("Duration \(workout.formattedDuration)")
+        parts.append("Calories \(Int(workout.calories.rounded()))")
+        
+        if workout.resolvedIsLifeFlowNative {
+            let distance = formattedDistance(workout.totalDistanceMiles)
+            parts.append("Distance \(distance)")
+            
+            if let delta = workout.resolvedGhostRunnerDelta {
+                let status = delta >= 0 ? "Ahead" : "Behind"
+                parts.append("\(status) \(formatDelta(delta))")
+            }
+            
+            if let hydration = workout.resolvedLiquidLossEstimate {
+                parts.append("Hydration \(Int(hydration.rounded())) ounces")
+            }
+        } else if let distance = importedDistanceMiles {
+            parts.append("Distance \(formattedDistance(distance))")
+        }
+        
+        if let weather = workout.weatherStampText, !weather.isEmpty {
+            parts.append(weather)
+        }
+        
+        return parts.joined(separator: ". ")
     }
 
     @ViewBuilder
