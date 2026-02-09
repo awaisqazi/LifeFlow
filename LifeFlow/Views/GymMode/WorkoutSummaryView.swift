@@ -299,7 +299,7 @@ struct GymWorkoutSummaryView: View {
                 .disabled(flowPrintFileURL == nil)
             }
             
-            Text("Designed for social + text. Best moments to share: first run, personal best, and streak milestones.")
+            Text("Designed for social + text. Each card now includes your full wins, not just route data.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
@@ -430,6 +430,36 @@ struct GymWorkoutSummaryView: View {
         return setsCalories + durationCalories
     }
     
+    private var resolvedCaloriesForShare: Int {
+        max(estimatedCalories, Int(session.calories.rounded()))
+    }
+    
+    private var completedExercisesForShare: Int {
+        let completed = session.sortedExercises.filter { exercise in
+            exercise.sortedSets.contains(where: \.isCompleted)
+        }.count
+        return completed > 0 ? completed : session.sortedExercises.count
+    }
+    
+    private var totalRepsForShare: Int {
+        session.sortedExercises
+            .flatMap(\.sortedSets)
+            .filter(\.isCompleted)
+            .compactMap(\.reps)
+            .reduce(0, +)
+    }
+    
+    private var totalVolumeForShare: Int {
+        let volume = session.sortedExercises
+            .flatMap(\.sortedSets)
+            .filter(\.isCompleted)
+            .reduce(0.0) { partial, set in
+                guard let weight = set.weight, let reps = set.reps else { return partial }
+                return partial + (weight * Double(reps))
+            }
+        return Int(volume.rounded())
+    }
+    
     private var flowPrintRunLine: String {
         if let miles = session.runAnalysisMetadata?.completedDistanceMiles ?? (session.totalDistanceMiles > 0 ? session.totalDistanceMiles : nil) {
             if abs(miles - 3.10686) < 0.2 { return "5K Run" }
@@ -456,6 +486,108 @@ struct GymWorkoutSummaryView: View {
     private var flowPrintPaceLine: String? {
         guard let targetPaceMinutesPerMile else { return nil }
         return "Target Pace \(formatPace(targetPaceMinutesPerMile))/mi"
+    }
+    
+    private var flowPrintHighlights: [FlowPrintHighlight] {
+        var highlights: [FlowPrintHighlight] = [
+            FlowPrintHighlight(icon: "clock.fill", label: "Duration", value: flowPrintDurationLine, tone: .cyan)
+        ]
+        
+        let distance = session.totalDistanceMiles
+        if distance > 0 {
+            highlights.append(
+                FlowPrintHighlight(
+                    icon: "figure.run",
+                    label: "Distance",
+                    value: String(format: "%.1f mi", distance),
+                    tone: .green
+                )
+            )
+        }
+        
+        if completedExercisesForShare > 0 {
+            highlights.append(
+                FlowPrintHighlight(
+                    icon: "dumbbell.fill",
+                    label: "Exercises",
+                    value: "\(completedExercisesForShare)",
+                    tone: .orange
+                )
+            )
+        }
+        
+        if totalCompletedSets > 0 {
+            highlights.append(
+                FlowPrintHighlight(
+                    icon: "repeat",
+                    label: "Sets",
+                    value: "\(totalCompletedSets)",
+                    tone: .purple
+                )
+            )
+        }
+        
+        if resolvedCaloriesForShare > 0 {
+            highlights.append(
+                FlowPrintHighlight(
+                    icon: "flame.fill",
+                    label: "Calories",
+                    value: "\(resolvedCaloriesForShare)",
+                    tone: .pink
+                )
+            )
+        }
+        
+        if totalVolumeForShare > 0 {
+            highlights.append(
+                FlowPrintHighlight(
+                    icon: "scalemass.fill",
+                    label: "Volume",
+                    value: "\(totalVolumeForShare) lb",
+                    tone: .blue
+                )
+            )
+        }
+        
+        if let hydration = session.resolvedLiquidLossEstimate {
+            highlights.append(
+                FlowPrintHighlight(
+                    icon: "drop.fill",
+                    label: "Hydration",
+                    value: "\(Int(hydration.rounded())) oz",
+                    tone: .cyan
+                )
+            )
+        }
+        
+        return highlights
+    }
+    
+    private var flowPrintWinLine: String? {
+        var wins: [String] = []
+        
+        if completedExercisesForShare > 0 {
+            wins.append("\(completedExercisesForShare) exercises")
+        }
+        
+        if totalCompletedSets > 0 {
+            wins.append("\(totalCompletedSets) sets")
+        }
+        
+        if totalRepsForShare > 0 {
+            wins.append("\(totalRepsForShare) reps")
+        }
+        
+        if let delta = session.resolvedGhostRunnerDelta {
+            let prefix = delta >= 0 ? "ahead" : "behind"
+            wins.append("\(Int(abs(delta).rounded()))s \(prefix)")
+        }
+        
+        if wins.isEmpty {
+            return nil
+        }
+        
+        return wins.prefix(3).joined(separator: " • ")
     }
     
     private func mapLegendDot(color: Color, label: String) -> some View {
@@ -706,6 +838,8 @@ struct GymWorkoutSummaryView: View {
                 templeLine: "The Temple",
                 weatherLine: weatherStamp,
                 paceLine: flowPrintPaceLine,
+                highlights: flowPrintHighlights,
+                winLine: flowPrintWinLine,
                 completionDate: session.endTime ?? session.startTime,
                 format: selectedFlowPrintFormat,
                 routeSegments: routeSegments.map { segment in

@@ -37,6 +37,37 @@ struct FlowPrintRouteSegment {
     let isAhead: Bool
 }
 
+enum FlowPrintHighlightTone: String, Hashable {
+    case cyan
+    case green
+    case orange
+    case purple
+    case pink
+    case blue
+    
+    var color: Color {
+        switch self {
+        case .cyan: return .cyan
+        case .green: return .green
+        case .orange: return .orange
+        case .purple: return .purple
+        case .pink: return .pink
+        case .blue: return .blue
+        }
+    }
+}
+
+struct FlowPrintHighlight: Identifiable, Hashable {
+    let icon: String
+    let label: String
+    let value: String
+    let tone: FlowPrintHighlightTone
+    
+    var id: String {
+        "\(icon)|\(label)|\(value)|\(tone.rawValue)"
+    }
+}
+
 struct FlowPrintRenderInput {
     let sessionTitle: String
     let runLine: String
@@ -44,6 +75,8 @@ struct FlowPrintRenderInput {
     let templeLine: String
     let weatherLine: String?
     let paceLine: String?
+    let highlights: [FlowPrintHighlight]
+    let winLine: String?
     let completionDate: Date
     let format: FlowPrintFormat
     let routeSegments: [FlowPrintRouteSegment]
@@ -97,6 +130,17 @@ final class FlowPrintRenderer {
         parts.append(input.durationLine)
         if let pace = input.paceLine, !pace.isEmpty {
             parts.append(pace)
+        }
+        if let winLine = input.winLine, !winLine.isEmpty {
+            parts.append(winLine)
+        } else if !input.highlights.isEmpty {
+            let highlightsText = input.highlights
+                .prefix(3)
+                .map { "\($0.value) \($0.label.lowercased())" }
+                .joined(separator: ", ")
+            if !highlightsText.isEmpty {
+                parts.append(highlightsText)
+            }
         }
         parts.append("The Temple")
         return parts.joined(separator: " • ")

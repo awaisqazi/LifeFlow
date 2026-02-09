@@ -25,25 +25,17 @@ struct SanctuaryWorkoutRow: View {
     }
 
     private var nativeRow: some View {
-        HStack(spacing: 14) {
-            VStack(spacing: 2) {
-                Text(workout.startTime.formatted(.dateTime.day()))
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(.white)
+        HStack(alignment: .top, spacing: 14) {
+            dateBadge
 
-                Text(workout.startTime.formatted(.dateTime.month(.abbreviated)))
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.75))
-                    .textCase(.uppercase)
-            }
-            .frame(width: 52, height: 56)
-            .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 12))
-
-            VStack(alignment: .leading, spacing: 7) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     Text(nativeTitle)
                         .font(.headline.weight(.semibold))
                         .foregroundStyle(.white)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.82)
+                        .layoutPriority(1)
 
                     WorkoutSourceBadge(
                         sourceName: workout.resolvedSourceName,
@@ -52,40 +44,38 @@ struct SanctuaryWorkoutRow: View {
                     )
                 }
 
-                HStack(spacing: 10) {
-                    sanctuaryMetric(value: workout.formattedDuration, label: "Time")
-                    sanctuaryMetric(value: formattedDistance(workout.totalDistanceMiles), label: "Distance")
-                    sanctuaryMetric(value: "\(Int(workout.calories.rounded()))", label: "kCal")
+                metricLayout
+
+                if let movementSummaryLine {
+                    Text(movementSummaryLine)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.7))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.white.opacity(0.82))
 
                 if let weather = workout.weatherStampText, !weather.isEmpty {
                     Text(weather)
                         .font(.caption2)
                         .foregroundStyle(.white.opacity(0.72))
                         .lineLimit(1)
+                        .minimumScaleFactor(0.85)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
 
-            Spacer(minLength: 4)
-
-            VStack(alignment: .trailing, spacing: 10) {
-                if let delta = workout.resolvedGhostRunnerDelta {
-                    SanctuaryInsightBadge(
-                        label: delta >= 0 ? "Ahead" : "Behind",
-                        value: formatDelta(delta),
-                        accent: delta >= 0 ? .green : .red
-                    )
+            if !nativeInsightItems.isEmpty {
+                VStack(alignment: .trailing, spacing: 8) {
+                    ForEach(nativeInsightItems.prefix(2)) { insight in
+                        SanctuaryInsightBadge(
+                            label: insight.label,
+                            value: insight.value,
+                            accent: insight.accent
+                        )
+                    }
                 }
-
-                if let hydration = workout.resolvedLiquidLossEstimate {
-                    SanctuaryInsightBadge(
-                        label: "Hydration",
-                        value: "\(Int(hydration.rounded())) oz",
-                        accent: .cyan
-                    )
-                }
+                .frame(minWidth: 78, alignment: .trailing)
             }
         }
         .padding(16)
@@ -179,6 +169,139 @@ struct SanctuaryWorkoutRow: View {
         )
     }
 
+    private var dateBadge: some View {
+        VStack(spacing: 2) {
+            Text(workout.startTime.formatted(.dateTime.day()))
+                .font(.title3.weight(.bold))
+                .foregroundStyle(.white)
+
+            Text(workout.startTime.formatted(.dateTime.month(.abbreviated)))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.75))
+                .textCase(.uppercase)
+        }
+        .frame(width: 52, height: 56)
+        .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var metricLayout: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                ForEach(nativeMetricItems) { metric in
+                    nativeMetricPill(metric)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    ForEach(Array(nativeMetricItems.prefix(2))) { metric in
+                        nativeMetricPill(metric)
+                    }
+                }
+
+                if nativeMetricItems.count > 2 {
+                    HStack(spacing: 8) {
+                        ForEach(Array(nativeMetricItems.dropFirst(2))) { metric in
+                            nativeMetricPill(metric)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func nativeMetricPill(_ metric: SanctuaryNativeMetric) -> some View {
+        HStack(spacing: 4) {
+            Text(metric.value)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+            Text(metric.label)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.white.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(Color.white.opacity(0.12), in: Capsule())
+    }
+
+    private var resolvedCalories: Int {
+        let explicit = Int(workout.calories.rounded())
+        if explicit > 0 {
+            return explicit
+        }
+
+        let durationCalories = Int((workout.duration / 60) * 3)
+        let setsCalories = completedSetsCount * 5
+        return max(0, durationCalories + setsCalories)
+    }
+
+    private var completedExercisesCount: Int {
+        let completed = workout.sortedExercises.filter { exercise in
+            exercise.sortedSets.contains(where: \.isCompleted)
+        }.count
+        return completed > 0 ? completed : workout.sortedExercises.count
+    }
+
+    private var completedSetsCount: Int {
+        workout.sortedExercises.reduce(0) { partial, exercise in
+            partial + exercise.sortedSets.filter(\.isCompleted).count
+        }
+    }
+
+    private var movementSummaryLine: String? {
+        guard completedExercisesCount > 0 || completedSetsCount > 0 else { return nil }
+        return "\(completedExercisesCount) exercises • \(completedSetsCount) completed sets"
+    }
+
+    private var nativeMetricItems: [SanctuaryNativeMetric] {
+        var items: [SanctuaryNativeMetric] = [
+            SanctuaryNativeMetric(value: workout.formattedDuration, label: "Time"),
+            SanctuaryNativeMetric(value: "\(resolvedCalories)", label: "kCal")
+        ]
+
+        let distance = workout.totalDistanceMiles
+        if distance > 0 {
+            items.insert(SanctuaryNativeMetric(value: formattedDistance(distance), label: "Distance"), at: 1)
+        } else if completedExercisesCount > 0 {
+            items.insert(SanctuaryNativeMetric(value: "\(completedExercisesCount)", label: "Moves"), at: 1)
+        }
+
+        if completedSetsCount > 0 {
+            items.append(SanctuaryNativeMetric(value: "\(completedSetsCount)", label: "Sets"))
+        }
+
+        return Array(items.prefix(4))
+    }
+
+    private var nativeInsightItems: [SanctuaryNativeInsight] {
+        var items: [SanctuaryNativeInsight] = []
+
+        if let delta = workout.resolvedGhostRunnerDelta {
+            items.append(
+                SanctuaryNativeInsight(
+                    label: delta >= 0 ? "Ahead" : "Behind",
+                    value: formatDelta(delta),
+                    accent: delta >= 0 ? .green : .orange
+                )
+            )
+        }
+
+        if let hydration = workout.resolvedLiquidLossEstimate {
+            items.append(
+                SanctuaryNativeInsight(
+                    label: "Hydration",
+                    value: "\(Int(hydration.rounded())) oz",
+                    accent: .cyan
+                )
+            )
+        }
+
+        return items
+    }
+
     private var nativeTitle: String {
         let trimmed = workout.title.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "Guided Session" : trimmed
@@ -212,46 +335,44 @@ struct SanctuaryWorkoutRow: View {
         let summedDistance = workout.totalDistanceMiles
         return summedDistance > 0 ? summedDistance : nil
     }
-    
+
     private var accessibilitySummary: String {
         var parts: [String] = []
         let title = workout.resolvedIsLifeFlowNative ? nativeTitle : importedTitle
         parts.append(title)
         parts.append("Source \(workout.resolvedSourceName)")
         parts.append("Duration \(workout.formattedDuration)")
-        parts.append("Calories \(Int(workout.calories.rounded()))")
-        
+        parts.append("Calories \(resolvedCalories)")
+
         if workout.resolvedIsLifeFlowNative {
             let distance = formattedDistance(workout.totalDistanceMiles)
             parts.append("Distance \(distance)")
-            
+
+            if completedExercisesCount > 0 {
+                parts.append("\(completedExercisesCount) exercises")
+            }
+
+            if completedSetsCount > 0 {
+                parts.append("\(completedSetsCount) sets")
+            }
+
             if let delta = workout.resolvedGhostRunnerDelta {
                 let status = delta >= 0 ? "Ahead" : "Behind"
                 parts.append("\(status) \(formatDelta(delta))")
             }
-            
+
             if let hydration = workout.resolvedLiquidLossEstimate {
                 parts.append("Hydration \(Int(hydration.rounded())) ounces")
             }
         } else if let distance = importedDistanceMiles {
             parts.append("Distance \(formattedDistance(distance))")
         }
-        
+
         if let weather = workout.weatherStampText, !weather.isEmpty {
             parts.append(weather)
         }
-        
-        return parts.joined(separator: ". ")
-    }
 
-    @ViewBuilder
-    private func sanctuaryMetric(value: String, label: String) -> some View {
-        HStack(spacing: 4) {
-            Text(value)
-                .fontWeight(.semibold)
-            Text(label)
-                .foregroundStyle(.white.opacity(0.7))
-        }
+        return parts.joined(separator: ". ")
     }
 
     @ViewBuilder
@@ -276,6 +397,21 @@ struct SanctuaryWorkoutRow: View {
         let absoluteSeconds = Int(abs(delta).rounded())
         return "\(absoluteSeconds)s"
     }
+}
+
+private struct SanctuaryNativeMetric: Identifiable {
+    let value: String
+    let label: String
+
+    var id: String { "\(value)|\(label)" }
+}
+
+private struct SanctuaryNativeInsight: Identifiable {
+    let label: String
+    let value: String
+    let accent: Color
+
+    var id: String { "\(label)|\(value)" }
 }
 
 private struct SanctuaryInsightBadge: View {

@@ -721,7 +721,7 @@ struct WorkoutDetailModal: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
             } else {
-                Text("Share your progress to social or messages. Route glow is included when HealthKit route data is available.")
+                Text("Share a complete win card with exercises, sets, calories, hydration, and route glow when available.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -761,6 +761,151 @@ struct WorkoutDetailModal: View {
         return String(format: "Target Pace %d:%02d/mi", totalSeconds / 60, totalSeconds % 60)
     }
     
+    private var completedExercisesForShare: Int {
+        let completed = workout.sortedExercises.filter { exercise in
+            exercise.sortedSets.contains(where: \.isCompleted)
+        }.count
+        return completed > 0 ? completed : workout.sortedExercises.count
+    }
+    
+    private var completedSetsForShare: Int {
+        workout.sortedExercises.reduce(0) { partial, exercise in
+            partial + exercise.sortedSets.filter(\.isCompleted).count
+        }
+    }
+    
+    private var totalRepsForShare: Int {
+        workout.sortedExercises
+            .flatMap(\.sortedSets)
+            .filter(\.isCompleted)
+            .compactMap(\.reps)
+            .reduce(0, +)
+    }
+    
+    private var totalVolumeForShare: Int {
+        let volume = workout.sortedExercises
+            .flatMap(\.sortedSets)
+            .filter(\.isCompleted)
+            .reduce(0.0) { partial, set in
+                guard let weight = set.weight, let reps = set.reps else { return partial }
+                return partial + (weight * Double(reps))
+            }
+        return Int(volume.rounded())
+    }
+    
+    private var resolvedCaloriesForShare: Int {
+        let roundedCalories = Int(workout.calories.rounded())
+        if roundedCalories > 0 {
+            return roundedCalories
+        }
+        
+        let durationCalories = Int((workout.duration / 60) * 3)
+        let setsCalories = completedSetsForShare * 5
+        return max(0, durationCalories + setsCalories)
+    }
+    
+    private var flowPrintHighlights: [FlowPrintHighlight] {
+        var highlights: [FlowPrintHighlight] = [
+            FlowPrintHighlight(icon: "clock.fill", label: "Duration", value: flowPrintDurationLine, tone: .cyan)
+        ]
+        
+        let distance = workout.totalDistanceMiles
+        if distance > 0 {
+            highlights.append(
+                FlowPrintHighlight(
+                    icon: "figure.run",
+                    label: "Distance",
+                    value: String(format: "%.1f mi", distance),
+                    tone: .green
+                )
+            )
+        }
+        
+        if completedExercisesForShare > 0 {
+            highlights.append(
+                FlowPrintHighlight(
+                    icon: "dumbbell.fill",
+                    label: "Exercises",
+                    value: "\(completedExercisesForShare)",
+                    tone: .orange
+                )
+            )
+        }
+        
+        if completedSetsForShare > 0 {
+            highlights.append(
+                FlowPrintHighlight(
+                    icon: "repeat",
+                    label: "Sets",
+                    value: "\(completedSetsForShare)",
+                    tone: .purple
+                )
+            )
+        }
+        
+        if resolvedCaloriesForShare > 0 {
+            highlights.append(
+                FlowPrintHighlight(
+                    icon: "flame.fill",
+                    label: "Calories",
+                    value: "\(resolvedCaloriesForShare)",
+                    tone: .pink
+                )
+            )
+        }
+        
+        if totalVolumeForShare > 0 {
+            highlights.append(
+                FlowPrintHighlight(
+                    icon: "scalemass.fill",
+                    label: "Volume",
+                    value: "\(totalVolumeForShare) lb",
+                    tone: .blue
+                )
+            )
+        }
+        
+        if let hydration = workout.resolvedLiquidLossEstimate {
+            highlights.append(
+                FlowPrintHighlight(
+                    icon: "drop.fill",
+                    label: "Hydration",
+                    value: "\(Int(hydration.rounded())) oz",
+                    tone: .cyan
+                )
+            )
+        }
+        
+        return highlights
+    }
+    
+    private var flowPrintWinLine: String? {
+        var wins: [String] = []
+        
+        if completedExercisesForShare > 0 {
+            wins.append("\(completedExercisesForShare) exercises")
+        }
+        
+        if completedSetsForShare > 0 {
+            wins.append("\(completedSetsForShare) sets")
+        }
+        
+        if totalRepsForShare > 0 {
+            wins.append("\(totalRepsForShare) reps")
+        }
+        
+        if let delta = workout.resolvedGhostRunnerDelta {
+            let prefix = delta >= 0 ? "ahead" : "behind"
+            wins.append("\(Int(abs(delta).rounded()))s \(prefix)")
+        }
+        
+        if wins.isEmpty {
+            return nil
+        }
+        
+        return wins.prefix(3).joined(separator: " • ")
+    }
+    
     @MainActor
     private func generateFlowPrint() async {
         guard !isRenderingFlowPrint else { return }
@@ -791,6 +936,8 @@ struct WorkoutDetailModal: View {
                 templeLine: "The Temple",
                 weatherLine: workout.weatherStampText,
                 paceLine: flowPrintPaceLine,
+                highlights: flowPrintHighlights,
+                winLine: flowPrintWinLine,
                 completionDate: workout.endTime ?? workout.startTime,
                 format: selectedFlowPrintFormat,
                 routeSegments: segments
