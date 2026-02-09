@@ -125,6 +125,9 @@ final class GymModeManager {
     /// Live distance from HealthKit during running sessions
     var healthKitDistance: Double = 0
     
+    /// Guided run location mode (false: outdoor GPS, true: indoor treadmill)
+    var isIndoorRun: Bool = false
+    
     /// Whether Voice Coach is currently muted for this run
     private(set) var isVoiceCoachMuted: Bool = false
     
@@ -771,6 +774,7 @@ final class GymModeManager {
         self.associatedTrainingSessionID = trainingSession.id
         self.activeTrainingSession = trainingSession
         self.activeWeatherSummary = nil
+        self.isIndoorRun = false
         
         // Configure the target based on run type
         switch trainingSession.runType {
@@ -882,7 +886,7 @@ final class GymModeManager {
         Task {
             do {
                 if #available(iOS 26.0, *) {
-                    try await hkManager.startRunningWorkout()
+                    try await hkManager.startRunningWorkout(isIndoor: isIndoorRun)
                 }
             } catch {
                 hkManager.onDistanceUpdate = nil
@@ -1121,6 +1125,7 @@ final class GymModeManager {
         associatedTrainingSessionID = nil
         activeTrainingSession = nil
         activeWeatherSummary = nil
+        isIndoorRun = false
         AppDependencyManager.shared.healthKitManager.onDistanceUpdate = nil
         
         // Clear widget state

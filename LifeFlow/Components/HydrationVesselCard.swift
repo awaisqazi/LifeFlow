@@ -9,8 +9,7 @@ import SwiftUI
 import WidgetKit
 import SwiftData
 
-/// A premium hydration card featuring a glass vessel with CoreMotion water physics.
-/// The water surface tilts realistically as you physically tilt your phone.
+/// A premium hydration card featuring an elegant glass vessel and motion-reactive water.
 struct HydrationVesselCard: View {
     @Bindable var dayLog: DayLog
     @Environment(\.modelContext) private var modelContext
@@ -44,224 +43,251 @@ struct HydrationVesselCard: View {
     
     /// Fill level as percentage (0.0 to 1.0)
     private var fillLevel: Double {
-        min(currentIntake / dailyGoal, 1.0)
+        guard dailyGoal > 0 else { return 0 }
+        return min(currentIntake / dailyGoal, 1.0)
+    }
+    
+    private var progressPercent: Int {
+        Int((fillLevel * 100).rounded())
+    }
+    
+    private var remainingOunces: Int {
+        max(0, Int((dailyGoal - currentIntake).rounded()))
+    }
+    
+    private var hasReachedGoal: Bool {
+        currentIntake >= dailyGoal
     }
     
     var body: some View {
-        GlassCard(cornerRadius: 24) {
-            VStack(spacing: 16) {
-                // Header
-                HStack {
-                    Image(systemName: "drop.fill")
-                        .font(.title2)
-                        .foregroundStyle(.cyan)
-                    
-                    Text("Hydration")
-                        .font(.headline)
-                    
-                    Spacer()
-                    
-                    Text("\(Int(currentIntake)) / \(Int(dailyGoal)) oz")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
-                }
-                
-                // Vessel with Physics
-                ZStack {
-                    // Ambient glow
-                    Ellipse()
-                        .fill(
-                            RadialGradient(
-                                colors: [
-                                    .cyan.opacity(0.2),
-                                    .blue.opacity(0.08),
-                                    .clear
-                                ],
-                                center: .center,
-                                startRadius: 10,
-                                endRadius: 80
-                            )
-                        )
-                        .frame(width: 140, height: 100)
-                        .offset(y: 35)
-                        .blur(radius: 15)
-                    
-                    // Main vessel container
-                    ZStack {
-                        // Metal-accelerated water with realistic fluid physics
-                        MetalWaterView(
-                            fillLevel: animatedWaterLevel,
-                            tiltAngle: waterManager.tiltAngle
-                        )
-                        .clipShape(VesselShape())
-                        .drawingGroup() // GPU acceleration
-                        
-                        // Glass vessel stroke
-                        VesselShape()
-                            .stroke(
-                                LinearGradient(
-                                    colors: [
-                                        .white.opacity(0.5),
-                                        .white.opacity(0.2),
-                                        .white.opacity(0.1),
-                                        .white.opacity(0.2)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                lineWidth: 1.5
-                            )
-                        
-                        // Inner glass highlight
-                        VesselHighlightShape()
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        .white.opacity(0.2),
-                                        .white.opacity(0.05)
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                        
-                        // Glass effect overlay
-                        VesselShape()
-                            .fill(.clear)
-                            .glassEffect(.regular.tint(.cyan.opacity(0.06)), in: VesselShape())
-                        
-                        // Floating intake display
-                        VStack(spacing: 0) {
-                            Text("\(Int(currentIntake))")
-                                .font(.system(size: 32, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
-                                .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
-                            
-                            Text("oz")
-                                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                .foregroundStyle(.white.opacity(0.7))
-                                .textCase(.uppercase)
-                                .tracking(1.5)
-                        }
-                        .offset(y: -10)
-                    }
-                    .frame(width: 100, height: 160)
-                }
-                
-                // Progress drops (one per cup)
-                HStack(spacing: 6) {
-                    ForEach(0..<cupsGoal, id: \.self) { index in
-                        let isFilled = Double(index) < (currentIntake / 8)
-                        Image(systemName: "drop.fill")
-                            .font(.system(size: 10))
-                            .foregroundStyle(
-                                isFilled
-                                    ? LinearGradient(
-                                        colors: [.cyan, .blue],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                      )
-                                    : LinearGradient(
-                                        colors: [.white.opacity(0.2), .white.opacity(0.1)],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                      )
-                            )
-                            .shadow(color: isFilled ? .cyan.opacity(0.5) : .clear, radius: 3)
-                            .scaleEffect(isFilled ? 1.15 : 1.0)
-                            .animation(.spring(response: 0.3), value: isFilled)
-                    }
-                }
-                
-                // Controls
-                HStack(spacing: 16) {
-                    // Minus Button
-                    Button {
-                        if dayLog.waterIntake >= 8 {
-                            dayLog.waterIntake -= 8
-                            waterManager.triggerSplash(direction: .down)
-                            triggerHaptic(style: .light)
-                            try? modelContext.save()
-                            WidgetCenter.shared.reloadAllTimelines()
-                        }
-                    } label: {
-                        Image(systemName: "minus")
-                            .font(.title3.weight(.semibold))
-                            .frame(width: 44, height: 44)
-                            .background(.ultraThinMaterial, in: Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(dayLog.waterIntake < 8)
-                    .opacity(dayLog.waterIntake >= 8 ? 1.0 : 0.4)
-                    
-                    Spacer()
-                    
-                    // Quick add amounts
-                    HStack(spacing: 8) {
-                        QuickAddButton(amount: 8, unit: "oz") {
-                            dayLog.waterIntake += 8
-                            waterManager.triggerSplash(direction: .up)
-                            triggerHaptic(style: .soft)
-                            try? modelContext.save()
-                            WidgetCenter.shared.reloadAllTimelines()
-                        }
-                        
-                        QuickAddButton(amount: 16, unit: "oz") {
-                            dayLog.waterIntake += 16
-                            waterManager.triggerSplash(direction: .up)
-                            triggerHaptic(style: .medium)
-                            try? modelContext.save()
-                            WidgetCenter.shared.reloadAllTimelines()
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    // Plus Button
-                    Button {
-                        dayLog.waterIntake += 8
-                        waterManager.triggerSplash(direction: .up)
-                        triggerHaptic(style: .soft)
-                        try? modelContext.save()
-                        WidgetCenter.shared.reloadAllTimelines()
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.title3.weight(.semibold))
-                            .frame(width: 44, height: 44)
-                            .background(Color.cyan.opacity(0.3), in: Circle())
-                            .foregroundStyle(.cyan)
-                    }
-                    .buttonStyle(.plain)
-                }
+        GlassCard(cornerRadius: 26) {
+            VStack(spacing: 18) {
+                headerRow
+                mainShowcaseRow
+                cupProgressRow
+                controlsRow
             }
             .padding(20)
+            .background(
+                LinearGradient(
+                    colors: [
+                        .cyan.opacity(0.16),
+                        .blue.opacity(0.09),
+                        .clear
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                in: RoundedRectangle(cornerRadius: 24)
+            )
         }
         .onAppear {
-            // Animate water level on appear
-            withAnimation(.easeOut(duration: 0.8)) {
+            withAnimation(.easeOut(duration: 0.85)) {
                 animatedWaterLevel = fillLevel
             }
-            // Start motion tracking
             waterManager.startMotionUpdates()
         }
         .onDisappear {
             waterManager.stopMotionUpdates()
         }
         .onChange(of: fillLevel) { oldLevel, newLevel in
-            // Animate water level changes
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.72)) {
                 animatedWaterLevel = newLevel
             }
             
-            // Trigger success pulse when reaching daily goal
             if newLevel >= 1.0 && oldLevel < 1.0 && !hasTriggeredMilestone {
                 hasTriggeredMilestone = true
                 triggerSuccessPulse()
-                // Extra celebratory haptic
                 let notification = UINotificationFeedbackGenerator()
                 notification.notificationOccurred(.success)
             }
         }
+    }
+    
+    private var headerRow: some View {
+        HStack {
+            Label {
+                Text("Hydration")
+                    .font(.headline.weight(.semibold))
+            } icon: {
+                Image(systemName: "drop.fill")
+                    .foregroundStyle(.cyan)
+            }
+            
+            Spacer()
+            
+            Text("\(progressPercent)%")
+                .font(.caption.weight(.bold))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(.ultraThinMaterial, in: Capsule())
+        }
+    }
+    
+    private var mainShowcaseRow: some View {
+        HStack(spacing: 18) {
+            ZStack {
+                Ellipse()
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                .cyan.opacity(0.35),
+                                .blue.opacity(0.14),
+                                .clear
+                            ],
+                            center: .center,
+                            startRadius: 12,
+                            endRadius: 82
+                        )
+                    )
+                    .frame(width: 150, height: 108)
+                    .offset(y: 42)
+                    .blur(radius: 16)
+                
+                PremiumLiquidVesselView(
+                    fillLevel: animatedWaterLevel,
+                    tiltAngle: waterManager.smoothedTilt
+                )
+                .clipShape(VesselShape())
+                .overlay(
+                    VesselShape()
+                        .stroke(
+                            LinearGradient(
+                                colors: [
+                                    .white.opacity(0.56),
+                                    .white.opacity(0.24),
+                                    .white.opacity(0.10),
+                                    .white.opacity(0.24)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1.35
+                        )
+                )
+                .overlay(
+                    VesselHighlightShape()
+                        .fill(
+                            LinearGradient(
+                                colors: [.white.opacity(0.26), .white.opacity(0.04)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                )
+                .frame(width: 116, height: 188)
+            }
+            .frame(width: 124, height: 200)
+            
+            VStack(alignment: .leading, spacing: 10) {
+                Text("\(Int(currentIntake))")
+                    .font(.system(size: 44, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.22), radius: 6, y: 2)
+                
+                Text("oz today")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                    .tracking(1.2)
+                
+                metricPill(
+                    title: "Goal",
+                    value: "\(Int(dailyGoal)) oz",
+                    tint: .blue
+                )
+                metricPill(
+                    title: "Remaining",
+                    value: "\(remainingOunces) oz",
+                    tint: .cyan
+                )
+                
+                Label(
+                    hasReachedGoal ? "Goal reached" : "Keep it flowing",
+                    systemImage: hasReachedGoal ? "checkmark.seal.fill" : "sparkles"
+                )
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(hasReachedGoal ? .green : .cyan)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+    
+    private func metricPill(title: String, value: String, tint: Color) -> some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+            Text(value)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(tint.opacity(0.18), in: Capsule())
+    }
+    
+    private var cupProgressRow: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<cupsGoal, id: \.self) { index in
+                let filled = Double(index) < (currentIntake / 8.0)
+                Image(systemName: "drop.fill")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(filled ? .cyan : .white.opacity(0.18))
+                    .shadow(color: filled ? .cyan.opacity(0.4) : .clear, radius: 4)
+                    .scaleEffect(filled ? 1.12 : 1.0)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.8), value: filled)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 2)
+    }
+    
+    private var controlsRow: some View {
+        HStack(spacing: 10) {
+            HydrationAdjustButton(
+                icon: "minus",
+                tint: .white.opacity(0.12),
+                foreground: .white.opacity(0.9),
+                isDisabled: dayLog.waterIntake < 1
+            ) {
+                adjustWater(by: -8)
+            }
+            
+            HStack(spacing: 8) {
+                HydrationQuickAddChip(amount: 8, tint: .cyan) {
+                    adjustWater(by: 8)
+                }
+                HydrationQuickAddChip(amount: 12, tint: .mint) {
+                    adjustWater(by: 12)
+                }
+                HydrationQuickAddChip(amount: 16, tint: .blue) {
+                    adjustWater(by: 16)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            
+            HydrationAdjustButton(
+                icon: "plus",
+                tint: .cyan.opacity(0.36),
+                foreground: .cyan,
+                isDisabled: false
+            ) {
+                adjustWater(by: 8)
+            }
+        }
+    }
+    
+    private func adjustWater(by ounces: Double) {
+        let newValue = max(0, dayLog.waterIntake + ounces)
+        guard newValue != dayLog.waterIntake else { return }
+        
+        dayLog.waterIntake = newValue
+        waterManager.triggerSplash(direction: ounces >= 0 ? .up : .down)
+        triggerHaptic(style: ounces >= 16 ? .medium : .soft)
+        try? modelContext.save()
+        WidgetCenter.shared.reloadAllTimelines()
     }
     
     private func triggerHaptic(style: UIImpactFeedbackGenerator.FeedbackStyle) {
@@ -270,20 +296,40 @@ struct HydrationVesselCard: View {
     }
 }
 
-/// Quick-add button for common water amounts
-private struct QuickAddButton: View {
+private struct HydrationAdjustButton: View {
+    let icon: String
+    let tint: Color
+    let foreground: Color
+    let isDisabled: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(foreground)
+                .frame(width: 44, height: 44)
+                .background(tint, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.45 : 1)
+    }
+}
+
+private struct HydrationQuickAddChip: View {
     let amount: Int
-    let unit: String
+    let tint: Color
     let action: () -> Void
     
     var body: some View {
         Button(action: action) {
             Text("+\(amount)")
                 .font(.caption.weight(.bold))
+                .foregroundStyle(tint)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color.cyan.opacity(0.15), in: Capsule())
-                .foregroundStyle(.cyan)
+                .background(tint.opacity(0.16), in: Capsule())
         }
         .buttonStyle(.plain)
     }

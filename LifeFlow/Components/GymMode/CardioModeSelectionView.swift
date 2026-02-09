@@ -11,6 +11,7 @@ import SwiftUI
 struct CardioModeSelectionView: View {
     let exerciseName: String
     let onSelectMode: (CardioWorkoutMode) -> Void
+    @Environment(\.gymModeManager) private var gymModeManager
     
     @State private var selectedMode: CardioWorkoutMode? = nil
     
@@ -65,6 +66,16 @@ struct CardioModeSelectionView: View {
             }
             .padding(.horizontal)
             
+            if selectedMode == .distance {
+                HStack(spacing: 0) {
+                    locationOption(title: "Outdoors", icon: "map.fill", isIndoor: false)
+                    locationOption(title: "Treadmill", icon: "house.fill", isIndoor: true)
+                }
+                .padding(4)
+                .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+                .padding(.horizontal)
+            }
+            
             Spacer()
             
             // Start button
@@ -96,6 +107,32 @@ struct CardioModeSelectionView: View {
         }
         .background(Color.black.ignoresSafeArea())
         .preferredColorScheme(.dark)
+    }
+    
+    private func locationOption(title: String, icon: String, isIndoor: Bool) -> some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                gymModeManager.isIndoorRun = isIndoor
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                Text(title)
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(gymModeManager.isIndoorRun == isIndoor ? .white : .secondary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.clear)
+                if gymModeManager.isIndoorRun == isIndoor {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(isIndoor ? Color.orange.gradient : Color.cyan.gradient)
+                }
+            }
+        }
+        .buttonStyle(.plain)
     }
 }
 

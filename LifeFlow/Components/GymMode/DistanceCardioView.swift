@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+import MapKit
+import CoreLocation
+import Combine
 
 /// Distance-based cardio workout that counts up toward a target distance.
 /// Designed for Marathon Coach integration to track running sessions.
@@ -18,6 +21,9 @@ struct DistanceCardioView: View {
     @Environment(GymModeManager.self) private var gymModeManager
     @Environment(HealthKitManager.self) private var healthKitManager
     @State private var weatherService = RunWeatherService()
+    @StateObject private var liveLocationTracker = LiveRunLocationTracker()
+    @State private var mapPosition: MapCameraPosition = .automatic
+    @State private var hasCenteredMap = false
     
     @State private var phase: DistancePhase = .setup
     @State private var speed: Double = 5.0
@@ -68,6 +74,33 @@ struct DistanceCardioView: View {
         }
         .onAppear {
             weatherService.fetchIfNeeded()
+        }
+        .onDisappear {
+            liveLocationTracker.stopTracking()
+        }
+        .onChange(of: gymModeManager.isIndoorRun) { _, isIndoor in
+            if isIndoor {
+                liveLocationTracker.stopTracking()
+            } else if phase == .active {
+                liveLocationTracker.startTracking(indoor: false)
+            }
+        }
+        .onReceive(liveLocationTracker.$latestCoordinate.compactMap { $0 }) { coordinate in
+            guard !gymModeManager.isIndoorRun else { return }
+            
+            if !hasCenteredMap {
+                hasCenteredMap = true
+                mapPosition = .region(Self.region(around: coordinate))
+            } else {
+                mapPosition = .camera(
+                    MapCamera(
+                        centerCoordinate: coordinate,
+                        distance: 900,
+                        heading: 0,
+                        pitch: 0
+                    )
+                )
+            }
         }
     }
     
@@ -122,10 +155,12 @@ struct DistanceCardioView: View {
             }
             .padding(.top, 4)
             
+            runEnvironmentToggle
+            
             HStack(spacing: 8) {
-                Image(systemName: "cloud.sun.fill")
-                    .foregroundStyle(.cyan)
-                Text(weatherService.summaryText)
+                Image(systemName: gymModeManager.isIndoorRun ? "house.fill" : "cloud.sun.fill")
+                    .foregroundStyle(gymModeManager.isIndoorRun ? .orange : .cyan)
+                Text(gymModeManager.isIndoorRun ? "Indoor mode on. GPS map stays hidden to reduce distraction." : weatherService.summaryText)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.leading)
@@ -150,6 +185,16 @@ struct DistanceCardioView: View {
     
     private var activeView: some View {
         VStack(spacing: 20) {
+            HStack(spacing: 8) {
+                Image(systemName: gymModeManager.isIndoorRun ? "house.fill" : "location.fill")
+                    .foregroundStyle(gymModeManager.isIndoorRun ? .orange : .cyan)
+                Text(gymModeManager.isIndoorRun ? "Indoor run" : "Outdoor run")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 4)
+            
             // Progress ring with distance (Standard sizing)
             ZStack {
                 Circle()
@@ -201,7 +246,7 @@ struct DistanceCardioView: View {
                 }
             }
             
-            if shouldShowGhostRunner {
+            if gymModeManager.isIndoorRun, shouldShowGhostRunner {
                 VStack(spacing: 8) {
                     GhostRunnerBar(progress: progress, ghostProgress: ghostProgress)
                     
@@ -217,6 +262,10 @@ struct DistanceCardioView: View {
                 }
                 .padding(.horizontal, 2)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+            
+            if !gymModeManager.isIndoorRun {
+                outdoorLiveMapPanel
             }
             
             Button {
@@ -431,12 +480,63 @@ struct DistanceCardioView: View {
     }
     
     private var displayDistance: Double {
-        // Use live HealthKit data if available, otherwise fallback to local sim (e.g. for treadmill)
-        // For outdoor runs, HealthKitManager.currentSessionDistance is the source of truth.
+        // Indoor sessions prioritize local treadmill progression.
+        if gymModeManager.isIndoorRun {
+            if currentDistance > 0 {
+                return currentDistance
+            }
+            if healthKitManager.currentSessionDistance > 0 {
+                return healthKitManager.currentSessionDistance
+            }
+            return 0
+        }
+        
+        // Outdoor sessions prioritize GPS-backed HealthKit distance.
         if healthKitManager.currentSessionDistance > 0 {
             return healthKitManager.currentSessionDistance
         }
         return currentDistance
+    }
+    
+    @ViewBuilder
+    private var outdoorLiveMapPanel: some View {
+        if liveLocationTracker.canDisplayMap {
+            ZStack(alignment: .topLeading) {
+                Map(position: $mapPosition) {
+                    UserAnnotation()
+                    
+                    if liveLocationTracker.routeCoordinates.count > 1 {
+                        MapPolyline(coordinates: liveLocationTracker.routeCoordinates)
+                            .stroke(.cyan, style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
+                    }
+                }
+                .frame(height: 190)
+                .clipShape(RoundedRectangle(cornerRadius: 18))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+                
+                Label("Live Route", systemImage: "location.north.line.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .padding(10)
+            }
+        } else {
+            HStack(spacing: 10) {
+                Image(systemName: liveLocationTracker.isDenied ? "location.slash.fill" : "location.circle.fill")
+                    .foregroundStyle(.orange)
+                Text(liveLocationTracker.isDenied ? "Enable location for live route mapping." : "Acquiring your location for live route map…")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+            }
+            .padding()
+            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14))
+        }
     }
     
     private var formattedElapsedTime: String {
@@ -472,6 +572,10 @@ struct DistanceCardioView: View {
         elapsedTime = 0
         phase = .active
         gymModeManager.isCardioInProgress = true
+        hasCenteredMap = false
+        mapPosition = .automatic
+        liveLocationTracker.resetRoute()
+        liveLocationTracker.startTracking(indoor: gymModeManager.isIndoorRun)
         let setupSpeedOverride = hasCustomSetupSpeed ? speed : nil
         gymModeManager.beginGuidedDistanceRun(
             setupSpeedMPH: setupSpeedOverride,
@@ -520,9 +624,54 @@ struct DistanceCardioView: View {
                 timer?.invalidate()
                 timer = nil
                 gymModeManager.isCardioInProgress = false
+                liveLocationTracker.stopTracking()
                 phase = .complete
             }
         }
+    }
+    
+    private var runEnvironmentToggle: some View {
+        HStack(spacing: 0) {
+            environmentOption(
+                title: "Outdoors",
+                icon: "map.fill",
+                isIndoor: false
+            )
+            environmentOption(
+                title: "Treadmill",
+                icon: "house.fill",
+                isIndoor: true
+            )
+        }
+        .padding(4)
+        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
+    }
+    
+    private func environmentOption(title: String, icon: String, isIndoor: Bool) -> some View {
+        Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                gymModeManager.isIndoorRun = isIndoor
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.subheadline.weight(.semibold))
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+            }
+            .foregroundStyle(gymModeManager.isIndoorRun == isIndoor ? .white : .secondary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 11)
+            .background {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.clear)
+                if gymModeManager.isIndoorRun == isIndoor {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(isIndoor ? Color.orange.gradient : Color.cyan.gradient)
+                }
+            }
+        }
+        .buttonStyle(.plain)
     }
     
     private func recordInterval(oldSpeed: Double, oldIncline: Double) {
@@ -541,6 +690,7 @@ struct DistanceCardioView: View {
         timer?.invalidate()
         timer = nil
         gymModeManager.isCardioInProgress = false
+        liveLocationTracker.stopTracking()
         
         let finalIntervals = allIntervalsWithCurrent
         gymModeManager.updateCardioState(
@@ -553,6 +703,115 @@ struct DistanceCardioView: View {
             currentDistance: displayDistance
         )
         onComplete(displayDistance, speed, incline, finalIntervals, early)
+    }
+    
+    private static func region(around coordinate: CLLocationCoordinate2D) -> MKCoordinateRegion {
+        MKCoordinateRegion(
+            center: coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+        )
+    }
+}
+
+private final class LiveRunLocationTracker: NSObject, ObservableObject, CLLocationManagerDelegate {
+    @Published private(set) var routeCoordinates: [CLLocationCoordinate2D] = []
+    @Published private(set) var latestCoordinate: CLLocationCoordinate2D?
+    @Published private(set) var authorizationStatus: CLAuthorizationStatus
+    @Published private(set) var locationError: String?
+    
+    private let locationManager = CLLocationManager()
+    private var lastRecordedLocation: CLLocation?
+    private var isTracking = false
+    
+    var isDenied: Bool {
+        authorizationStatus == .denied || authorizationStatus == .restricted
+    }
+    
+    var canDisplayMap: Bool {
+        authorizationStatus == .authorizedAlways || authorizationStatus == .authorizedWhenInUse
+    }
+    
+    override init() {
+        authorizationStatus = locationManager.authorizationStatus
+        super.init()
+        locationManager.delegate = self
+        locationManager.activityType = .fitness
+        locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        locationManager.distanceFilter = 5
+        locationManager.pausesLocationUpdatesAutomatically = false
+    }
+    
+    func startTracking(indoor: Bool) {
+        guard !indoor else {
+            stopTracking()
+            return
+        }
+        isTracking = true
+        
+        requestAuthorizationIfNeeded()
+        
+        if canDisplayMap {
+            locationManager.startUpdatingLocation()
+        }
+    }
+    
+    func stopTracking() {
+        locationManager.stopUpdatingLocation()
+        isTracking = false
+    }
+    
+    func resetRoute() {
+        routeCoordinates.removeAll()
+        latestCoordinate = nil
+        lastRecordedLocation = nil
+        locationError = nil
+    }
+    
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        authorizationStatus = manager.authorizationStatus
+        
+        if canDisplayMap, isTracking {
+            manager.startUpdatingLocation()
+        } else if isDenied {
+            stopTracking()
+            locationError = "Location access denied."
+        }
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        for location in locations {
+            guard location.horizontalAccuracy >= 0 else { continue }
+            
+            latestCoordinate = location.coordinate
+            
+            if let last = lastRecordedLocation {
+                let delta = location.distance(from: last)
+                if delta >= 5 {
+                    routeCoordinates.append(location.coordinate)
+                    lastRecordedLocation = location
+                }
+            } else {
+                routeCoordinates.append(location.coordinate)
+                lastRecordedLocation = location
+            }
+        }
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        locationError = error.localizedDescription
+    }
+    
+    private func requestAuthorizationIfNeeded() {
+        switch authorizationStatus {
+        case .notDetermined:
+            locationManager.requestWhenInUseAuthorization()
+        case .authorizedAlways, .authorizedWhenInUse:
+            break
+        case .restricted, .denied:
+            break
+        @unknown default:
+            break
+        }
     }
 }
 

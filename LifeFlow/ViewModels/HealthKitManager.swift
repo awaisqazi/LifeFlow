@@ -116,7 +116,10 @@ final class HealthKitManager: NSObject {
     /// Start a live workout session
     /// - Parameter activityType: The type of workout activity
     @available(iOS 26.0, *)
-    func startLiveWorkout(activityType: HKWorkoutActivityType = .traditionalStrengthTraining) async throws {
+    func startLiveWorkout(
+        activityType: HKWorkoutActivityType = .traditionalStrengthTraining,
+        locationType: HKWorkoutSessionLocationType = .outdoor
+    ) async throws {
         guard isAvailable else {
             throw HealthKitError.notAvailable
         }
@@ -124,7 +127,7 @@ final class HealthKitManager: NSObject {
         // Create workout configuration
         let configuration = HKWorkoutConfiguration()
         configuration.activityType = activityType
-        configuration.locationType = .outdoor // Default to outdoor for GPS tracking
+        configuration.locationType = locationType
         
         // Create workout session
         let session = try HKWorkoutSession(healthStore: healthStore, configuration: configuration)
@@ -172,8 +175,9 @@ final class HealthKitManager: NSObject {
     
     /// Start a running workout specifically for Marathon Coach
     @available(iOS 26.0, *)
-    func startRunningWorkout() async throws {
-        try await startLiveWorkout(activityType: .running)
+    func startRunningWorkout(isIndoor: Bool) async throws {
+        let locationType: HKWorkoutSessionLocationType = isIndoor ? .indoor : .outdoor
+        try await startLiveWorkout(activityType: .running, locationType: locationType)
         
         // In a real device environment, we would assign a delegate 
         // to handle live updates from HKLiveWorkoutBuilder.

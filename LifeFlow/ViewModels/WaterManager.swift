@@ -19,6 +19,9 @@ final class WaterManager {
     /// Represents the device's roll (side-to-side tilt)
     private(set) var tiltAngle: Double = 0
     
+    /// Spring-smoothed tilt value used for shader binding.
+    private(set) var smoothedTilt: Double = 0
+    
     /// Vertical tilt offset (-1.0 to 1.0)
     /// Represents the device's pitch (forward-back tilt)
     private(set) var pitchOffset: Double = 0
@@ -35,6 +38,12 @@ final class WaterManager {
     private let motionManager = CMMotionManager()
     private let updateInterval: TimeInterval = 1.0 / 60.0  // 60 Hz
     private let maxTiltAngle: Double = 0.8  // Clamp for dramatic motion
+    
+    /// Spring simulation state (Hooke + damping)
+    private var targetTilt: Double = 0
+    private var velocity: Double = 0
+    private let springStiffness: Double = 0.12
+    private let springDamping: Double = 0.88
     
     // MARK: - Lifecycle
     
@@ -58,7 +67,7 @@ final class WaterManager {
     func startMotionUpdates() {
         guard !isActive, motionManager.isDeviceMotionAvailable else { return }
         
-        motionManager.startDeviceMotionUpdates(to: .main) { [weak self] motion, error in
+        motionManager.startDeviceMotionUpdates(to: .main) { [weak self] motion, _ in
             guard let self = self, let motion = motion else { return }
             
             // Extract attitude (device orientation relative to reference frame)
@@ -67,21 +76,18 @@ final class WaterManager {
             // Extract raw gravity vector for shader physics
             let gravity = motion.gravity
             self.gravityVector = SIMD2(Float(gravity.x), Float(gravity.y))
+            let rawTilt = self.clampTilt(gravity.x)
+            self.targetTilt = rawTilt
             
-            // Roll: rotation around the X-axis (tilting phone left/right)
-            // Pitch: rotation around the Y-axis (tilting phone forward/back)
-            
-            // Normalize and clamp roll for water surface tilt
-            let normalizedRoll = attitude.roll / .pi  // -1 to 1
-            let clampedRoll = max(-self.maxTiltAngle, min(self.maxTiltAngle, normalizedRoll))
+            let force = (self.targetTilt - self.smoothedTilt) * self.springStiffness
+            self.velocity = (self.velocity + force) * self.springDamping
+            self.smoothedTilt = self.clampTilt(self.smoothedTilt + self.velocity)
+            self.tiltAngle = self.smoothedTilt
             
             // Normalize and clamp pitch for additional motion
             let normalizedPitch = attitude.pitch / .pi  // -1 to 1
-            let clampedPitch = max(-self.maxTiltAngle, min(self.maxTiltAngle, normalizedPitch))
-            
-            // Smooth interpolation for fluid motion (very fast response for dramatic effect)
-            self.tiltAngle = self.tiltAngle * 0.5 + clampedRoll * 0.5
-            self.pitchOffset = self.pitchOffset * 0.5 + clampedPitch * 0.5
+            let clampedPitch = self.clampTilt(normalizedPitch)
+            self.pitchOffset = self.pitchOffset * 0.75 + clampedPitch * 0.25
         }
         
         isActive = true
@@ -95,6 +101,9 @@ final class WaterManager {
         isActive = false
         
         // Smoothly reset to neutral
+        targetTilt = 0
+        velocity = 0
+        smoothedTilt = 0
         tiltAngle = 0
         pitchOffset = 0
     }
@@ -108,25 +117,32 @@ final class WaterManager {
     /// Simulate a splash effect with directional animation
     /// - Parameter direction: `.up` for adding water, `.down` for removing
     func triggerSplash(direction: SplashDirection = .up) {
-        let originalTilt = tiltAngle
+        let originalTilt = targetTilt
         let multiplier: Double = direction == .up ? 1.0 : -1.0
         
-        // Create a temporary disturbance in tilt
-        tiltAngle = originalTilt + (0.15 * multiplier)
+        // Create a temporary disturbance in the spring target.
+        targetTilt = clampTilt(originalTilt + (0.15 * multiplier))
+        smoothedTilt = targetTilt
+        tiltAngle = smoothedTilt
+        velocity = 0
         
         // Bounce back effect
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            self?.tiltAngle = originalTilt - (0.1 * multiplier)
+            self?.targetTilt = self?.clampTilt(originalTilt - (0.1 * multiplier)) ?? 0
         }
         
         // Settle to original
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-            self?.tiltAngle = originalTilt + (0.05 * multiplier)
+            self?.targetTilt = self?.clampTilt(originalTilt + (0.05 * multiplier)) ?? 0
         }
         
         // Final settle
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-            self?.tiltAngle = originalTilt
+            self?.targetTilt = originalTilt
         }
+    }
+    
+    private func clampTilt(_ value: Double) -> Double {
+        max(-maxTiltAngle, min(maxTiltAngle, value))
     }
 }
