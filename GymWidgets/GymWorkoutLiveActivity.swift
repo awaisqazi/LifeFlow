@@ -50,22 +50,45 @@ struct GymWorkoutLiveActivity: Widget {
                 }
                 
                 DynamicIslandExpandedRegion(.trailing) {
-                    VStack(alignment: .trailing, spacing: 0) {
-                        LiveActivityTimerText(
-                            state: context.state,
-                            fontSize: 32,
-                            showsShadow: true
-                        )
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.5)
-                        
-                        Text(context.state.timerLabel)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                    if context.state.hasGhostRunnerContext {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(context.state.distanceString)
+                                .font(.title2.weight(.bold).monospacedDigit())
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                            
+                            Text("Miles")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            
+                            if let deltaText = context.state.paceDeltaString {
+                                Text(deltaText)
+                                    .font(.caption.weight(.bold).monospacedDigit())
+                                    .foregroundStyle(context.state.ghostDeltaColor)
+                            }
+                        }
+                        .frame(width: 110, alignment: .trailing)
+                        .padding(.trailing, 8)
+                        .padding(.top, 8)
+                    } else {
+                        VStack(alignment: .trailing, spacing: 0) {
+                            LiveActivityTimerText(
+                                state: context.state,
+                                fontSize: 32,
+                                showsShadow: true
+                            )
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.5)
+                            
+                            Text(context.state.timerLabel)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(width: 110, alignment: .trailing)
+                        .padding(.trailing, 8)
+                        .padding(.top, 8)
                     }
-                    .frame(width: 110, alignment: .trailing)
-                    .padding(.trailing, 8)
-                    .padding(.top, 8)
                 }
                 
                 DynamicIslandExpandedRegion(.bottom) {
@@ -118,30 +141,69 @@ private struct LockScreenView: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(context.state.statusText)
-                        .font(.caption2.weight(.black))
-                        .foregroundStyle(context.state.accentColor)
-                        .tracking(1)
+            if context.state.hasGhostRunnerContext {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(context.state.statusText)
+                            .font(.caption2.weight(.black))
+                            .foregroundStyle(context.state.accentColor)
+                            .tracking(1)
+                        
+                        Text(context.state.distanceString)
+                            .font(.system(size: 34, weight: .bold, design: .rounded).monospacedDigit())
+                            .foregroundStyle(.white)
+                        
+                        Text("Miles")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     
-                    Text(context.state.primaryLabel)
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
+                    Spacer()
                     
-                    Text(context.state.secondaryLabel)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    VStack(alignment: .trailing, spacing: 4) {
+                        if let delta = context.state.paceDeltaString {
+                            Text(delta)
+                                .font(.headline.weight(.bold).monospacedDigit())
+                                .foregroundStyle(context.state.ghostDeltaColor)
+                        }
+                        
+                        Text("vs Plan")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        
+                        if let target = context.state.formattedTargetPace {
+                            Text(target)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
-                
-                Spacer()
-                
-                LiveActivityTimerText(
-                    state: context.state,
-                    fontSize: 32,
-                    showsShadow: false
-                )
+            } else {
+                HStack(alignment: .center) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(context.state.statusText)
+                            .font(.caption2.weight(.black))
+                            .foregroundStyle(context.state.accentColor)
+                            .tracking(1)
+                        
+                        Text(context.state.primaryLabel)
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                        
+                        Text(context.state.secondaryLabel)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    LiveActivityTimerText(
+                        state: context.state,
+                        fontSize: 32,
+                        showsShadow: false
+                    )
+                }
             }
             
             LiveActivityStateProgressBar(state: context.state)
@@ -260,7 +322,29 @@ private extension GymWorkoutAttributes.ContentState {
     
     var ghostDeltaColor: Color {
         guard let delta = ghostDeltaMiles else { return accentColor }
-        return delta >= 0 ? .green : .orange
+        return delta >= 0 ? .green : .red
+    }
+    
+    var distanceString: String {
+        if let currentDistanceMiles {
+            return String(format: "%.2f", max(0, currentDistanceMiles))
+        }
+        
+        if let targetDistanceTotal, let targetDistanceRemaining {
+            let completed = max(0, targetDistanceTotal - targetDistanceRemaining)
+            return String(format: "%.2f", completed)
+        }
+        
+        return "--"
+    }
+    
+    var paceDelta: Double? {
+        ghostDeltaMiles
+    }
+    
+    var paceDeltaString: String? {
+        guard let delta = paceDelta else { return nil }
+        return String(format: "%+.2f", delta)
     }
     
     var ghostDeltaText: String? {

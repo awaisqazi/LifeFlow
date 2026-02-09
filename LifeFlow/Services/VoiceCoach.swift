@@ -22,6 +22,12 @@ final class VoiceCoach: NSObject {
     private var lastAnnouncementDate: Date?
 
     private let cooldown: TimeInterval = 25
+    
+    override init() {
+        super.init()
+        configureAudioSession()
+        startObservingAudioRouteChangesIfNeeded()
+    }
 
     func configure(from settings: MarathonCoachSettings) {
         announceDistance = settings.announceDistance
@@ -124,9 +130,9 @@ final class VoiceCoach: NSObject {
             try audioSession.setCategory(
                 .playback,
                 mode: .voicePrompt,
-                options: [.mixWithOthers, .duckOthers]
+                options: [.mixWithOthers, .duckOthers, .interruptSpokenAudioAndMixWithOthers]
             )
-            try audioSession.setActive(true, options: [])
+            try audioSession.setActive(true)
         } catch {
             print("VoiceCoach audio session configuration failed: \(error)")
         }
@@ -139,8 +145,10 @@ final class VoiceCoach: NSObject {
             forName: AVAudioSession.routeChangeNotification,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
-            self?.configureAudioSession()
+        ) { _ in
+            Task { @MainActor [weak self] in
+                self?.configureAudioSession()
+            }
         }
     }
     

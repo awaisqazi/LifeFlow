@@ -200,10 +200,13 @@ final class MarathonCoachManager {
         durationMinutes: Int,
         modelContext: ModelContext
     ) {
-        session.actualDistance = session.actualDistance ?? 0
-        session.perceivedEffort = session.perceivedEffort ?? 2
-        session.isCompleted = true
-        session.notes = "\(activityName) - \(durationMinutes) min"
+        let targetSession = nearestCrossTrainingSession(for: session)
+        
+        targetSession.actualDistance = targetSession.actualDistance ?? 0
+        targetSession.perceivedEffort = targetSession.perceivedEffort ?? 2
+        targetSession.isCompleted = true
+        targetSession.isSkipped = false
+        targetSession.notes = "\(activityName) - \(durationMinutes) min"
         
         if let plan = activePlan {
             plan.complianceScore = TrainingAdaptationEngine.calculateComplianceScore(plan: plan)
@@ -212,8 +215,27 @@ final class MarathonCoachManager {
             todaysSession = plan.todaysSession
         }
         
-        autoCompletionSnapshots[session.id] = nil
+        autoCompletionSnapshots[targetSession.id] = nil
         try? modelContext.save()
+    }
+    
+    private func nearestCrossTrainingSession(for requestedSession: TrainingSession) -> TrainingSession {
+        if requestedSession.runType == .crossTraining || requestedSession.runType == .recovery {
+            return requestedSession
+        }
+        
+        guard let plan = activePlan else { return requestedSession }
+        
+        let referenceDate = Calendar.current.startOfDay(for: Date())
+        let allCandidates = plan.sessions.filter { $0.runType == .crossTraining || $0.runType == .recovery }
+        guard !allCandidates.isEmpty else { return requestedSession }
+        
+        let incompleteCandidates = allCandidates.filter { !$0.isCompleted && !$0.isSkipped }
+        let source = incompleteCandidates.isEmpty ? allCandidates : incompleteCandidates
+        
+        return source.min(by: {
+            abs($0.date.timeIntervalSince(referenceDate)) < abs($1.date.timeIntervalSince(referenceDate))
+        }) ?? requestedSession
     }
     
     private func applyCompletion(

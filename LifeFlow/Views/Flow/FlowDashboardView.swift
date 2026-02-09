@@ -227,7 +227,8 @@ struct FlowDashboardView: View {
                         activityType: entry.activityType,
                         startDate: startDate,
                         endDate: endDate,
-                        duration: TimeInterval(entry.durationMinutes * 60)
+                        duration: TimeInterval(entry.durationMinutes * 60),
+                        distanceMiles: nil
                     )
                 } catch {
                     await MainActor.run {

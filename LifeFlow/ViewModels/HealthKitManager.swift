@@ -71,7 +71,8 @@ final class HealthKitManager: NSObject {
     private var typesToWrite: Set<HKSampleType> {
         [
             workoutType,
-            HKQuantityType(.activeEnergyBurned)
+            HKQuantityType(.activeEnergyBurned),
+            HKQuantityType(.distanceWalkingRunning)
         ]
     }
     
@@ -269,22 +270,22 @@ final class HealthKitManager: NSObject {
             throw HealthKitError.authorizationDenied
         }
         
-        let energyQuantity = energyBurned.map { HKQuantity(unit: .kilocalorie(), doubleValue: $0) }
-        let distanceQuantity = distanceMiles.map { HKQuantity(unit: .mile(), doubleValue: $0) }
+        let safeDuration = max(duration, 1)
+        let resolvedEndDate = max(endDate, startDate.addingTimeInterval(safeDuration))
         
-        let workout = HKWorkout(
-            activityType: activityType,
-            start: startDate,
-            end: endDate,
-            duration: duration,
-            totalEnergyBurned: energyQuantity,
-            totalDistance: distanceQuantity,
-            metadata: nil
+        let configuration = HKWorkoutConfiguration()
+        configuration.activityType = activityType
+        configuration.locationType = .unknown
+        
+        let builder = HKWorkoutBuilder(
+            healthStore: healthStore,
+            configuration: configuration,
+            device: .local()
         )
         
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            healthStore.save(workout) { success, error in
-                if let error = error {
+            builder.beginCollection(withStart: startDate) { success, error in
+                if let error {
                     continuation.resume(throwing: error)
                 } else if success {
                     continuation.resume()
@@ -292,7 +293,82 @@ final class HealthKitManager: NSObject {
                     continuation.resume(throwing: HealthKitError.queryFailed(NSError(
                         domain: "HealthKitManager",
                         code: -2,
-                        userInfo: [NSLocalizedDescriptionKey: "Failed to save workout to HealthKit."]
+                        userInfo: [NSLocalizedDescriptionKey: "Unable to begin workout collection."]
+                    )))
+                }
+            }
+        }
+        
+        var quantitySamples: [HKQuantitySample] = []
+        if let energyBurned, energyBurned > 0 {
+            let quantity = HKQuantity(unit: .kilocalorie(), doubleValue: energyBurned)
+            quantitySamples.append(
+                HKQuantitySample(
+                    type: HKQuantityType(.activeEnergyBurned),
+                    quantity: quantity,
+                    start: startDate,
+                    end: resolvedEndDate
+                )
+            )
+        }
+        
+        if let distanceMiles, distanceMiles > 0 {
+            let quantity = HKQuantity(unit: .mile(), doubleValue: distanceMiles)
+            quantitySamples.append(
+                HKQuantitySample(
+                    type: HKQuantityType(.distanceWalkingRunning),
+                    quantity: quantity,
+                    start: startDate,
+                    end: resolvedEndDate
+                )
+            )
+        }
+        
+        if !quantitySamples.isEmpty {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                builder.add(quantitySamples) { success, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else if success {
+                        continuation.resume()
+                    } else {
+                        continuation.resume(throwing: HealthKitError.queryFailed(NSError(
+                            domain: "HealthKitManager",
+                            code: -3,
+                            userInfo: [NSLocalizedDescriptionKey: "Unable to add manual workout samples."]
+                        )))
+                    }
+                }
+            }
+        }
+        
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            builder.endCollection(withEnd: resolvedEndDate) { success, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if success {
+                    continuation.resume()
+                } else {
+                    continuation.resume(throwing: HealthKitError.queryFailed(NSError(
+                        domain: "HealthKitManager",
+                        code: -4,
+                        userInfo: [NSLocalizedDescriptionKey: "Unable to end manual workout collection."]
+                    )))
+                }
+            }
+        }
+        
+        let workout = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<HKWorkout, Error>) in
+            builder.finishWorkout { workout, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let workout {
+                    continuation.resume(returning: workout)
+                } else {
+                    continuation.resume(throwing: HealthKitError.queryFailed(NSError(
+                        domain: "HealthKitManager",
+                        code: -5,
+                        userInfo: [NSLocalizedDescriptionKey: "Unable to finalize manual workout."]
                     )))
                 }
             }

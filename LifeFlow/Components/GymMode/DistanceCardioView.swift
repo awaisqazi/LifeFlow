@@ -201,18 +201,22 @@ struct DistanceCardioView: View {
                 }
             }
             
-            VStack(spacing: 8) {
-                GhostRunnerBar(progress: progress, ghostProgress: ghostProgress)
-                
-                HStack {
-                    Text(ghostDeltaLabel)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(ghostDelta >= 0 ? .green : .orange)
-                    Spacer()
-                    Text("Target \(formattedTargetPace)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+            if shouldShowGhostRunner {
+                VStack(spacing: 8) {
+                    GhostRunnerBar(progress: progress, ghostProgress: ghostProgress)
+                    
+                    HStack {
+                        Text(ghostDeltaLabel)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(ghostDelta >= 0 ? .green : .orange)
+                        Spacer()
+                        Text("Target \(formattedTargetPace)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
+                .padding(.horizontal, 2)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             
             Button {
@@ -395,6 +399,23 @@ struct DistanceCardioView: View {
         }
         guard speed > 0 else { return nil }
         return 60 / speed
+    }
+    
+    private var shouldShowGhostRunner: Bool {
+        guard let targetPace = resolvedTargetPaceMinutesPerMile, targetPace > 0 else {
+            return false
+        }
+        
+        guard let session = gymModeManager.activeTrainingSession else {
+            return false
+        }
+        
+        switch session.runType {
+        case .recovery, .crossTraining, .rest:
+            return false
+        default:
+            return true
+        }
     }
     
     private var formattedTargetPace: String {

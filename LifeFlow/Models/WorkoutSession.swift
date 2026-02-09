@@ -8,13 +8,96 @@
 import Foundation
 import SwiftData
 
-struct RunAnalysisMetadata: Codable, Hashable {
+struct RunAnalysisMetadata: Hashable {
     var healthKitWorkoutID: UUID?
     var weatherSummary: String?
     var targetPaceMinutesPerMile: Double?
     var targetDistanceMiles: Double?
     var completedDistanceMiles: Double?
     var generatedAt: Date
+    
+    private static let generatedAtThresholdForUnixEpoch: TimeInterval = 1_000_000_000
+    private static let iso8601Formatter = ISO8601DateFormatter()
+    
+    func encodeToJSONString() -> String? {
+        var dictionary: [String: Any] = [
+            "generatedAt": generatedAt.timeIntervalSince1970
+        ]
+        
+        if let healthKitWorkoutID {
+            dictionary["healthKitWorkoutID"] = healthKitWorkoutID.uuidString
+        }
+        if let weatherSummary {
+            dictionary["weatherSummary"] = weatherSummary
+        }
+        if let targetPaceMinutesPerMile {
+            dictionary["targetPaceMinutesPerMile"] = targetPaceMinutesPerMile
+        }
+        if let targetDistanceMiles {
+            dictionary["targetDistanceMiles"] = targetDistanceMiles
+        }
+        if let completedDistanceMiles {
+            dictionary["completedDistanceMiles"] = completedDistanceMiles
+        }
+        
+        guard JSONSerialization.isValidJSONObject(dictionary),
+              let data = try? JSONSerialization.data(withJSONObject: dictionary, options: []),
+              let jsonString = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        
+        return jsonString
+    }
+    
+    static func decode(from jsonString: String) -> RunAnalysisMetadata? {
+        guard let data = jsonString.data(using: .utf8),
+              let rawObject = try? JSONSerialization.jsonObject(with: data, options: []),
+              let dictionary = rawObject as? [String: Any] else {
+            return nil
+        }
+        
+        let generatedAt = decodeDate(from: dictionary["generatedAt"])
+        let healthKitWorkoutID = (dictionary["healthKitWorkoutID"] as? String).flatMap(UUID.init(uuidString:))
+        let weatherSummary = dictionary["weatherSummary"] as? String
+        let targetPaceMinutesPerMile = dictionary["targetPaceMinutesPerMile"] as? Double
+        let targetDistanceMiles = dictionary["targetDistanceMiles"] as? Double
+        let completedDistanceMiles = dictionary["completedDistanceMiles"] as? Double
+        
+        return RunAnalysisMetadata(
+            healthKitWorkoutID: healthKitWorkoutID,
+            weatherSummary: weatherSummary,
+            targetPaceMinutesPerMile: targetPaceMinutesPerMile,
+            targetDistanceMiles: targetDistanceMiles,
+            completedDistanceMiles: completedDistanceMiles,
+            generatedAt: generatedAt
+        )
+    }
+    
+    private static func decodeDate(from rawValue: Any?) -> Date {
+        if let seconds = rawValue as? TimeInterval {
+            if seconds > generatedAtThresholdForUnixEpoch {
+                return Date(timeIntervalSince1970: seconds)
+            } else {
+                return Date(timeIntervalSinceReferenceDate: seconds)
+            }
+        }
+        
+        if let stringValue = rawValue as? String {
+            if let numeric = TimeInterval(stringValue) {
+                if numeric > generatedAtThresholdForUnixEpoch {
+                    return Date(timeIntervalSince1970: numeric)
+                } else {
+                    return Date(timeIntervalSinceReferenceDate: numeric)
+                }
+            }
+            
+            if let parsed = iso8601Formatter.date(from: stringValue) {
+                return parsed
+            }
+        }
+        
+        return .now
+    }
 }
 
 /// Represents a single workout session logged manually or synced from HealthKit.
@@ -119,8 +202,7 @@ extension WorkoutSession {
         guard notes.hasPrefix(Self.runMetadataPrefix) else { return nil }
         
         let payload = String(notes.dropFirst(Self.runMetadataPrefix.count))
-        guard let data = payload.data(using: .utf8) else { return nil }
-        return try? JSONDecoder().decode(RunAnalysisMetadata.self, from: data)
+        return RunAnalysisMetadata.decode(from: payload)
     }
     
     var weatherStampText: String? {
@@ -128,8 +210,7 @@ extension WorkoutSession {
     }
     
     func setRunAnalysisMetadata(_ metadata: RunAnalysisMetadata) {
-        guard let data = try? JSONEncoder().encode(metadata),
-              let json = String(data: data, encoding: .utf8) else {
+        guard let json = metadata.encodeToJSONString() else {
             return
         }
         notes = Self.runMetadataPrefix + json

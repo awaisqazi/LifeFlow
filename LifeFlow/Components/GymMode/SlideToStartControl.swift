@@ -15,6 +15,8 @@ struct SlideToStartControl: View {
 
     @State private var dragOffset: CGFloat = 0
     @State private var hasCompleted = false
+    @State private var hasTriggeredHaptic = false
+    private let haptic = UIImpactFeedbackGenerator(style: .heavy)
 
     var body: some View {
         GeometryReader { geometry in
@@ -54,7 +56,26 @@ struct SlideToStartControl: View {
                 DragGesture(minimumDistance: 3)
                     .onChanged { value in
                         guard !hasCompleted else { return }
-                        dragOffset = min(max(0, value.translation.width), maxOffset)
+                        
+                        let clamped = min(max(0, value.translation.width), maxOffset)
+                        let resistanceStart = maxOffset * 0.78
+                        
+                        if clamped > resistanceStart {
+                            let overshoot = clamped - resistanceStart
+                            dragOffset = min(maxOffset, resistanceStart + (overshoot * 0.42))
+                        } else {
+                            dragOffset = clamped
+                        }
+                        
+                        if maxOffset > 0,
+                           dragOffset > maxOffset * 0.9,
+                           !hasTriggeredHaptic {
+                            haptic.prepare()
+                            haptic.impactOccurred()
+                            hasTriggeredHaptic = true
+                        } else if dragOffset < maxOffset * 0.7 {
+                            hasTriggeredHaptic = false
+                        }
                     }
                     .onEnded { _ in
                         guard !hasCompleted else { return }
@@ -74,10 +95,14 @@ struct SlideToStartControl: View {
                                 dragOffset = 0
                             }
                         }
+                        hasTriggeredHaptic = false
                     }
             )
         }
         .frame(height: 60)
+        .onAppear {
+            haptic.prepare()
+        }
     }
 
     private func labelOpacity(maxOffset: CGFloat) -> Double {
