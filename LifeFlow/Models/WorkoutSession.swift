@@ -134,6 +134,30 @@ final class WorkoutSession {
     /// Optional notes for the session
     var notes: String?
     
+    /// Optional direct distance snapshot (miles), primarily for imported workouts.
+    var distanceMiles: Double?
+    
+    /// Optional average heart rate (BPM) for the workout.
+    var averageHeartRate: Double?
+    
+    /// Human-readable source label (e.g. "LifeFlow", "Strava", "Apple Watch").
+    var sourceName: String = "LifeFlow"
+    
+    /// Source bundle identifier (e.g. com.strava.run).
+    var sourceBundleID: String = "com.fezqazi.lifeflow"
+    
+    /// Whether this workout was recorded natively inside LifeFlow.
+    var isLifeFlowNative: Bool = true
+    
+    /// Subjective effort score captured by LifeFlow (1-10 scale).
+    var perceivedEffort: Int?
+    
+    /// Estimated hydration loss (ounces).
+    var liquidLossEstimate: Double?
+    
+    /// Positive = ahead of plan, negative = behind (seconds).
+    var ghostRunnerDelta: Double?
+    
     // MARK: - Relationships
     
     /// The daily metrics record this workout belongs to
@@ -159,7 +183,15 @@ final class WorkoutSession {
         duration: TimeInterval = 0,
         calories: Double = 0,
         source: String = "Manual",
-        timestamp: Date = .now
+        timestamp: Date = .now,
+        distanceMiles: Double? = nil,
+        averageHeartRate: Double? = nil,
+        sourceName: String = "LifeFlow",
+        sourceBundleID: String = "",
+        isLifeFlowNative: Bool = true,
+        perceivedEffort: Int? = nil,
+        liquidLossEstimate: Double? = nil,
+        ghostRunnerDelta: Double? = nil
     ) {
         self.id = id
         self.title = title.isEmpty ? type : title
@@ -169,6 +201,26 @@ final class WorkoutSession {
         self.source = source
         self.timestamp = timestamp
         self.startTime = timestamp
+        self.distanceMiles = distanceMiles
+        self.averageHeartRate = averageHeartRate
+        self.perceivedEffort = perceivedEffort
+        self.liquidLossEstimate = liquidLossEstimate
+        self.ghostRunnerDelta = ghostRunnerDelta
+        
+        let inferredBundle = sourceBundleID.isEmpty
+            ? (isLifeFlowNative
+                ? (Bundle.main.bundleIdentifier ?? "com.fezqazi.lifeflow")
+                : "com.apple.health")
+            : sourceBundleID
+        
+        if source == "HealthKit" && sourceName == "LifeFlow" {
+            self.sourceName = "Apple Health"
+        } else {
+            self.sourceName = sourceName
+        }
+        
+        self.sourceBundleID = inferredBundle
+        self.isLifeFlowNative = source == "HealthKit" ? false : isLifeFlowNative
     }
     
     /// Returns exercises sorted by orderIndex for consistent UI display
@@ -191,10 +243,24 @@ extension WorkoutSession {
     private static let runMetadataPrefix = "lifeflow.runmeta:"
     
     var totalDistanceMiles: Double {
-        exercises
+        let setDistance = exercises
             .flatMap(\.sets)
             .compactMap(\.distance)
             .reduce(0, +)
+        
+        if setDistance > 0 {
+            return setDistance
+        }
+        
+        if let distanceMiles, distanceMiles > 0 {
+            return distanceMiles
+        }
+        
+        if let metadataDistance = runAnalysisMetadata?.completedDistanceMiles, metadataDistance > 0 {
+            return metadataDistance
+        }
+        
+        return 0
     }
     
     var runAnalysisMetadata: RunAnalysisMetadata? {
@@ -207,6 +273,71 @@ extension WorkoutSession {
     
     var weatherStampText: String? {
         runAnalysisMetadata?.weatherSummary
+    }
+    
+    var resolvedSourceName: String {
+        if !sourceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return sourceName
+        }
+        
+        switch source {
+        case "HealthKit":
+            return "Apple Health"
+        case "Flow", "GymMode", "Manual":
+            return "LifeFlow"
+        default:
+            return source
+        }
+    }
+    
+    var resolvedSourceBundleID: String {
+        if !sourceBundleID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return sourceBundleID
+        }
+        
+        return source == "HealthKit"
+            ? "com.apple.health"
+            : (Bundle.main.bundleIdentifier ?? "com.fezqazi.lifeflow")
+    }
+    
+    var resolvedIsLifeFlowNative: Bool {
+        if source == "HealthKit" {
+            return false
+        }
+        return isLifeFlowNative
+    }
+    
+    var resolvedGhostRunnerDelta: Double? {
+        if let ghostRunnerDelta {
+            return ghostRunnerDelta
+        }
+        
+        guard let metadata = runAnalysisMetadata,
+              let targetPace = metadata.targetPaceMinutesPerMile,
+              targetPace > 0,
+              let completedDistance = metadata.completedDistanceMiles,
+              completedDistance > 0 else {
+            return nil
+        }
+        
+        let expectedSeconds = completedDistance * targetPace * 60
+        guard expectedSeconds.isFinite, expectedSeconds > 0, duration > 0 else { return nil }
+        
+        // Positive means runner finished faster than expected.
+        return expectedSeconds - duration
+    }
+    
+    var resolvedLiquidLossEstimate: Double? {
+        if let liquidLossEstimate {
+            return liquidLossEstimate
+        }
+        
+        guard duration > 0 else { return nil }
+        let durationHours = duration / 3600
+        guard durationHours > 0.05 else { return nil }
+        
+        // Conservative estimate tuned for broad usability.
+        return durationHours * 24
     }
     
     func setRunAnalysisMetadata(_ metadata: RunAnalysisMetadata) {

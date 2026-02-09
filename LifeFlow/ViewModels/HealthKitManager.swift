@@ -623,14 +623,41 @@ final class HealthKitManager: NSObject {
             }
         }
         
-        return WorkoutSession(
+        // Distance and heart rate are optional, depending on sample source.
+        let distanceMiles = hkWorkout
+            .statistics(for: HKQuantityType(.distanceWalkingRunning))?
+            .sumQuantity()?
+            .doubleValue(for: .mile())
+        
+        let averageHeartRate = hkWorkout
+            .statistics(for: HKQuantityType(.heartRate))?
+            .averageQuantity()?
+            .doubleValue(for: countPerMinuteUnit)
+        
+        let source = hkWorkout.sourceRevision.source
+        let sourceName = source.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sourceBundleID = source.bundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        let session = WorkoutSession(
             id: hkWorkout.uuid,
+            title: typeName,
             type: typeName,
             duration: duration,
             calories: calories,
             source: "HealthKit",
-            timestamp: hkWorkout.startDate
+            timestamp: hkWorkout.startDate,
+            distanceMiles: distanceMiles,
+            averageHeartRate: averageHeartRate,
+            sourceName: sourceName.isEmpty ? "Apple Health" : sourceName,
+            sourceBundleID: sourceBundleID.isEmpty ? "com.apple.health" : sourceBundleID,
+            isLifeFlowNative: false
         )
+        
+        // Mark as completed so Temple chronicle query (`endTime != nil`) includes imports.
+        session.startTime = hkWorkout.startDate
+        session.endTime = hkWorkout.endDate
+        
+        return session
     }
     
     /// Convert HKWorkoutActivityType to a human-readable string

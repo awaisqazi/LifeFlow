@@ -7,149 +7,98 @@
 
 import SwiftUI
 import SwiftData
-import HealthKit
 import Charts
 
-/// The Temple tab - Analytics Dashboard.
-/// Read-only view displaying health metrics, charts, and consistency data.
+/// The Temple tab - Digital Sanctuary.
+/// Distinguishes LifeFlow-native work from imported workouts while keeping analytics in one place.
 struct TempleView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \DayLog.date, order: .reverse) private var allLogs: [DayLog]
     @Query(sort: \Goal.deadline, order: .forward) private var goals: [Goal]
-    
-    /// Query for completed workouts (with endTime set)
+
+    /// Completed workouts only.
     @Query(filter: #Predicate<WorkoutSession> { session in
         session.endTime != nil
     }, sort: \WorkoutSession.startTime, order: .reverse) private var completedWorkouts: [WorkoutSession]
-    
+
     @State private var selectedScope: TimeScope = .week
-    @State private var healthKitWorkouts: [WorkoutSession] = []
     @State private var showingHealthKitAlert = false
     @State private var selectedWorkoutForDetail: WorkoutSession? = nil
-    
-    private let healthKitManager = HealthKitManager()
-    
-    /// Filtered logs based on selected time scope
-    private var filteredLogs: [DayLog] {
+    @State private var healthKitManager = HealthKitManager()
+
+    private var scopedLogs: [DayLog] {
+        allLogs
+            .filter { $0.date >= scopeStartDate }
+            .sorted { $0.date < $1.date }
+    }
+
+    private var scopedWorkouts: [WorkoutSession] {
+        completedWorkouts.filter { $0.startTime >= scopeStartDate }
+    }
+
+    private var nativeWorkouts: [WorkoutSession] {
+        scopedWorkouts.filter(\.resolvedIsLifeFlowNative)
+    }
+
+    private var importedWorkouts: [WorkoutSession] {
+        scopedWorkouts.filter { !$0.resolvedIsLifeFlowNative }
+    }
+
+    private var totalDistanceMiles: Double {
+        scopedWorkouts.reduce(0) { $0 + $1.totalDistanceMiles }
+    }
+
+    private var totalCalories: Double {
+        scopedWorkouts.reduce(0) { $0 + $1.calories }
+    }
+
+    private var totalDuration: TimeInterval {
+        scopedWorkouts.reduce(0) { $0 + $1.duration }
+    }
+
+    private var scopeStartDate: Date {
         let calendar = Calendar.current
         let now = Date()
-        let startDate: Date
-        
+
         switch selectedScope {
         case .week:
-            startDate = calendar.date(byAdding: .day, value: -7, to: now)!
+            return calendar.date(byAdding: .day, value: -7, to: now) ?? now
         case .month:
-            startDate = calendar.date(byAdding: .month, value: -1, to: now)!
+            return calendar.date(byAdding: .month, value: -1, to: now) ?? now
         case .year:
-            startDate = calendar.date(byAdding: .year, value: -1, to: now)!
+            return calendar.date(byAdding: .year, value: -1, to: now) ?? now
         }
-        
-        return allLogs.filter { $0.date >= startDate }.sorted { $0.date < $1.date }
     }
-    
-    /// Aggregate workout stats for the selected scope
-    private var workoutStats: (count: Int, calories: Double, duration: TimeInterval) {
-        let workouts = filteredLogs.flatMap { $0.workouts }
-        return (
-            count: workouts.count,
-            calories: workouts.reduce(0) { $0 + $1.calories },
-            duration: workouts.reduce(0) { $0 + $1.duration }
-        )
-    }
-    
+
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                // Header
-                HeaderView(
-                    title: "Temple",
-                    subtitle: "Analytics Dashboard"
-                )
-                
-                // Time Scope Picker
-                Picker("Time Scope", selection: $selectedScope) {
-                    ForEach(TimeScope.allCases) { scope in
-                        Text(scope.rawValue).tag(scope)
-                    }
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.03, green: 0.05, blue: 0.10),
+                    Color(red: 0.04, green: 0.10, blue: 0.16),
+                    Color.black
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            ScrollView {
+                VStack(spacing: 22) {
+                    headerSection
+                    scopePicker
+                    vitalsSection
+                    analyticsSection
+                    chronicleSection
+                    goalsSection
                 }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-                
-                // Analytics Container
-                GlassEffectContainer(spacing: 20) {
-                    VStack(spacing: 20) {
-                        // Hydration Chart
-                        HydrationChart(logs: allLogs, scope: selectedScope)
-                        
-                        // Goal Progress Chart
-                        if let firstGoal = goals.first {
-                            GoalProgressChart(goal: firstGoal)
-                        } else {
-                            EmptyGoalChartState()
-                        }
-                        
-                        // Consistency Heatmap
-                        ConsistencyHeatmap(logs: allLogs)
-                    }
-                }
-                .padding(.horizontal)
-                
-                // Workout Summary (Read-only)
-                GlassEffectContainer(spacing: 16) {
-                    WorkoutSummaryView(
-                        stats: workoutStats,
-                        isSyncing: healthKitManager.isSyncing,
-                        onSyncTap: syncHealthKit
-                    )
-                }
-                .padding(.horizontal)
-                
-                // Recent Workouts Section
-                if !completedWorkouts.isEmpty {
-                    RecentWorkoutsSection(
-                        workouts: Array(completedWorkouts.prefix(5)),
-                        onWorkoutTap: { workout in
-                            selectedWorkoutForDetail = workout
-                        },
-                        onWorkoutDelete: { workout in
-                            modelContext.delete(workout)
-                            try? modelContext.save()
-                            let impact = UIImpactFeedbackGenerator(style: .medium)
-                            impact.impactOccurred()
-                        }
-                    )
-                    .padding(.horizontal)
-                }
-                
-                // Goal Progress Visualization Section
-                if !goals.isEmpty {
-                    VStack(alignment: .leading, spacing: 16) {
-                        HStack {
-                            Image(systemName: "chart.bar.fill")
-                                .font(.title2)
-                                .foregroundStyle(.purple)
-                            
-                            Text("Goal Progress")
-                                .font(.headline)
-                                .foregroundStyle(.primary)
-                            
-                            Spacer()
-                        }
-                        .padding(.horizontal)
-                        
-                        ForEach(goals) { goal in
-                            GoalVisualizationCard(goal: goal)
-                        }
-                    }
-                    .padding(.horizontal)
-                }
-                
-                Spacer(minLength: 100) // Space for tab bar
+                .padding(.horizontal, 16)
+                .padding(.top, 62)
+                .padding(.bottom, 110)
             }
-            .padding(.top, 60)
         }
-        .onAppear {
-            syncHealthKitOnAppear()
+        .task(id: selectedScope) {
+            await syncHealthKit(isUserInitiated: false)
         }
         .alert("HealthKit", isPresented: $showingHealthKitAlert) {
             Button("OK", role: .cancel) { }
@@ -161,447 +110,403 @@ struct TempleView: View {
                 .presentationDetents([.medium, .large])
         }
     }
-    
-    private func syncHealthKitOnAppear() {
-        Task {
-            do {
-                try await healthKitManager.requestAuthorization()
-                let workouts = try await healthKitManager.fetchWorkouts(for: selectedScope)
-                await MainActor.run {
-                    healthKitWorkouts = workouts
-                    mergeHealthKitWorkouts(workouts)
-                }
-            } catch {
-                // Silently fail on initial sync - user can manually sync
-                print("HealthKit sync error: \(error)")
+
+    private var headerSection: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("The Temple")
+                    .font(.system(size: 42, weight: .bold, design: .serif))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.white, .white.opacity(0.72)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+
+                Text("Inner work from LifeFlow. Outer work from your ecosystem.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
+
+            Spacer(minLength: 10)
+
+            Button {
+                Task {
+                    await syncHealthKit(isUserInitiated: true)
+                }
+            } label: {
+                HStack(spacing: 7) {
+                    if healthKitManager.isSyncing {
+                        ProgressView()
+                            .tint(.white)
+                            .scaleEffect(0.85)
+                    } else {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.caption.weight(.semibold))
+                    }
+                    Text(healthKitManager.isSyncing ? "Syncing" : "Sync")
+                        .font(.caption.weight(.semibold))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.13), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.white)
+            .disabled(healthKitManager.isSyncing)
         }
     }
-    
-    private func syncHealthKit() {
-        Task {
-            do {
-                try await healthKitManager.requestAuthorization()
-                let workouts = try await healthKitManager.fetchWorkouts(for: selectedScope)
-                await MainActor.run {
-                    healthKitWorkouts = workouts
-                    mergeHealthKitWorkouts(workouts)
+
+    private var scopePicker: some View {
+        Picker("Range", selection: $selectedScope) {
+            ForEach(TimeScope.allCases) { scope in
+                Text(scope.rawValue).tag(scope)
+            }
+        }
+        .pickerStyle(.segmented)
+        .padding(5)
+        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var vitalsSection: some View {
+        HStack(spacing: 12) {
+            TempleInsightTile(
+                title: "Chronicle",
+                value: "\(scopedWorkouts.count)",
+                caption: scopedWorkouts.count == 1 ? "session" : "sessions",
+                accent: .cyan,
+                icon: "waveform.path.ecg"
+            )
+
+            TempleInsightTile(
+                title: "Distance",
+                value: formatDistance(totalDistanceMiles),
+                caption: "logged",
+                accent: .mint,
+                icon: "figure.run"
+            )
+
+            TempleInsightTile(
+                title: "Focus",
+                value: formatDuration(totalDuration),
+                caption: "moving time",
+                accent: .orange,
+                icon: "clock.fill"
+            )
+        }
+    }
+
+    private var analyticsSection: some View {
+        VStack(spacing: 18) {
+            HydrationChart(logs: allLogs, scope: selectedScope)
+
+            if let firstGoal = goals.first {
+                GoalProgressChart(goal: firstGoal)
+            }
+
+            ConsistencyHeatmap(logs: allLogs)
+
+            HStack(spacing: 16) {
+                HStack(spacing: 6) {
+                    Image(systemName: "flame.fill")
+                        .foregroundStyle(.orange)
+                    Text("\(Int(totalCalories.rounded())) kcal")
                 }
-            } catch {
+
+                Text("•")
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 6) {
+                    Image(systemName: "drop.fill")
+                        .foregroundStyle(.cyan)
+                    Text("\(scopedLogs.filter { $0.waterIntake >= HydrationSettings.load().dailyOuncesGoal }.count) hydration wins")
+                }
+            }
+            .font(.caption.weight(.medium))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 4)
+        }
+        .padding(16)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24)
+                .stroke(.white.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    private var chronicleSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Chronicle")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.primary)
+                Spacer()
+                Text("\(scopedWorkouts.count)")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(Color.cyan.opacity(0.75), in: Capsule())
+            }
+
+            if scopedWorkouts.isEmpty {
+                TempleChronicleEmptyState()
+            } else {
+                LazyVStack(spacing: 14) {
+                    if !nativeWorkouts.isEmpty {
+                        TempleSectionHeader(
+                            title: "Inner Work",
+                            subtitle: "Captured natively in LifeFlow",
+                            accent: .cyan,
+                            icon: "drop.fill"
+                        )
+
+                        ForEach(nativeWorkouts) { workout in
+                            Button {
+                                selectedWorkoutForDetail = workout
+                            } label: {
+                                SanctuaryWorkoutRow(workout: workout)
+                            }
+                            .buttonStyle(.plain)
+                            .contextMenu {
+                                Button {
+                                    selectedWorkoutForDetail = workout
+                                } label: {
+                                    Label("View Details", systemImage: "info.circle")
+                                }
+
+                                Button(role: .destructive) {
+                                    deleteWorkout(workout)
+                                } label: {
+                                    Label("Delete Session", systemImage: "trash")
+                                }
+                            }
+                        }
+                    }
+
+                    if !importedWorkouts.isEmpty {
+                        TempleSectionHeader(
+                            title: "Imported Work",
+                            subtitle: "Synced from Apple Health and connected services",
+                            accent: .secondary,
+                            icon: "square.and.arrow.down"
+                        )
+
+                        ForEach(importedWorkouts) { workout in
+                            Button {
+                                selectedWorkoutForDetail = workout
+                            } label: {
+                                SanctuaryWorkoutRow(workout: workout)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24)
+                .stroke(.white.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    @ViewBuilder
+    private var goalsSection: some View {
+        if !goals.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 8) {
+                    Image(systemName: "sparkles")
+                        .foregroundStyle(.purple)
+                    Text("Intentions")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                }
+
+                ForEach(goals.prefix(3)) { goal in
+                    GoalVisualizationCard(goal: goal)
+                }
+            }
+            .padding(16)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
+            .overlay(
+                RoundedRectangle(cornerRadius: 24)
+                    .stroke(.white.opacity(0.08), lineWidth: 1)
+            )
+        }
+    }
+
+    private func deleteWorkout(_ workout: WorkoutSession) {
+        modelContext.delete(workout)
+        try? modelContext.save()
+
+        let impact = UIImpactFeedbackGenerator(style: .medium)
+        impact.impactOccurred()
+    }
+
+    private func syncHealthKit(isUserInitiated: Bool) async {
+        do {
+            try await healthKitManager.requestAuthorization()
+            let workouts = try await healthKitManager.fetchWorkouts(for: selectedScope)
+            await MainActor.run {
+                mergeHealthKitWorkouts(workouts)
+            }
+        } catch {
+            if isUserInitiated {
                 await MainActor.run {
                     showingHealthKitAlert = true
                 }
+            } else {
+                print("Temple HealthKit sync (silent) failed: \(error)")
             }
         }
     }
-    
-    /// Merge HealthKit workouts into DayLog records
+
+    /// Merge HealthKit workouts into DayLog records.
+    /// Updates existing workouts by ID to keep source metadata fresh.
     private func mergeHealthKitWorkouts(_ workouts: [WorkoutSession]) {
         let calendar = Calendar.current
-        
+
         for workout in workouts {
             let startOfDay = calendar.startOfDay(for: workout.timestamp)
-            
-            // Find or create DayLog for this date
-            if let dayLog = allLogs.first(where: { calendar.isDate($0.date, inSameDayAs: startOfDay) }) {
-                // Check if workout already exists (by ID)
-                let exists = dayLog.workouts.contains { $0.id == workout.id }
-                if !exists {
-                    dayLog.workouts.append(workout)
-                }
+
+            let dayLog: DayLog
+            if let existing = allLogs.first(where: { calendar.isDate($0.date, inSameDayAs: startOfDay) }) {
+                dayLog = existing
             } else {
-                // Create new DayLog for this date
-                let newLog = DayLog(date: startOfDay, workouts: [workout])
+                let newLog = DayLog(date: startOfDay, workouts: [])
                 modelContext.insert(newLog)
+                dayLog = newLog
+            }
+
+            if let existingWorkout = dayLog.workouts.first(where: { $0.id == workout.id }) {
+                existingWorkout.title = workout.title
+                existingWorkout.type = workout.type
+                existingWorkout.duration = workout.duration
+                existingWorkout.calories = workout.calories
+                existingWorkout.source = workout.source
+                existingWorkout.timestamp = workout.timestamp
+                existingWorkout.startTime = workout.startTime
+                existingWorkout.endTime = workout.endTime
+                existingWorkout.notes = workout.notes
+                existingWorkout.distanceMiles = workout.distanceMiles
+                existingWorkout.averageHeartRate = workout.averageHeartRate
+                existingWorkout.sourceName = workout.sourceName
+                existingWorkout.sourceBundleID = workout.sourceBundleID
+                existingWorkout.isLifeFlowNative = workout.isLifeFlowNative
+            } else {
+                dayLog.workouts.append(workout)
             }
         }
-        
+
         try? modelContext.save()
     }
-}
 
-// MARK: - Empty States
-
-struct EmptyGoalChartState: View {
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "chart.line.uptrend.xyaxis")
-                .font(.largeTitle)
-                .foregroundStyle(.secondary)
-            
-            Text("No Goals Set")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-            
-            Text("Add goals in Horizon to see progress charts")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .multilineTextAlignment(.center)
+    private func formatDistance(_ miles: Double) -> String {
+        if miles >= 10 {
+            return String(format: "%.0f mi", miles)
         }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        return String(format: "%.1f mi", miles)
     }
-}
 
-// MARK: - Workout Summary View (Read-Only)
-
-struct WorkoutSummaryView: View {
-    let stats: (count: Int, calories: Double, duration: TimeInterval)
-    let isSyncing: Bool
-    let onSyncTap: () -> Void
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Header with sync button
-            HStack {
-                Image(systemName: "figure.strengthtraining.traditional")
-                    .font(.title2)
-                    .foregroundStyle(.orange)
-                
-                Text("Workout Summary")
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                
-                Spacer()
-                
-                Button(action: onSyncTap) {
-                    HStack(spacing: 4) {
-                        if isSyncing {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                        } else {
-                            Image(systemName: "arrow.triangle.2.circlepath")
-                        }
-                        Text("Sync")
-                            .font(.caption)
-                    }
-                    .foregroundStyle(.pink)
-                }
-                .disabled(isSyncing)
-            }
-            
-            // Stats
-            if stats.count == 0 {
-                Text("No workouts in this period")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 20)
-            } else {
-                HStack(spacing: 16) {
-                    StatPill(
-                        icon: "flame.fill",
-                        value: "\(Int(stats.calories))",
-                        label: "cal",
-                        color: .orange
-                    )
-                    
-                    StatPill(
-                        icon: "clock.fill",
-                        value: formatDuration(stats.duration),
-                        label: "",
-                        color: .cyan
-                    )
-                    
-                    StatPill(
-                        icon: "checkmark.circle.fill",
-                        value: "\(stats.count)",
-                        label: stats.count == 1 ? "workout" : "workouts",
-                        color: .green
-                    )
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .glassEffect(in: .rect(cornerRadius: 20))
-    }
-    
     private func formatDuration(_ seconds: TimeInterval) -> String {
-        let hours = Int(seconds) / 3600
-        let minutes = (Int(seconds) % 3600) / 60
-        
-        if hours > 0 {
-            return "\(hours)h \(minutes)m"
-        } else {
-            return "\(minutes)m"
+        let minutes = Int(seconds / 60)
+        if minutes >= 120 {
+            return "\(minutes / 60)h \(minutes % 60)m"
         }
+        return "\(minutes)m"
     }
 }
 
-// MARK: - Stat Pill Component
-
-/// Stat pill for workout summary
-struct StatPill: View {
-    let icon: String
+private struct TempleInsightTile: View {
+    let title: String
     let value: String
-    let label: String
-    let color: Color
-    
+    let caption: String
+    let accent: Color
+    let icon: String
+
     var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.caption)
-                .foregroundStyle(color)
-            
-            Text(value)
-                .font(.caption.weight(.semibold))
-            
-            if !label.isEmpty {
-                Text(label)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(.ultraThinMaterial, in: Capsule())
-    }
-}
-
-// MARK: - Recent Workouts Section
-
-struct RecentWorkoutsSection: View {
-    let workouts: [WorkoutSession]
-    let onWorkoutTap: (WorkoutSession) -> Void
-    let onWorkoutDelete: (WorkoutSession) -> Void
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "clock.arrow.circlepath")
-                    .font(.title2)
-                    .foregroundStyle(.cyan)
-                
-                Text("Recent Workouts")
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                
-                Spacer()
-                
-                Text("\(workouts.count)")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.cyan, in: Capsule())
-            }
-            
-            ForEach(workouts) { workout in
-                SwipeableWorkoutCard(
-                    workout: workout,
-                    onTap: { onWorkoutTap(workout) },
-                    onDelete: { onWorkoutDelete(workout) }
-                )
-            }
-        }
-    }
-}
-
-// MARK: - Swipeable Workout Card
-
-struct SwipeableWorkoutCard: View {
-    let workout: WorkoutSession
-    let onTap: () -> Void
-    let onDelete: () -> Void
-    
-    @State private var offset: CGFloat = 0
-    private let deleteThreshold: CGFloat = -80
-    
-    var body: some View {
-        ZStack(alignment: .trailing) {
-            // Delete background
-            HStack {
-                Spacer()
-                Button(action: onDelete) {
-                    Image(systemName: "trash.fill")
-                        .font(.title2)
-                        .foregroundStyle(.white)
-                        .frame(width: 70)
-                        .frame(maxHeight: .infinity)
-                }
-                .background(Color.red)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-            }
-            .opacity(offset < -20 ? 1 : 0)
-            
-            RecentWorkoutCard(workout: workout)
-                .offset(x: offset)
-                .gesture(
-                    DragGesture()
-                        .onChanged { gesture in
-                            if gesture.translation.width < 0 {
-                                offset = gesture.translation.width
-                            }
-                        }
-                        .onEnded { gesture in
-                            withAnimation(.spring(response: 0.3)) {
-                                if offset < deleteThreshold {
-                                    onDelete()
-                                }
-                                offset = 0
-                            }
-                        }
-                )
-                .onTapGesture(perform: onTap)
-        }
-    }
-}
-
-// MARK: - Recent Workout Card
-
-struct RecentWorkoutCard: View {
-    let workout: WorkoutSession
-    
-    private var formattedDate: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "E, MMM d"
-        return formatter.string(from: workout.startTime)
-    }
-    
-    private var formattedDuration: String {
-        let mins = Int(workout.duration) / 60
-        return "\(mins)m"
-    }
-    
-    private var exerciseCount: Int {
-        workout.exercises.count
-    }
-    
-    private var completedSetsCount: Int {
-        workout.exercises.reduce(0) { $0 + $1.sets.filter(\.isCompleted).count }
-    }
-    
-    /// Whether this workout was synced from Apple Health
-    private var isFromHealthKit: Bool {
-        workout.source == "HealthKit"
-    }
-    
-    /// Source indicator color
-    private var sourceColor: Color {
-        isFromHealthKit ? .pink : .cyan
-    }
-    
-    /// Source indicator icon
-    private var sourceIcon: String {
-        isFromHealthKit ? "heart.fill" : "figure.run"
-    }
-    
-    /// Source label text
-    private var sourceLabel: String {
-        isFromHealthKit ? "Health" : "LifeFlow"
-    }
-    
-    private var runStampText: String? {
-        guard workout.type == "Running" else { return nil }
-        guard let weather = workout.weatherStampText, !weather.isEmpty else { return nil }
-        
-        let distance = workout.runAnalysisMetadata?.completedDistanceMiles
-            ?? (workout.totalDistanceMiles > 0 ? workout.totalDistanceMiles : nil)
-        
-        if let distance {
-            return String(format: "Ran %.1f mi in %@", distance, weather)
-        }
-        return weather
-    }
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            // Icon with source indicator overlay
-            ZStack(alignment: .bottomTrailing) {
-                ZStack {
-                    Circle()
-                        .fill(Color.orange.opacity(0.15))
-                        .frame(width: 44, height: 44)
-                    
-                    Image(systemName: "figure.strengthtraining.traditional")
-                        .font(.title3)
-                        .foregroundStyle(.orange)
-                }
-                
-                // Small source indicator badge
-                ZStack {
-                    Circle()
-                        .fill(sourceColor)
-                        .frame(width: 16, height: 16)
-                    
-                    Image(systemName: sourceIcon)
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(.white)
-                }
-                .offset(x: 4, y: 4)
-            }
-            
-            // Info
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(workout.title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                    
-                    // Source label pill
-                    Text(sourceLabel)
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(sourceColor)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(sourceColor.opacity(0.15), in: Capsule())
-                }
-                
-                HStack(spacing: 8) {
-                    Text(formattedDate)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    
-                    Text("•")
-                        .foregroundStyle(.secondary)
-                    
-                    Text("\(exerciseCount) exercises")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    
-                    Text("•")
-                        .foregroundStyle(.secondary)
-                    
-                    Text("\(completedSetsCount) sets")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                
-                if let runStampText {
-                    Text(runStampText)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-            }
-            
-            Spacer()
-            
-            // Duration and chevron
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(formattedDuration)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.cyan)
-                
-                Image(systemName: "chevron.right")
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.caption)
+                    .foregroundStyle(accent)
+                Text(title)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Text(value)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+
+            Text(caption)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
         .overlay(
-            // Subtle left edge accent for HealthKit workouts
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(
-                    isFromHealthKit 
-                        ? LinearGradient(colors: [.pink.opacity(0.4), .pink.opacity(0.1)], startPoint: .leading, endPoint: .trailing)
-                        : LinearGradient(colors: [.clear, .clear], startPoint: .leading, endPoint: .trailing),
-                    lineWidth: 1
-                )
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(accent.opacity(0.25), lineWidth: 1)
         )
+    }
+}
+
+private struct TempleSectionHeader: View {
+    let title: String
+    let subtitle: String
+    let accent: Color
+    let icon: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(accent)
+                .frame(width: 22, height: 22)
+                .background(accent.opacity(0.18), in: Circle())
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                Text(subtitle)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding(.top, 4)
+    }
+}
+
+private struct TempleChronicleEmptyState: View {
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "moon.stars.fill")
+                .font(.title2)
+                .foregroundStyle(.cyan.opacity(0.7))
+
+            Text("No sessions in this range")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+
+            Text("Sync HealthKit or complete a guided session to begin your chronicle.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 20)
+        .background(Color.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 16))
     }
 }
 
@@ -610,31 +515,50 @@ struct RecentWorkoutCard: View {
 struct WorkoutDetailModal: View {
     let workout: WorkoutSession
     @Environment(\.dismiss) private var dismiss
-    
+
     private var formattedDate: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE, MMMM d"
         return formatter.string(from: workout.startTime)
     }
-    
+
     private var formattedDuration: String {
         let hours = Int(workout.duration) / 3600
         let mins = (Int(workout.duration) % 3600) / 60
         return hours > 0 ? "\(hours)h \(mins)m" : "\(mins)m"
     }
-    
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    // Stats header
                     HStack(spacing: 16) {
                         StatBubble(icon: "clock.fill", value: formattedDuration, label: "Duration", color: .cyan)
                         StatBubble(icon: "dumbbell.fill", value: "\(workout.exercises.count)", label: "Exercises", color: .orange)
                         StatBubble(icon: "flame.fill", value: "\(Int(workout.calories))", label: "Calories", color: .red)
                     }
                     .padding(.horizontal)
-                    
+
+                    HStack(spacing: 8) {
+                        WorkoutSourceBadge(
+                            sourceName: workout.resolvedSourceName,
+                            bundleID: workout.resolvedSourceBundleID,
+                            isNative: workout.resolvedIsLifeFlowNative
+                        )
+
+                        if let heartRate = workout.averageHeartRate, heartRate > 0 {
+                            Text("Avg HR \(Int(heartRate.rounded())) bpm")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(.ultraThinMaterial, in: Capsule())
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.horizontal)
+
                     if let weatherStamp = workout.weatherStampText {
                         Label(weatherStamp, systemImage: "cloud.sun.fill")
                             .font(.subheadline)
@@ -642,21 +566,28 @@ struct WorkoutDetailModal: View {
                             .padding(.horizontal)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    
+
                     Divider()
                         .padding(.horizontal)
-                    
-                    // Exercises list
+
                     VStack(alignment: .leading, spacing: 12) {
                         Text("EXERCISES")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
                             .tracking(1)
                             .padding(.horizontal)
-                        
+
                         ForEach(workout.sortedExercises) { exercise in
                             ExerciseDetailCard(exercise: exercise)
                         }
+                    }
+
+                    if workout.sortedExercises.isEmpty {
+                        Text("No granular exercise breakdown available for this session.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
                 .padding(.vertical)
@@ -665,6 +596,12 @@ struct WorkoutDetailModal: View {
             .navigationTitle(workout.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Text(formattedDate)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
                         dismiss()
@@ -676,24 +613,22 @@ struct WorkoutDetailModal: View {
     }
 }
 
-// MARK: - Stat Bubble
-
 private struct StatBubble: View {
     let icon: String
     let value: String
     let label: String
     let color: Color
-    
+
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: icon)
                 .font(.title2)
                 .foregroundStyle(color)
-            
+
             Text(value)
                 .font(.headline)
                 .foregroundStyle(.primary)
-            
+
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -704,36 +639,32 @@ private struct StatBubble: View {
     }
 }
 
-// MARK: - Exercise Detail Card
-
 private struct ExerciseDetailCard: View {
     let exercise: WorkoutExercise
-    
+
     private var completedSets: [ExerciseSet] {
         exercise.sortedSets.filter(\.isCompleted)
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Header
             HStack {
                 Image(systemName: exercise.type.icon)
                     .font(.callout)
                     .foregroundStyle(colorForType(exercise.type))
                     .frame(width: 28, height: 28)
                     .background(colorForType(exercise.type).opacity(0.15), in: Circle())
-                
+
                 Text(exercise.name)
                     .font(.subheadline.weight(.semibold))
-                
+
                 Spacer()
-                
+
                 Text("\(completedSets.count)/\(exercise.sets.count) sets")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            
-            // Sets list
+
             if !completedSets.isEmpty {
                 VStack(spacing: 6) {
                     ForEach(Array(completedSets.enumerated()), id: \.element.id) { index, set in
@@ -741,10 +672,9 @@ private struct ExerciseDetailCard: View {
                             Text("Set \(index + 1)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            
+
                             Spacer()
-                            
-                            // Weight and reps
+
                             if let weight = set.weight, let reps = set.reps {
                                 Text("\(Int(weight)) lbs × \(reps) reps")
                                     .font(.caption.weight(.medium))
@@ -770,7 +700,7 @@ private struct ExerciseDetailCard: View {
         .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
         .padding(.horizontal)
     }
-    
+
     private func colorForType(_ type: ExerciseType) -> Color {
         switch type {
         case .weight: return .orange
@@ -785,7 +715,7 @@ private struct ExerciseDetailCard: View {
 
 #Preview {
     ZStack {
-        LiquidBackgroundView()
+        LiquidBackgroundView(currentTab: .temple)
         TempleView()
     }
     .modelContainer(for: [DayLog.self, WorkoutSession.self, Goal.self], inMemory: true)
