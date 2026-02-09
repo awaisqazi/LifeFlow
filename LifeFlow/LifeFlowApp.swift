@@ -17,12 +17,23 @@ struct LifeFlowApp: App {
     /// Controls whether GymModeView is presented (for deep linking)
     @State private var showGymMode: Bool = false
     
+    /// First-run gate for the Liquid Launch onboarding flow.
+    @AppStorage("lifeflow.hasCompletedOnboarding") private var hasCompletedOnboarding: Bool = false
+    
     /// Scene phase for handling app lifecycle events
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
-            MainTabView()
+            Group {
+                if hasCompletedOnboarding {
+                    MainTabView()
+                } else {
+                    WelcomeView {
+                        hasCompletedOnboarding = true
+                    }
+                }
+            }
                 .onOpenURL { url in
                     handleDeepLink(url)
                 }
@@ -47,6 +58,10 @@ struct LifeFlowApp: App {
     /// Handle deep links from widgets
     private func handleDeepLink(_ url: URL) {
         guard url.scheme == "lifeflow" else { return }
+        
+        if !hasCompletedOnboarding {
+            hasCompletedOnboarding = true
+        }
         
         switch url.host {
         case "gym":

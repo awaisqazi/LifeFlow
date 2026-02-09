@@ -144,13 +144,9 @@ struct HorizonView: View {
             SanctuarySectionHeader(title: "Aspiration Windows")
 
             if goals.isEmpty {
-                VStack(spacing: 12) {
-                    ContentUnavailableView(
-                        "No Goals Yet",
-                        systemImage: "mountain.2",
-                        description: Text("Set your sights on the horizon.")
-                    )
-
+                VStack(spacing: 14) {
+                    GhostExampleGoalCard()
+                    
                     Button {
                         showingAddGoal = true
                     } label: {
@@ -267,6 +263,54 @@ struct HorizonView: View {
             modelContext.delete(goal)
             try? modelContext.save()
         }
+    }
+}
+
+private struct GhostExampleGoalCard: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(.white.opacity(0.58))
+                    .accessibilityHidden(true)
+                Text("Example Aspiration")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.6))
+            }
+            
+            Text("Run a Marathon")
+                .font(.title3.weight(.bold))
+                .foregroundStyle(.white.opacity(0.8))
+            
+            Text("Build this into your own horizon and track progress daily.")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.58))
+            
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.white.opacity(0.12))
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: [.green.opacity(0.45), .mint.opacity(0.2)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(maxWidth: 120)
+            }
+            .frame(height: 8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 18))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(style: StrokeStyle(lineWidth: 1.2, dash: [6]))
+                .foregroundStyle(Color.white.opacity(0.2))
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Example goal card. Run a Marathon.")
     }
 }
 

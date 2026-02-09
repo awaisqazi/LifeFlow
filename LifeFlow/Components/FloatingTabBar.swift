@@ -193,14 +193,26 @@ struct TabButton: View {
     let isSelected: Bool
     let namespace: Namespace.ID
     let action: () -> Void
+    @State private var isPressedPop: Bool = false
     
     var body: some View {
-        Button(action: action) {
+        Button {
+            withAnimation(.spring(response: 0.24, dampingFraction: 0.52)) {
+                isPressedPop = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.72)) {
+                    isPressedPop = false
+                }
+            }
+            action()
+        } label: {
             VStack(spacing: 4) {
                 Image(systemName: tab.icon)
                     .font(.system(size: 22, weight: .medium))
                     .frame(height: 24)
                     .symbolEffect(.bounce, value: isSelected)
+                    .scaleEffect(isPressedPop ? 1.14 : 1.0)
                 
                 Text(tab.rawValue)
                     .font(.system(size: 10, weight: .semibold))

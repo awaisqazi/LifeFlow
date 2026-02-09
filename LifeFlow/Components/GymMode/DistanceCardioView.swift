@@ -108,59 +108,68 @@ struct DistanceCardioView: View {
     
     private var setupView: some View {
         VStack(spacing: 20) {
-            // Speed and Incline (Standard compact boxes)
-            VStack(spacing: 12) {
-                HStack(spacing: 12) {
-                    CardioSettingBox(
-                        label: "Speed",
-                        value: speed,
-                        unit: "mph",
-                        color: .green,
-                        isExpanded: expandedSetting == .speed,
-                        onTap: {
-                            withAnimation(.spring(response: 0.3)) {
-                                expandedSetting = expandedSetting == .speed ? nil : .speed
+            if gymModeManager.isIndoorRun {
+                // Speed and incline are user-controlled only for treadmill mode.
+                VStack(spacing: 12) {
+                    HStack(spacing: 12) {
+                        CardioSettingBox(
+                            label: "Speed",
+                            value: speed,
+                            unit: "mph",
+                            color: .green,
+                            isExpanded: expandedSetting == .speed,
+                            onTap: {
+                                withAnimation(.spring(response: 0.3)) {
+                                    expandedSetting = expandedSetting == .speed ? nil : .speed
+                                }
                             }
-                        }
-                    )
+                        )
+                        
+                        CardioSettingBox(
+                            label: "Incline",
+                            value: incline,
+                            unit: "%",
+                            color: .orange,
+                            isExpanded: expandedSetting == .incline,
+                            onTap: {
+                                withAnimation(.spring(response: 0.3)) {
+                                    expandedSetting = expandedSetting == .incline ? nil : .incline
+                                }
+                            }
+                        )
+                    }
                     
-                    CardioSettingBox(
-                        label: "Incline",
-                        value: incline,
-                        unit: "%",
-                        color: .orange,
-                        isExpanded: expandedSetting == .incline,
-                        onTap: {
-                            withAnimation(.spring(response: 0.3)) {
-                                expandedSetting = expandedSetting == .incline ? nil : .incline
+                    if let setting = expandedSetting {
+                        CardioIncrementInput(
+                            value: setting == .speed ? $speed : $incline,
+                            unit: setting == .speed ? "mph" : "%",
+                            color: setting == .speed ? .green : .orange,
+                            increments: setting == .speed ? [0.1, 0.5, 1.0, 2.5] : [0.1, 0.5, 2.5, 5.0],
+                            onValueChanged: {
+                                if setting == .speed {
+                                    hasCustomSetupSpeed = true
+                                }
                             }
-                        }
-                    )
+                        )
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
-                
-                if let setting = expandedSetting {
-                    CardioIncrementInput(
-                        value: setting == .speed ? $speed : $incline,
-                        unit: setting == .speed ? "mph" : "%",
-                        color: setting == .speed ? .green : .orange,
-                        increments: setting == .speed ? [0.1, 0.5, 1.0, 2.5] : [0.1, 0.5, 2.5, 5.0],
-                        onValueChanged: {
-                            if setting == .speed {
-                                hasCustomSetupSpeed = true
-                            }
-                        }
-                    )
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
+                .padding(.top, 4)
+            } else {
+                sensorMeasuredSetupPanel
+                    .padding(.top, 4)
             }
-            .padding(.top, 4)
             
             runEnvironmentToggle
             
             HStack(spacing: 8) {
                 Image(systemName: gymModeManager.isIndoorRun ? "house.fill" : "cloud.sun.fill")
                     .foregroundStyle(gymModeManager.isIndoorRun ? .orange : .cyan)
-                Text(gymModeManager.isIndoorRun ? "Indoor mode on. GPS map stays hidden to reduce distraction." : weatherService.summaryText)
+                Text(
+                    gymModeManager.isIndoorRun
+                    ? "Indoor mode on. You can tune speed and incline manually."
+                    : "Outdoor mode uses Apple Watch/iPhone sensors for pace and grade. \(weatherService.summaryText)"
+                )
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.leading)
@@ -283,57 +292,53 @@ struct DistanceCardioView: View {
             }
             .buttonStyle(.plain)
             
-            // Speed and Incline (Active phase)
-            VStack(spacing: 12) {
-                HStack(spacing: 12) {
-                    CardioSettingBox(
-                        label: "Speed",
-                        value: speed,
-                        unit: "mph",
-                        color: .green,
-                        isExpanded: expandedSetting == .speed,
-                        onTap: {
-                            withAnimation(.spring(response: 0.3)) {
-                                expandedSetting = expandedSetting == .speed ? nil : .speed
+            if gymModeManager.isIndoorRun {
+                // Speed and incline are only editable for treadmill sessions.
+                VStack(spacing: 12) {
+                    HStack(spacing: 12) {
+                        CardioSettingBox(
+                            label: "Speed",
+                            value: speed,
+                            unit: "mph",
+                            color: .green,
+                            isExpanded: expandedSetting == .speed,
+                            onTap: {
+                                withAnimation(.spring(response: 0.3)) {
+                                    expandedSetting = expandedSetting == .speed ? nil : .speed
+                                }
                             }
-                        }
-                    )
+                        )
+                        
+                        CardioSettingBox(
+                            label: "Incline",
+                            value: incline,
+                            unit: "%",
+                            color: .orange,
+                            isExpanded: expandedSetting == .incline,
+                            onTap: {
+                                withAnimation(.spring(response: 0.3)) {
+                                    expandedSetting = expandedSetting == .incline ? nil : .incline
+                                }
+                            }
+                        )
+                    }
                     
-                    CardioSettingBox(
-                        label: "Incline",
-                        value: incline,
-                        unit: "%",
-                        color: .orange,
-                        isExpanded: expandedSetting == .incline,
-                        onTap: {
-                            withAnimation(.spring(response: 0.3)) {
-                                expandedSetting = expandedSetting == .incline ? nil : .incline
+                    if let setting = expandedSetting {
+                        CardioIncrementInput(
+                            value: setting == .speed ? $speed : $incline,
+                            unit: setting == .speed ? "mph" : "%",
+                            color: setting == .speed ? .green : .orange,
+                            increments: setting == .speed ? [0.1, 0.5, 1.0, 2.5] : [0.1, 0.5, 2.5, 5.0],
+                            onValueChanged: {
+                                syncCardioStateToManager()
                             }
-                        }
-                    )
+                        )
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
-                
-                if let setting = expandedSetting {
-                    CardioIncrementInput(
-                        value: setting == .speed ? $speed : $incline,
-                        unit: setting == .speed ? "mph" : "%",
-                        color: setting == .speed ? .green : .orange,
-                        increments: setting == .speed ? [0.1, 0.5, 1.0, 2.5] : [0.1, 0.5, 2.5, 5.0],
-                        onValueChanged: {
-                            // Sync with widget
-                            gymModeManager.updateCardioState(
-                                mode: 2,
-                                endTime: nil,
-                                speed: speed,
-                                incline: incline,
-                                elapsedTime: elapsedTime,
-                                duration: targetDistance,
-                                currentDistance: displayDistance
-                            )
-                        }
-                    )
+            } else {
+                sensorMeasuredActivePanel
                     .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
             }
             
             // End early button
@@ -495,7 +500,78 @@ struct DistanceCardioView: View {
         if healthKitManager.currentSessionDistance > 0 {
             return healthKitManager.currentSessionDistance
         }
+        if liveLocationTracker.trackedDistanceMiles > 0 {
+            return liveLocationTracker.trackedDistanceMiles
+        }
         return currentDistance
+    }
+
+    private var sensorSpeedForOutdoor: Double {
+        if let liveSpeed = liveLocationTracker.currentSpeedMPH, liveSpeed > 0.05 {
+            return liveSpeed
+        }
+        
+        guard elapsedTime > 0 else { return 0 }
+        return max(0, (displayDistance / elapsedTime) * 3600)
+    }
+    
+    private var sensorInclineForOutdoor: Double {
+        if let liveGrade = liveLocationTracker.currentGradePercent, liveGrade.isFinite {
+            return liveGrade
+        }
+        return 0
+    }
+    
+    private var speedDisplayText: String {
+        let speedValue = sensorSpeedForOutdoor
+        if speedValue <= 0.05 { return "Auto" }
+        return String(format: "%.1f mph", speedValue)
+    }
+    
+    private var inclineDisplayText: String {
+        let inclineValue = sensorInclineForOutdoor
+        if abs(inclineValue) < 0.05 { return "0.0%" }
+        return String(format: "%+.1f%%", inclineValue)
+    }
+    
+    private var sensorMeasuredSetupPanel: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 12) {
+                SensorReadoutBox(
+                    label: "Speed",
+                    valueText: "Auto",
+                    detailText: "From GPS/Watch",
+                    color: .green
+                )
+                SensorReadoutBox(
+                    label: "Incline",
+                    valueText: "Auto",
+                    detailText: "From elevation",
+                    color: .orange
+                )
+            }
+            Text("Outdoor guided runs are sensor-driven. Manual speed and incline input is disabled.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+    
+    private var sensorMeasuredActivePanel: some View {
+        HStack(spacing: 12) {
+            SensorReadoutBox(
+                label: "Speed",
+                valueText: speedDisplayText,
+                detailText: "Measured live",
+                color: .green
+            )
+            SensorReadoutBox(
+                label: "Incline",
+                valueText: inclineDisplayText,
+                detailText: "Measured live",
+                color: .orange
+            )
+        }
     }
     
     @ViewBuilder
@@ -576,7 +652,7 @@ struct DistanceCardioView: View {
         mapPosition = .automatic
         liveLocationTracker.resetRoute()
         liveLocationTracker.startTracking(indoor: gymModeManager.isIndoorRun)
-        let setupSpeedOverride = hasCustomSetupSpeed ? speed : nil
+        let setupSpeedOverride = gymModeManager.isIndoorRun && hasCustomSetupSpeed ? speed : nil
         gymModeManager.beginGuidedDistanceRun(
             setupSpeedMPH: setupSpeedOverride,
             weatherSummary: weatherService.summaryText
@@ -585,15 +661,7 @@ struct DistanceCardioView: View {
         
         // Start live tracking if possible
         gymModeManager.startHealthKitRun(hkManager: healthKitManager)
-        gymModeManager.updateCardioState(
-            mode: 2,
-            endTime: nil,
-            speed: speed,
-            incline: incline,
-            elapsedTime: 0,
-            duration: targetDistance,
-            currentDistance: 0
-        )
+        syncCardioStateToManager()
         
         // Init history
         currentIntervalStart = Date()
@@ -605,19 +673,17 @@ struct DistanceCardioView: View {
             guard !gymModeManager.isPaused else { return }
             elapsedTime += 1
             
-            // Calculate distance traveled this second (speed mph -> miles per second)
-            let distanceThisSecond = speed / 3600.0
-            currentDistance += distanceThisSecond
+            if gymModeManager.isIndoorRun {
+                // Treadmill sessions use user-set speed and simulated progression.
+                let distanceThisSecond = speed / 3600.0
+                currentDistance += distanceThisSecond
+            } else {
+                // Outdoor sessions are sensor-driven (HealthKit distance + GPS fallback).
+                speed = sensorSpeedForOutdoor
+                incline = sensorInclineForOutdoor
+            }
             
-            gymModeManager.updateCardioState(
-                mode: 2,
-                endTime: nil,
-                speed: speed,
-                incline: incline,
-                elapsedTime: elapsedTime,
-                duration: targetDistance,
-                currentDistance: displayDistance
-            )
+            syncCardioStateToManager()
             
             // Check if target reached
             if displayDistance >= targetDistance {
@@ -651,6 +717,10 @@ struct DistanceCardioView: View {
         Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
                 gymModeManager.isIndoorRun = isIndoor
+                if !isIndoor {
+                    expandedSetting = nil
+                    hasCustomSetupSpeed = false
+                }
             }
         } label: {
             HStack(spacing: 6) {
@@ -693,16 +763,23 @@ struct DistanceCardioView: View {
         liveLocationTracker.stopTracking()
         
         let finalIntervals = allIntervalsWithCurrent
+        syncCardioStateToManager()
+        onComplete(displayDistance, speed, incline, finalIntervals, early)
+    }
+
+    private func syncCardioStateToManager() {
+        let cardioSpeed = gymModeManager.isIndoorRun ? speed : sensorSpeedForOutdoor
+        let cardioIncline = gymModeManager.isIndoorRun ? incline : sensorInclineForOutdoor
+        
         gymModeManager.updateCardioState(
             mode: 2,
             endTime: nil,
-            speed: speed,
-            incline: incline,
+            speed: cardioSpeed,
+            incline: cardioIncline,
             elapsedTime: elapsedTime,
             duration: targetDistance,
             currentDistance: displayDistance
         )
-        onComplete(displayDistance, speed, incline, finalIntervals, early)
     }
     
     private static func region(around coordinate: CLLocationCoordinate2D) -> MKCoordinateRegion {
@@ -716,6 +793,9 @@ struct DistanceCardioView: View {
 private final class LiveRunLocationTracker: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published private(set) var routeCoordinates: [CLLocationCoordinate2D] = []
     @Published private(set) var latestCoordinate: CLLocationCoordinate2D?
+    @Published private(set) var trackedDistanceMiles: Double = 0
+    @Published private(set) var currentSpeedMPH: Double?
+    @Published private(set) var currentGradePercent: Double?
     @Published private(set) var authorizationStatus: CLAuthorizationStatus
     @Published private(set) var locationError: String?
     
@@ -764,6 +844,9 @@ private final class LiveRunLocationTracker: NSObject, ObservableObject, CLLocati
         routeCoordinates.removeAll()
         latestCoordinate = nil
         lastRecordedLocation = nil
+        trackedDistanceMiles = 0
+        currentSpeedMPH = nil
+        currentGradePercent = nil
         locationError = nil
     }
     
@@ -783,11 +866,14 @@ private final class LiveRunLocationTracker: NSObject, ObservableObject, CLLocati
             guard location.horizontalAccuracy >= 0 else { continue }
             
             latestCoordinate = location.coordinate
+            updateSpeed(using: location)
             
             if let last = lastRecordedLocation {
                 let delta = location.distance(from: last)
                 if delta >= 5 {
                     routeCoordinates.append(location.coordinate)
+                    trackedDistanceMiles += delta / 1609.34
+                    updateGrade(from: last, to: location, horizontalDistance: delta)
                     lastRecordedLocation = location
                 }
             } else {
@@ -812,6 +898,66 @@ private final class LiveRunLocationTracker: NSObject, ObservableObject, CLLocati
         @unknown default:
             break
         }
+    }
+    
+    private func updateSpeed(using location: CLLocation) {
+        guard location.speed >= 0 else { return }
+        let speedMPH = location.speed * 2.23693629
+        guard speedMPH.isFinite else { return }
+        
+        if let existingSpeed = currentSpeedMPH {
+            currentSpeedMPH = (existingSpeed * 0.65) + (speedMPH * 0.35)
+        } else {
+            currentSpeedMPH = speedMPH
+        }
+    }
+    
+    private func updateGrade(from last: CLLocation, to current: CLLocation, horizontalDistance: Double) {
+        guard horizontalDistance >= 3 else { return }
+        guard last.verticalAccuracy >= 0, current.verticalAccuracy >= 0 else { return }
+        
+        let verticalRise = current.altitude - last.altitude
+        let gradePercent = (verticalRise / horizontalDistance) * 100
+        guard gradePercent.isFinite else { return }
+        
+        let clampedGrade = min(30, max(-30, gradePercent))
+        if let existingGrade = currentGradePercent {
+            currentGradePercent = (existingGrade * 0.7) + (clampedGrade * 0.3)
+        } else {
+            currentGradePercent = clampedGrade
+        }
+    }
+}
+
+private struct SensorReadoutBox: View {
+    let label: String
+    let valueText: String
+    let detailText: String
+    let color: Color
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label.uppercased())
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
+            
+            Text(valueText)
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            
+            Text(detailText)
+                .font(.caption2)
+                .foregroundStyle(color.opacity(0.85))
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular, in: .rect(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(color.opacity(0.35), lineWidth: 1)
+        )
     }
 }
 

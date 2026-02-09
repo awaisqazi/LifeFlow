@@ -13,6 +13,7 @@ import Charts
 /// Distinguishes LifeFlow-native work from imported workouts while keeping analytics in one place.
 struct TempleView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.enterGymMode) private var enterGymMode
     @Query(sort: \DayLog.date, order: .reverse) private var allLogs: [DayLog]
     @Query(sort: \Goal.deadline, order: .forward) private var goals: [Goal]
 
@@ -258,7 +259,9 @@ struct TempleView: View {
             }
 
             if scopedWorkouts.isEmpty {
-                TempleChronicleEmptyState()
+                TempleChronicleEmptyState {
+                    enterGymMode()
+                }
             } else {
                 LazyVStack(spacing: 14) {
                     if !nativeWorkouts.isEmpty {
@@ -502,6 +505,8 @@ private struct TempleSectionHeader: View {
 }
 
 private struct TempleChronicleEmptyState: View {
+    let onRecordWorkout: () -> Void
+    
     var body: some View {
         VStack(spacing: 10) {
             Image(systemName: "moon.stars.fill")
@@ -509,14 +514,24 @@ private struct TempleChronicleEmptyState: View {
                 .foregroundStyle(.cyan.opacity(0.7))
                 .accessibilityHidden(true)
 
-            Text("No sessions in this range")
+            Text("Your digital twin is waiting to be born.")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
 
-            Text("Sync HealthKit or complete a guided session to begin your chronicle.")
+            Text("Record your first workout to start the archive.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+            
+            Button(action: onRecordWorkout) {
+                Label("Record First Workout", systemImage: "figure.run")
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(Color.white.opacity(0.15), in: Capsule())
+                    .foregroundStyle(.white)
+            }
+            .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 20)
