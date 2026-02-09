@@ -150,8 +150,8 @@ struct RaceOnboardingSheet: View {
         settings.voiceCoachStartupMode = voiceCoachStartupMode
         settings.save()
 
-        let impact = UIImpactFeedbackGenerator(style: .medium)
-        impact.impactOccurred()
+        SoundManager.shared.play(.successChime, volume: 0.6)
+        SoundManager.shared.haptic(.success)
         dismiss()
     }
 }

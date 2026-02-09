@@ -560,6 +560,9 @@ struct GymModeView: View {
             completedSession = finishPayload.completedSession
             
             if let session = completedSession {
+                SoundManager.shared.play(.successChime, volume: 0.62)
+                SoundManager.shared.haptic(.success)
+                
                 let runMetadata = RunAnalysisMetadata(
                     healthKitWorkoutID: finishPayload.healthKitSnapshot?.workoutID,
                     weatherSummary: finishPayload.weatherSummary,

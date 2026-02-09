@@ -98,8 +98,8 @@ struct HydrationVesselCard: View {
             if newLevel >= 1.0 && oldLevel < 1.0 && !hasTriggeredMilestone {
                 hasTriggeredMilestone = true
                 triggerSuccessPulse()
-                let notification = UINotificationFeedbackGenerator()
-                notification.notificationOccurred(.success)
+                SoundManager.shared.play(.successChime, volume: 0.5)
+                SoundManager.shared.haptic(.success)
             }
         }
     }
@@ -285,6 +285,7 @@ struct HydrationVesselCard: View {
         
         dayLog.waterIntake = newValue
         waterManager.triggerSplash(direction: ounces >= 0 ? .up : .down)
+        SoundManager.shared.play(ounces > 0 ? .waterSplash : .glassTap, volume: ounces >= 16 ? 0.65 : 0.5)
         triggerHaptic(style: ounces >= 16 ? .medium : .soft)
         try? modelContext.save()
         WidgetCenter.shared.reloadAllTimelines()

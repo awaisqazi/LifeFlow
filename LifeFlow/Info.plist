@@ -2,8 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSHealthShareUsageDescription</key>
+	<string>LifeFlow uses your health data to track your running progress and hydration levels to build a custom marathon plan.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>LifeFlow saves your guided workouts and water intake to your Health app.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>LifeFlow tracks your run route even when the screen is locked.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>LifeFlow uses your location to show weather conditions before guided runs.</string>
+	<string>LifeFlow needs your location to map your outdoor runs and calculate pace accurately.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>

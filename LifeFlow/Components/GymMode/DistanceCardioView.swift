@@ -647,6 +647,7 @@ struct DistanceCardioView: View {
         currentDistance = 0
         elapsedTime = 0
         phase = .active
+        SoundManager.shared.play(.startGun, volume: 0.62)
         gymModeManager.isCardioInProgress = true
         hasCenteredMap = false
         mapPosition = .automatic

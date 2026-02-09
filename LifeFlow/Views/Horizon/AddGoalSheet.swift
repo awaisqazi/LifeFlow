@@ -419,6 +419,8 @@ struct AddGoalSheet: View {
         
         modelContext.insert(newGoal)
         try? modelContext.save()
+        SoundManager.shared.play(.successChime, volume: 0.58)
+        SoundManager.shared.haptic(.success)
         dismiss()
     }
 }

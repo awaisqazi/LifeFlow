@@ -249,6 +249,11 @@ final class MarathonCoachManager {
         
         guard let plan = activePlan else { return }
         
+        let priorBestDistance = plan.sessions
+            .filter { $0.id != session.id && $0.isCompleted }
+            .compactMap(\.actualDistance)
+            .max() ?? 0
+        
         let adjustments = TrainingAdaptationEngine.adaptPlan(
             plan: plan,
             completedSession: session,
@@ -274,7 +279,30 @@ final class MarathonCoachManager {
             lastAdaptationSummary = "Crushing it! Your confidence score just got a boost."
         }
         
+        maybePromptForReview(
+            session: session,
+            actualDistance: actualDistance,
+            priorBestDistance: priorBestDistance
+        )
+        
         todaysSession = plan.todaysSession
+    }
+    
+    private func maybePromptForReview(
+        session: TrainingSession,
+        actualDistance: Double,
+        priorBestDistance: Double
+    ) {
+        guard actualDistance > 0 else { return }
+        
+        let isMeaningfulLongRun = session.runType == .longRun && actualDistance >= 5.0
+        let isPersonalBest = priorBestDistance > 0 && actualDistance > (priorBestDistance + 0.05)
+        
+        if isPersonalBest {
+            AppReviewManager.shared.requestReviewIfEligible(reason: .personalBest)
+        } else if isMeaningfulLongRun {
+            AppReviewManager.shared.requestReviewIfEligible(reason: .longRun)
+        }
     }
 
     /// Apply pre-run feeling adjustment to today's session

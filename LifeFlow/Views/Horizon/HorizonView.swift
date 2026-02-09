@@ -627,8 +627,8 @@ struct HydrationGoalCard: View {
     }
 
     private func saveGoal() {
-        let impact = UIImpactFeedbackGenerator(style: .light)
-        impact.impactOccurred()
+        SoundManager.shared.play(.glassTap, volume: 0.45)
+        SoundManager.shared.haptic(.success)
 
         let settings = HydrationSettings(dailyCupsGoal: cupsGoal)
         settings.save()
