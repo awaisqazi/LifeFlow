@@ -37,6 +37,11 @@ struct GymWorkoutSummaryView: View {
     @State private var flowPrintCaption: String = ""
     @State private var flowPrintError: String?
     @State private var showFlowPrintShareSheet: Bool = false
+    @State private var celebrationBurstTrigger: Int = 0
+    
+    private var delightIntensity: MicroDelightIntensity {
+        LifeFlowExperienceSettings.load().microDelightIntensity
+    }
     
     var body: some View {
         NavigationStack {
@@ -74,6 +79,9 @@ struct GymWorkoutSummaryView: View {
         }
         .preferredColorScheme(.dark)
         .task(id: session.id) {
+            if delightIntensity.isEnabled {
+                celebrationBurstTrigger &+= 1
+            }
             await loadRaceAnalysis()
         }
         .sheet(isPresented: $showFlowPrintShareSheet) {
@@ -106,6 +114,20 @@ struct GymWorkoutSummaryView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.vertical, 20)
+        .overlay {
+            if delightIntensity.isEnabled {
+                BubbleBurstView(
+                    trigger: celebrationBurstTrigger,
+                    tint: .mint,
+                    particleCount: max(10, Int((24 * delightIntensity.bubbleParticleScale).rounded())),
+                    spread: 210 * delightIntensity.bubbleParticleScale,
+                    rise: 210 * delightIntensity.bubbleParticleScale,
+                    duration: delightIntensity == .full ? 1.08 : 0.82
+                )
+                .frame(height: 220)
+                .offset(y: 28)
+            }
+        }
     }
     
     // MARK: - Stats Grid

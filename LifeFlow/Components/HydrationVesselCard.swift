@@ -20,6 +20,7 @@ struct HydrationVesselCard: View {
     @State private var waterManager = WaterManager()
     @State private var animatedWaterLevel: Double = 0
     @State private var hasTriggeredMilestone: Bool = false
+    @State private var bubbleBurstTrigger: Int = 0
     
     /// Hydration settings from user preferences
     private var settings: HydrationSettings {
@@ -39,6 +40,10 @@ struct HydrationVesselCard: View {
     /// Current water intake from the DayLog
     private var currentIntake: Double {
         dayLog.waterIntake
+    }
+    
+    private var delightIntensity: MicroDelightIntensity {
+        LifeFlowExperienceSettings.load().microDelightIntensity
     }
     
     /// Fill level as percentage (0.0 to 1.0)
@@ -81,6 +86,20 @@ struct HydrationVesselCard: View {
                 in: RoundedRectangle(cornerRadius: 24)
             )
         }
+        .overlay(alignment: .bottom) {
+            if delightIntensity.isEnabled {
+                BubbleBurstView(
+                    trigger: bubbleBurstTrigger,
+                    tint: .cyan,
+                    particleCount: max(8, Int((20 * delightIntensity.bubbleParticleScale).rounded())),
+                    spread: 132 * delightIntensity.bubbleParticleScale,
+                    rise: 180 * delightIntensity.bubbleParticleScale,
+                    duration: delightIntensity == .full ? 1.05 : 0.78
+                )
+                .frame(height: 240)
+                .padding(.bottom, 6)
+            }
+        }
         .onAppear {
             withAnimation(.easeOut(duration: 0.85)) {
                 animatedWaterLevel = fillLevel
@@ -98,6 +117,9 @@ struct HydrationVesselCard: View {
             if newLevel >= 1.0 && oldLevel < 1.0 && !hasTriggeredMilestone {
                 hasTriggeredMilestone = true
                 triggerSuccessPulse()
+                if delightIntensity.isEnabled {
+                    bubbleBurstTrigger &+= 1
+                }
                 SoundManager.shared.play(.successChime, volume: 0.5)
                 SoundManager.shared.haptic(.success)
             }
@@ -286,6 +308,9 @@ struct HydrationVesselCard: View {
         dayLog.waterIntake = newValue
         HydrationSettings.saveCurrentIntake(newValue)
         waterManager.triggerSplash(direction: ounces >= 0 ? .up : .down)
+        if ounces > 0 && delightIntensity.isEnabled {
+            bubbleBurstTrigger &+= 1
+        }
         SoundManager.shared.play(ounces > 0 ? .waterSplash : .glassTap, volume: ounces >= 16 ? 0.65 : 0.5)
         triggerHaptic(style: ounces >= 16 ? .medium : .soft)
         try? modelContext.save()

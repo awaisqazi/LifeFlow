@@ -13,6 +13,7 @@ import SwiftData
 struct MainTabView: View {
     @State private var selectedTab: LifeFlowTab = .flow
     @State private var showSuccessPulse: Bool = false
+    @State private var successPulseScale: Double = LifeFlowExperienceSettings.load().microDelightIntensity.successPulseScale
     @State private var isGymModeActive: Bool = false
     @State private var showProfileSheet: Bool = false
     
@@ -21,7 +22,8 @@ struct MainTabView: View {
             // Animated Mesh Gradient Background with psychological color themes
             LiquidBackgroundView(
                 currentTab: selectedTab,
-                showSuccessPulse: $showSuccessPulse
+                showSuccessPulse: $showSuccessPulse,
+                successPulseScale: successPulseScale
             )
             
             // Tab Content
@@ -87,6 +89,9 @@ struct MainTabView: View {
         .preferredColorScheme(.dark)
         // Provide success pulse trigger to child views
         .environment(\.triggerSuccessPulse) {
+            let intensity = LifeFlowExperienceSettings.load().microDelightIntensity
+            guard intensity.isEnabled else { return }
+            successPulseScale = intensity.successPulseScale
             showSuccessPulse = true
         }
         // Provide Gym Mode enter/exit actions to child views

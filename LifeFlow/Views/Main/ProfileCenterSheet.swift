@@ -11,6 +11,7 @@ import SwiftUI
 struct ProfileCenterSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showingFeedback: Bool = false
+    @State private var experienceSettings: LifeFlowExperienceSettings = .load()
     
     var body: some View {
         NavigationStack {
@@ -43,6 +44,19 @@ struct ProfileCenterSheet: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                
+                Section("Experience") {
+                    Picker("Micro-Delight", selection: $experienceSettings.microDelightIntensity) {
+                        ForEach(MicroDelightIntensity.allCases) { intensity in
+                            Text(intensity.displayName).tag(intensity)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    
+                    Text("Controls celebration animation intensity across tabs, hydration, and workout completion.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             .scrollContentBackground(.hidden)
             .background(SanctuaryTimeBackdrop(includeMeshOverlay: true))
@@ -57,6 +71,9 @@ struct ProfileCenterSheet: View {
             .sheet(isPresented: $showingFeedback) {
                 BetaFeedbackSheet()
             }
+            .onChange(of: experienceSettings.microDelightIntensity) { _, _ in
+                experienceSettings.save()
+            }
         }
         .preferredColorScheme(.dark)
     }
@@ -65,4 +82,3 @@ struct ProfileCenterSheet: View {
 #Preview {
     ProfileCenterSheet()
 }
-

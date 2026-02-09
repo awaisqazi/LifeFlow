@@ -23,6 +23,9 @@ struct LiquidBackgroundView: View {
     /// Whether a success pulse animation is active
     @Binding var showSuccessPulse: Bool
     
+    /// Multiplier for pulse intensity, used by micro-delight accessibility settings.
+    var successPulseScale: Double = 1.0
+    
     /// Internal state for animating the success pulse intensity
     @State private var successPulseIntensity: Double = 0.0
     
@@ -30,9 +33,14 @@ struct LiquidBackgroundView: View {
     @State private var previousTheme: MeshGradientTheme?
     @State private var transitionProgress: Double = 1.0
     
-    init(currentTab: LifeFlowTab = .flow, showSuccessPulse: Binding<Bool> = .constant(false)) {
+    init(
+        currentTab: LifeFlowTab = .flow,
+        showSuccessPulse: Binding<Bool> = .constant(false),
+        successPulseScale: Double = 1.0
+    ) {
         self.currentTab = currentTab
         self._showSuccessPulse = showSuccessPulse
+        self.successPulseScale = successPulseScale
     }
     
     /// The current theme based on tab selection
@@ -60,9 +68,15 @@ struct LiquidBackgroundView: View {
     
     /// Triggers the success pulse animation sequence
     private func triggerSuccessPulse() {
+        let clampedScale = max(0, min(successPulseScale, 1))
+        guard clampedScale > 0.001 else {
+            showSuccessPulse = false
+            return
+        }
+        
         // Phase 1: Ramp up (0.3s)
         withAnimation(.easeOut(duration: 0.3)) {
-            successPulseIntensity = 0.7
+            successPulseIntensity = 0.7 * clampedScale
         }
         
         // Phase 2: Hold at peak (0.5s), then fade (1.0s)

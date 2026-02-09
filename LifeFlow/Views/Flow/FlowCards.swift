@@ -379,7 +379,12 @@ struct GoalActionCard: View {
     @State private var amountString: String = ""
     @State private var offset: CGFloat = 0
     @State private var isDragging: Bool = false
+    @State private var completionBurstTrigger: Int = 0
     private let undoThreshold: CGFloat = -80
+    
+    private var delightIntensity: MicroDelightIntensity {
+        LifeFlowExperienceSettings.load().microDelightIntensity
+    }
     
     // Find today's entry for this goal
     var todaysEntry: DailyEntry? {
@@ -516,6 +521,20 @@ struct GoalActionCard: View {
                 }
                 .padding(16)
             }
+            .overlay(alignment: .bottom) {
+                if delightIntensity.isEnabled {
+                    BubbleBurstView(
+                        trigger: completionBurstTrigger,
+                        tint: colorForGoal(goal),
+                        particleCount: max(7, Int((16 * delightIntensity.bubbleParticleScale).rounded())),
+                        spread: 108 * delightIntensity.bubbleParticleScale,
+                        rise: 150 * delightIntensity.bubbleParticleScale,
+                        duration: delightIntensity == .full ? 0.98 : 0.72
+                    )
+                    .frame(height: 180)
+                    .offset(y: 10)
+                }
+            }
             .offset(x: offset)
             .gesture(
                 isCompletedToday ? 
@@ -574,6 +593,9 @@ struct GoalActionCard: View {
         
         // Trigger celebratory success pulse
         triggerSuccessPulse()
+        if delightIntensity.isEnabled {
+            completionBurstTrigger &+= 1
+        }
         
         // Haptic feedback
         let notification = UINotificationFeedbackGenerator()

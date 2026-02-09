@@ -53,7 +53,37 @@ struct FlowDashboardView: View {
     }
 
     private var briefingSubtitle: String {
-        SanctuaryStyle.greeting(for: .now)
+        if let plan = coachManager.activePlan,
+           let session = plan.todaysSession {
+            if session.isCompleted {
+                if remainingHydrationOunces > 0 {
+                    return "Session complete. Recover with \(remainingHydrationOunces) oz and let adaptation settle."
+                }
+                return "Session complete and recovery locked. Temple has your win."
+            }
+            
+            switch session.runType {
+            case .crossTraining:
+                return "Cross-training day. Keep it smooth and stack consistency."
+            case .rest:
+                return "Rest day. Recovery is part of race preparation."
+            default:
+                return "Up next: \(session.runType.displayName) • \(session.targetDistance.formatted(.number.precision(.fractionLength(1)))) mi."
+            }
+        }
+        
+        if latestCompletedWorkoutToday != nil {
+            if remainingHydrationOunces > 0 {
+                return "Great work. Refill \(remainingHydrationOunces) oz to complete recovery."
+            }
+            return "Great work today. Momentum is already building."
+        }
+        
+        if hydrationProgress < 0.35 {
+            return "Start with hydration first. Early rhythm drives the whole day."
+        }
+        
+        return SanctuaryStyle.greeting(for: .now)
     }
 
     private var latestCompletedWorkoutToday: WorkoutSession? {
@@ -65,6 +95,18 @@ struct FlowDashboardView: View {
                 return lhs > rhs
             }
             .first
+    }
+    
+    private var hydrationGoalOunces: Double {
+        max(1, HydrationSettings.load().dailyOuncesGoal)
+    }
+    
+    private var hydrationProgress: Double {
+        min(todayLog.waterIntake / hydrationGoalOunces, 1)
+    }
+    
+    private var remainingHydrationOunces: Int {
+        max(0, Int((hydrationGoalOunces - todayLog.waterIntake).rounded()))
     }
 
     var body: some View {
