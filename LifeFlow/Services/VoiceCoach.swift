@@ -11,6 +11,7 @@ import Foundation
 @MainActor
 final class VoiceCoach: NSObject {
     private let synthesizer = AVSpeechSynthesizer()
+    private var audioRouteObserver: NSObjectProtocol?
 
     private(set) var announceDistance: Bool = true
     private(set) var announcePace: Bool = true
@@ -27,6 +28,7 @@ final class VoiceCoach: NSObject {
         announcePace = settings.announcePace
         isMuted = !settings.isVoiceCoachEnabled || settings.voiceCoachStartupMode == .muted
         configureAudioSession()
+        startObservingAudioRouteChangesIfNeeded()
     }
 
     func resetSession() {
@@ -127,6 +129,24 @@ final class VoiceCoach: NSObject {
             try audioSession.setActive(true, options: [])
         } catch {
             print("VoiceCoach audio session configuration failed: \(error)")
+        }
+    }
+    
+    private func startObservingAudioRouteChangesIfNeeded() {
+        guard audioRouteObserver == nil else { return }
+        
+        audioRouteObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.configureAudioSession()
+        }
+    }
+    
+    deinit {
+        if let audioRouteObserver {
+            NotificationCenter.default.removeObserver(audioRouteObserver)
         }
     }
 

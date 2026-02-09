@@ -8,6 +8,15 @@
 import Foundation
 import SwiftData
 
+struct RunAnalysisMetadata: Codable, Hashable {
+    var healthKitWorkoutID: UUID?
+    var weatherSummary: String?
+    var targetPaceMinutesPerMile: Double?
+    var targetDistanceMiles: Double?
+    var completedDistanceMiles: Double?
+    var generatedAt: Date
+}
+
 /// Represents a single workout session logged manually or synced from HealthKit.
 /// Contains a hierarchical structure: Session -> Exercises -> Sets
 @Model
@@ -96,6 +105,36 @@ final class WorkoutSession {
 // MARK: - Workout Type Presets
 
 extension WorkoutSession {
+    private static let runMetadataPrefix = "lifeflow.runmeta:"
+    
+    var totalDistanceMiles: Double {
+        exercises
+            .flatMap(\.sets)
+            .compactMap(\.distance)
+            .reduce(0, +)
+    }
+    
+    var runAnalysisMetadata: RunAnalysisMetadata? {
+        guard let notes else { return nil }
+        guard notes.hasPrefix(Self.runMetadataPrefix) else { return nil }
+        
+        let payload = String(notes.dropFirst(Self.runMetadataPrefix.count))
+        guard let data = payload.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(RunAnalysisMetadata.self, from: data)
+    }
+    
+    var weatherStampText: String? {
+        runAnalysisMetadata?.weatherSummary
+    }
+    
+    func setRunAnalysisMetadata(_ metadata: RunAnalysisMetadata) {
+        guard let data = try? JSONEncoder().encode(metadata),
+              let json = String(data: data, encoding: .utf8) else {
+            return
+        }
+        notes = Self.runMetadataPrefix + json
+    }
+    
     /// Common workout types for manual entry
     static let workoutTypes: [String] = [
         "Weightlifting",

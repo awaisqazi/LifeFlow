@@ -61,6 +61,8 @@ struct WorkoutFinishPayload {
     let linkedTrainingSession: TrainingSession?
     let bestDistanceMiles: Double?
     let healthKitSnapshot: HealthKitWorkoutSnapshot?
+    let targetPaceMinutesPerMile: Double?
+    let weatherSummary: String?
 }
 
 @Observable
@@ -128,6 +130,9 @@ final class GymModeManager {
     
     /// Target pace used by Voice Coach and Ghost Runner (minutes per mile)
     private(set) var targetPaceMinutesPerMile: Double?
+    
+    /// Weather callout captured at guided-run start for post-run history context
+    private(set) var activeWeatherSummary: String?
     
     /// Helper to extract target distance from activeTarget
     var targetDistance: Double {
@@ -265,7 +270,11 @@ final class GymModeManager {
                     intervalProgress: context.intervalProgress,
                     currentIntervalName: context.intervalName,
                     targetDistanceRemaining: context.distanceRemaining,
-                    targetDistanceTotal: context.distanceTotal
+                    targetDistanceTotal: context.distanceTotal,
+            currentDistanceMiles: context.currentDistance,
+            targetPaceMinutesPerMile: context.targetPace,
+            ghostExpectedDistanceMiles: context.ghostExpectedDistance,
+            ghostDeltaMiles: context.ghostDeltaDistance
                 )
             } else {
                 workoutLiveActivityManager.updateWorkout(
@@ -285,7 +294,11 @@ final class GymModeManager {
                     intervalProgress: context.intervalProgress,
                     currentIntervalName: context.intervalName,
                     targetDistanceRemaining: context.distanceRemaining,
-                    targetDistanceTotal: context.distanceTotal
+                    targetDistanceTotal: context.distanceTotal,
+            currentDistanceMiles: context.currentDistance,
+            targetPaceMinutesPerMile: context.targetPace,
+            ghostExpectedDistanceMiles: context.ghostExpectedDistance,
+            ghostDeltaMiles: context.ghostDeltaDistance
                 )
             }
         }
@@ -367,18 +380,60 @@ final class GymModeManager {
         return (progress, "Rest \(restNumber)")
     }
     
-    private func distanceLiveContext(distanceOverride: Double? = nil) -> (remaining: Double?, total: Double?) {
+    private func distanceLiveContext(
+        distanceOverride: Double? = nil,
+        elapsedOverride: TimeInterval? = nil
+    ) -> (
+        remaining: Double?,
+        total: Double?,
+        current: Double?,
+        targetPace: Double?,
+        ghostExpected: Double?,
+        ghostDelta: Double?
+    ) {
         guard case .distance(let targetMiles, _) = activeTarget else {
-            return (nil, nil)
+            return (nil, nil, nil, nil, nil, nil)
         }
         
         let currentDistanceMiles = max(0, distanceOverride ?? healthKitDistance)
         let remaining = max(0, targetMiles - currentDistanceMiles)
-        return (remaining, targetMiles)
+        
+        let effectiveElapsed = max(0, elapsedOverride ?? elapsedTime)
+        let targetPace = targetPaceMinutesPerMile
+        let ghostExpected: Double?
+        if let targetPace, targetPace > 0 {
+            ghostExpected = max(0, effectiveElapsed / (targetPace * 60))
+        } else {
+            ghostExpected = nil
+        }
+        
+        let ghostDelta: Double?
+        if let ghostExpected {
+            ghostDelta = currentDistanceMiles - ghostExpected
+        } else {
+            ghostDelta = nil
+        }
+        
+        return (
+            remaining,
+            targetMiles,
+            currentDistanceMiles,
+            targetPace,
+            ghostExpected,
+            ghostDelta
+        )
     }
     
     private func syncHealthKitPauseState(paused: Bool) {
         guard case .distance = activeTarget else { return }
+        
+        let watchBridge = AppDependencyManager.shared.watchConnectivityManager
+        if paused {
+            watchBridge.sendGuidedRunPause()
+        } else {
+            watchBridge.sendGuidedRunResume()
+        }
+        
         let healthKitManager = AppDependencyManager.shared.healthKitManager
         guard healthKitManager.isLiveWorkoutActive else { return }
         
@@ -405,7 +460,8 @@ final class GymModeManager {
     }
     
     /// Apply voice settings and target pace when a guided distance run is about to start.
-    func beginGuidedDistanceRun(setupSpeedMPH: Double?) {
+    func beginGuidedDistanceRun(setupSpeedMPH: Double?, weatherSummary: String?) {
+        activeWeatherSummary = weatherSummary
         configureVoiceCoachForActiveSession(setupSpeedMPH: setupSpeedMPH)
     }
     
@@ -463,14 +519,33 @@ final class GymModeManager {
         targetPaceMinutesPerMile = nil
     }
     
-    private func liveContextValues(distanceOverride: Double? = nil) -> (intervalProgress: Double?, intervalName: String?, distanceRemaining: Double?, distanceTotal: Double?) {
+    private func liveContextValues(
+        distanceOverride: Double? = nil,
+        elapsedOverride: TimeInterval? = nil
+    ) -> (
+        intervalProgress: Double?,
+        intervalName: String?,
+        distanceRemaining: Double?,
+        distanceTotal: Double?,
+        currentDistance: Double?,
+        targetPace: Double?,
+        ghostExpectedDistance: Double?,
+        ghostDeltaDistance: Double?
+    ) {
         let intervalContext = intervalLiveContext()
-        let distanceContext = distanceLiveContext(distanceOverride: distanceOverride)
+        let distanceContext = distanceLiveContext(
+            distanceOverride: distanceOverride,
+            elapsedOverride: elapsedOverride
+        )
         return (
             intervalProgress: intervalContext.progress,
             intervalName: intervalContext.name,
             distanceRemaining: distanceContext.remaining,
-            distanceTotal: distanceContext.total
+            distanceTotal: distanceContext.total,
+            currentDistance: distanceContext.current,
+            targetPace: distanceContext.targetPace,
+            ghostExpectedDistance: distanceContext.ghostExpected,
+            ghostDeltaDistance: distanceContext.ghostDelta
         )
     }
     
@@ -502,7 +577,11 @@ final class GymModeManager {
             intervalProgress: context.intervalProgress,
             currentIntervalName: context.intervalName,
             targetDistanceRemaining: context.distanceRemaining,
-            targetDistanceTotal: context.distanceTotal
+            targetDistanceTotal: context.distanceTotal,
+            currentDistanceMiles: context.currentDistance,
+            targetPaceMinutesPerMile: context.targetPace,
+            ghostExpectedDistanceMiles: context.ghostExpectedDistance,
+            ghostDeltaMiles: context.ghostDeltaDistance
         )
         
         syncWidgetState()
@@ -577,7 +656,11 @@ final class GymModeManager {
             intervalProgress: context.intervalProgress,
             currentIntervalName: context.intervalName,
             targetDistanceRemaining: context.distanceRemaining,
-            targetDistanceTotal: context.distanceTotal
+            targetDistanceTotal: context.distanceTotal,
+            currentDistanceMiles: context.currentDistance,
+            targetPaceMinutesPerMile: context.targetPace,
+            ghostExpectedDistanceMiles: context.ghostExpectedDistance,
+            ghostDeltaMiles: context.ghostDeltaDistance
         )
         state.save()
     }
@@ -606,7 +689,11 @@ final class GymModeManager {
                 intervalProgress: context.intervalProgress,
                 currentIntervalName: context.intervalName,
                 targetDistanceRemaining: context.distanceRemaining,
-                targetDistanceTotal: context.distanceTotal
+                targetDistanceTotal: context.distanceTotal,
+            currentDistanceMiles: context.currentDistance,
+            targetPaceMinutesPerMile: context.targetPace,
+            ghostExpectedDistanceMiles: context.ghostExpectedDistance,
+            ghostDeltaMiles: context.ghostDeltaDistance
             )
         }
     }
@@ -640,7 +727,10 @@ final class GymModeManager {
         
         // Also update Live Activity if active
         if let currentEx = currentExercise {
-            let context = liveContextValues(distanceOverride: currentDistance)
+            let context = liveContextValues(
+                distanceOverride: currentDistance,
+                elapsedOverride: elapsedTime
+            )
             workoutLiveActivityManager.updateWorkout(
                 exerciseName: currentEx.name,
                 currentSet: currentSetIndex + 1,
@@ -658,7 +748,11 @@ final class GymModeManager {
                 intervalProgress: context.intervalProgress,
                 currentIntervalName: context.intervalName,
                 targetDistanceRemaining: context.distanceRemaining,
-                targetDistanceTotal: context.distanceTotal
+                targetDistanceTotal: context.distanceTotal,
+            currentDistanceMiles: context.currentDistance,
+            targetPaceMinutesPerMile: context.targetPace,
+            ghostExpectedDistanceMiles: context.ghostExpectedDistance,
+            ghostDeltaMiles: context.ghostDeltaDistance
             )
         }
     }
@@ -676,6 +770,7 @@ final class GymModeManager {
         // Link this workout to the training plan context
         self.associatedTrainingSessionID = trainingSession.id
         self.activeTrainingSession = trainingSession
+        self.activeWeatherSummary = nil
         
         // Configure the target based on run type
         switch trainingSession.runType {
@@ -725,6 +820,7 @@ final class GymModeManager {
         elapsedTime = 0
         isPaused = false
         healthKitDistance = 0
+        activeWeatherSummary = nil
         configureVoiceCoachForActiveSession(setupSpeedMPH: nil)
         
         // Enable screen wake lock
@@ -757,7 +853,11 @@ final class GymModeManager {
             intervalProgress: context.intervalProgress,
             currentIntervalName: context.intervalName,
             targetDistanceRemaining: context.distanceRemaining,
-            targetDistanceTotal: context.distanceTotal
+            targetDistanceTotal: context.distanceTotal,
+            currentDistanceMiles: context.currentDistance,
+            targetPaceMinutesPerMile: context.targetPace,
+            ghostExpectedDistanceMiles: context.ghostExpectedDistance,
+            ghostDeltaMiles: context.ghostDeltaDistance
         )
         
         // Sync to widget
@@ -767,6 +867,13 @@ final class GymModeManager {
     /// Start a HealthKit running session if applicable
     func startHealthKitRun(hkManager: HealthKitManager) {
         guard case .distance = activeTarget else { return }
+        
+        let watchBridge = AppDependencyManager.shared.watchConnectivityManager
+        watchBridge.activateIfNeeded()
+        watchBridge.sendGuidedRunStart(
+            targetDistanceMiles: targetDistance > 0 ? targetDistance : nil,
+            targetPaceMinutesPerMile: targetPaceMinutesPerMile
+        )
         
         hkManager.onDistanceUpdate = { [weak self] distanceMiles in
             self?.updateHealthKitDistance(distanceMiles)
@@ -840,7 +947,11 @@ final class GymModeManager {
                 intervalProgress: context.intervalProgress,
                 currentIntervalName: context.intervalName,
                 targetDistanceRemaining: context.distanceRemaining,
-                targetDistanceTotal: context.distanceTotal
+                targetDistanceTotal: context.distanceTotal,
+            currentDistanceMiles: context.currentDistance,
+            targetPaceMinutesPerMile: context.targetPace,
+            ghostExpectedDistanceMiles: context.ghostExpectedDistance,
+            ghostDeltaMiles: context.ghostDeltaDistance
             )
         }
         
@@ -889,7 +1000,11 @@ final class GymModeManager {
                 intervalProgress: context.intervalProgress,
                 currentIntervalName: context.intervalName,
                 targetDistanceRemaining: context.distanceRemaining,
-                targetDistanceTotal: context.distanceTotal
+                targetDistanceTotal: context.distanceTotal,
+            currentDistanceMiles: context.currentDistance,
+            targetPaceMinutesPerMile: context.targetPace,
+            ghostExpectedDistanceMiles: context.ghostExpectedDistance,
+            ghostDeltaMiles: context.ghostDeltaDistance
             )
         }
         
@@ -918,6 +1033,9 @@ final class GymModeManager {
         let linkedTrainingSession = activeTrainingSession
         let fallbackSetDistance = estimatedDistanceFromSets(in: activeSession)
         let liveHealthKitDistance = healthKitManager.currentSessionDistance > 0 ? healthKitManager.currentSessionDistance : nil
+        let watchBridge = AppDependencyManager.shared.watchConnectivityManager
+        let capturedTargetPace = targetPaceMinutesPerMile
+        let capturedWeatherSummary = activeWeatherSummary
         
         var healthKitSnapshot: HealthKitWorkoutSnapshot?
         var healthKitDistance: Double?
@@ -945,18 +1063,26 @@ final class GymModeManager {
         
         let completedSession = endWorkout()
         let bestDistance = healthKitDistance ?? liveHealthKitDistance ?? fallbackSetDistance
+        if case .distance = activeTarget {
+            watchBridge.sendGuidedRunEnd(discarded: false)
+        }
         
         return WorkoutFinishPayload(
             completedSession: completedSession,
             linkedTrainingSession: linkedTrainingSession,
             bestDistanceMiles: bestDistance,
-            healthKitSnapshot: healthKitSnapshot
+            healthKitSnapshot: healthKitSnapshot,
+            targetPaceMinutesPerMile: capturedTargetPace,
+            weatherSummary: capturedWeatherSummary
         )
     }
     
     func discardWorkout(healthKitManager: HealthKitManager) async {
         if #available(iOS 26.0, *), healthKitManager.isLiveWorkoutActive {
             await healthKitManager.discardLiveWorkout()
+        }
+        if case .distance = activeTarget {
+            AppDependencyManager.shared.watchConnectivityManager.sendGuidedRunEnd(discarded: true)
         }
         resetState()
     }
@@ -994,6 +1120,7 @@ final class GymModeManager {
         activeTarget = .open
         associatedTrainingSessionID = nil
         activeTrainingSession = nil
+        activeWeatherSummary = nil
         AppDependencyManager.shared.healthKitManager.onDistanceUpdate = nil
         
         // Clear widget state
@@ -1038,7 +1165,11 @@ final class GymModeManager {
                 intervalProgress: context.intervalProgress,
                 currentIntervalName: context.intervalName,
                 targetDistanceRemaining: context.distanceRemaining,
-                targetDistanceTotal: context.distanceTotal
+                targetDistanceTotal: context.distanceTotal,
+            currentDistanceMiles: context.currentDistance,
+            targetPaceMinutesPerMile: context.targetPace,
+            ghostExpectedDistanceMiles: context.ghostExpectedDistance,
+            ghostDeltaMiles: context.ghostDeltaDistance
             )
         }
         
@@ -1097,7 +1228,11 @@ final class GymModeManager {
                 intervalProgress: context.intervalProgress,
                 currentIntervalName: context.intervalName,
                 targetDistanceRemaining: context.distanceRemaining,
-                targetDistanceTotal: context.distanceTotal
+                targetDistanceTotal: context.distanceTotal,
+            currentDistanceMiles: context.currentDistance,
+            targetPaceMinutesPerMile: context.targetPace,
+            ghostExpectedDistanceMiles: context.ghostExpectedDistance,
+            ghostDeltaMiles: context.ghostDeltaDistance
             )
             
             // Sync widget state with new exercise selection
@@ -1233,7 +1368,11 @@ final class GymModeManager {
                 intervalProgress: context.intervalProgress,
                 currentIntervalName: context.intervalName,
                 targetDistanceRemaining: context.distanceRemaining,
-                targetDistanceTotal: context.distanceTotal
+                targetDistanceTotal: context.distanceTotal,
+            currentDistanceMiles: context.currentDistance,
+            targetPaceMinutesPerMile: context.targetPace,
+            ghostExpectedDistanceMiles: context.ghostExpectedDistance,
+            ghostDeltaMiles: context.ghostDeltaDistance
             )
         }
         
@@ -1322,7 +1461,11 @@ final class GymModeManager {
                 intervalProgress: context.intervalProgress,
                 currentIntervalName: context.intervalName,
                 targetDistanceRemaining: context.distanceRemaining,
-                targetDistanceTotal: context.distanceTotal
+                targetDistanceTotal: context.distanceTotal,
+            currentDistanceMiles: context.currentDistance,
+            targetPaceMinutesPerMile: context.targetPace,
+            ghostExpectedDistanceMiles: context.ghostExpectedDistance,
+            ghostDeltaMiles: context.ghostDeltaDistance
             )
         }
     }
@@ -1347,7 +1490,11 @@ final class GymModeManager {
                     intervalProgress: context.intervalProgress,
                     currentIntervalName: context.intervalName,
                     targetDistanceRemaining: context.distanceRemaining,
-                    targetDistanceTotal: context.distanceTotal
+                    targetDistanceTotal: context.distanceTotal,
+            currentDistanceMiles: context.currentDistance,
+            targetPaceMinutesPerMile: context.targetPace,
+            ghostExpectedDistanceMiles: context.ghostExpectedDistance,
+            ghostDeltaMiles: context.ghostDeltaDistance
                 )
             }
         }
@@ -1380,7 +1527,11 @@ final class GymModeManager {
             intervalProgress: context.intervalProgress,
             currentIntervalName: context.intervalName,
             targetDistanceRemaining: context.distanceRemaining,
-            targetDistanceTotal: context.distanceTotal
+            targetDistanceTotal: context.distanceTotal,
+            currentDistanceMiles: context.currentDistance,
+            targetPaceMinutesPerMile: context.targetPace,
+            ghostExpectedDistanceMiles: context.ghostExpectedDistance,
+            ghostDeltaMiles: context.ghostDeltaDistance
         )
         
         // Sync rest state to widget
@@ -1445,7 +1596,11 @@ final class GymModeManager {
                 intervalProgress: context.intervalProgress,
                 currentIntervalName: context.intervalName,
                 targetDistanceRemaining: context.distanceRemaining,
-                targetDistanceTotal: context.distanceTotal
+                targetDistanceTotal: context.distanceTotal,
+            currentDistanceMiles: context.currentDistance,
+            targetPaceMinutesPerMile: context.targetPace,
+            ghostExpectedDistanceMiles: context.ghostExpectedDistance,
+            ghostDeltaMiles: context.ghostDeltaDistance
             )
             
             // Sync updated rest time to widget
@@ -1478,7 +1633,11 @@ final class GymModeManager {
                 intervalProgress: context.intervalProgress,
                 currentIntervalName: context.intervalName,
                 targetDistanceRemaining: context.distanceRemaining,
-                targetDistanceTotal: context.distanceTotal
+                targetDistanceTotal: context.distanceTotal,
+            currentDistanceMiles: context.currentDistance,
+            targetPaceMinutesPerMile: context.targetPace,
+            ghostExpectedDistanceMiles: context.ghostExpectedDistance,
+            ghostDeltaMiles: context.ghostDeltaDistance
             )
         }
         

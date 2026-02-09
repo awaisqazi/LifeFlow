@@ -560,6 +560,22 @@ struct GymModeView: View {
             completedSession = finishPayload.completedSession
             
             if let session = completedSession {
+                let runMetadata = RunAnalysisMetadata(
+                    healthKitWorkoutID: finishPayload.healthKitSnapshot?.workoutID,
+                    weatherSummary: finishPayload.weatherSummary,
+                    targetPaceMinutesPerMile: finishPayload.targetPaceMinutesPerMile,
+                    targetDistanceMiles: finishPayload.linkedTrainingSession?.targetDistance,
+                    completedDistanceMiles: finishPayload.bestDistanceMiles,
+                    generatedAt: Date()
+                )
+                
+                if runMetadata.healthKitWorkoutID != nil
+                    || runMetadata.weatherSummary != nil
+                    || runMetadata.targetPaceMinutesPerMile != nil
+                    || runMetadata.completedDistanceMiles != nil {
+                    session.setRunAnalysisMetadata(runMetadata)
+                }
+                
                 let startOfDay = Calendar.current.startOfDay(for: Date())
                 if let todayLog = dayLogs.first(where: { $0.date >= startOfDay }) {
                     if !todayLog.workouts.contains(where: { $0.id == session.id }) {
@@ -574,6 +590,10 @@ struct GymModeView: View {
             try? modelContext.save()
             
             if let trainingSession = finishPayload.linkedTrainingSession {
+                if let workoutID = finishPayload.healthKitSnapshot?.workoutID {
+                    trainingSession.healthKitWorkoutID = workoutID
+                }
+                
                 let resolvedDistance = finishPayload.bestDistanceMiles
                     ?? trainingSession.actualDistance
                     ?? trainingSession.targetDistance

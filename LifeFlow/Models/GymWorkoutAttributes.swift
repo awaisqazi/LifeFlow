@@ -63,6 +63,10 @@ public struct GymWorkoutAttributes: ActivityAttributes {
         /// Optional distance target metadata for guided runs
         public var targetDistanceRemaining: Double?
         public var targetDistanceTotal: Double?
+        public var currentDistanceMiles: Double?
+        public var targetPaceMinutesPerMile: Double?
+        public var ghostExpectedDistanceMiles: Double?
+        public var ghostDeltaMiles: Double?
         
         /// Formatted elapsed time (MM:SS or H:MM:SS)
         public var formattedElapsedTime: String {
@@ -125,7 +129,11 @@ public struct GymWorkoutAttributes: ActivityAttributes {
             intervalProgress: Double? = nil,
             currentIntervalName: String? = nil,
             targetDistanceRemaining: Double? = nil,
-            targetDistanceTotal: Double? = nil
+            targetDistanceTotal: Double? = nil,
+            currentDistanceMiles: Double? = nil,
+            targetPaceMinutesPerMile: Double? = nil,
+            ghostExpectedDistanceMiles: Double? = nil,
+            ghostDeltaMiles: Double? = nil
         ) {
             self.exerciseName = exerciseName
             self.exerciseIcon = exerciseIcon
@@ -149,6 +157,10 @@ public struct GymWorkoutAttributes: ActivityAttributes {
             self.currentIntervalName = currentIntervalName
             self.targetDistanceRemaining = targetDistanceRemaining
             self.targetDistanceTotal = targetDistanceTotal
+            self.currentDistanceMiles = currentDistanceMiles
+            self.targetPaceMinutesPerMile = targetPaceMinutesPerMile
+            self.ghostExpectedDistanceMiles = ghostExpectedDistanceMiles
+            self.ghostDeltaMiles = ghostDeltaMiles
         }
     }
     

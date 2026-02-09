@@ -24,6 +24,9 @@ final class AppDependencyManager {
     /// Shared HealthKitManager instance for workout data syncing
     let healthKitManager: HealthKitManager = HealthKitManager()
     
+    /// Shared WatchConnectivity bridge for optional watch mirroring.
+    let watchConnectivityManager: WatchConnectivityManager = WatchConnectivityManager()
+    
     private init() {
         let appGroupIdentifier = "group.com.Fez.LifeFlow"
         let schema = Schema([
@@ -47,6 +50,12 @@ final class AppDependencyManager {
             sharedModelContainer = try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
+        }
+        
+        watchConnectivityManager.onHeartRateUpdate = { [healthKitManager] heartRate in
+            Task { @MainActor in
+                healthKitManager.applyMirroredHeartRate(heartRate)
+            }
         }
     }
 }

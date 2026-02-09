@@ -34,12 +34,19 @@ struct TrainingDayCard: View {
         }
         return String(format: "Target: %.1f mi • est %d mins", displayDistance, estimatedMinutes)
     }
+    
+    private var estimatedMinutes: Int? {
+        MarathonPaceDefaults.estimatedDurationMinutes(
+            distanceMiles: displayDistance,
+            runType: session.runType
+        )
+    }
 
     private var runTypeColor: Color {
         switch session.runType {
         case .recovery: return .green
         case .base: return .blue
-        case .longRun: return .purple
+        case .longRun: return .indigo
         case .speedWork: return .orange
         case .tempo: return .red
         case .crossTraining: return .cyan
@@ -120,20 +127,39 @@ struct TrainingDayCard: View {
 
     private var activeTrainingView: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Target distance
+            HStack(spacing: 8) {
+                Label(session.runType.displayName, systemImage: session.runType.icon)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(runTypeColor)
+                
+                Spacer()
+                
+                if let estimatedMinutes {
+                    Label("\(estimatedMinutes) min", systemImage: "clock.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.white.opacity(0.08), in: Capsule())
+                }
+            }
+            
             HStack(alignment: .firstTextBaseline) {
                 Text(String(format: "%.1f", displayDistance))
-                    .font(.system(size: 36, weight: .bold, design: .rounded))
+                    .font(.system(size: 42, weight: .bold, design: .rounded))
                     .contentTransition(.numericText(value: displayDistance))
                     .animation(.spring(response: 0.3), value: displayDistance)
                 Text("miles")
-                    .font(.title3)
+                    .font(.title3.weight(.medium))
                     .foregroundStyle(.secondary)
             }
 
-            // Effort description
             Text(session.runType.effortDescription)
-                .font(.caption)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            
+            Text(guidedRunCTA)
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
             // Pre-run feeling slider
@@ -171,7 +197,6 @@ struct TrainingDayCard: View {
 
             // Action buttons
             HStack(spacing: 12) {
-                // How are you feeling toggle
                 Button {
                     withAnimation(.spring(response: 0.3)) {
                         showFeelingSlider.toggle()
@@ -188,14 +213,22 @@ struct TrainingDayCard: View {
                     .foregroundStyle(.primary)
                 }
 
-                Spacer()
-
-                // Start Guided Run
                 Button(action: onStartGuidedRun) {
-                    Label(guidedRunCTA, systemImage: "play.fill")
-                        .font(.subheadline.weight(.bold))
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
+                    HStack(spacing: 8) {
+                        Image(systemName: "play.fill")
+                            .font(.subheadline.weight(.bold))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Start Guided Run")
+                                .font(.subheadline.weight(.bold))
+                            if let estimatedMinutes {
+                                Text(String(format: "%.1f mi target • %d min est", displayDistance, estimatedMinutes))
+                                    .font(.caption2.weight(.semibold))
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
                         .background(runTypeColor, in: Capsule())
                         .foregroundStyle(.white)
                 }

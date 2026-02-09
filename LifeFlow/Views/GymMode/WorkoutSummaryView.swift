@@ -7,6 +7,8 @@
 
 import SwiftUI
 import HealthKit
+import MapKit
+import Charts
 
 /// Post-workout summary with stats and HealthKit save option.
 /// Tap exercises to see detailed set information.
@@ -20,6 +22,13 @@ struct GymWorkoutSummaryView: View {
     @State private var isSaving: Bool = false
     @State private var healthKitManager = HealthKitManager()
     @State private var expandedExerciseIDs: Set<UUID> = []
+    @State private var routeSegments: [RunRouteSegment] = []
+    @State private var mileSplits: [RunSplit] = []
+    @State private var weatherStamp: String?
+    @State private var targetPaceMinutesPerMile: Double?
+    @State private var mapRegion: MKCoordinateRegion?
+    @State private var isLoadingAnalysis: Bool = false
+    @State private var analysisMessage: String?
     
     var body: some View {
         NavigationStack {
@@ -30,6 +39,8 @@ struct GymWorkoutSummaryView: View {
                     
                     // Stats grid
                     statsGrid
+                    
+                    raceDayAnalysisSection
                     
                     Divider()
                         .background(Color.white.opacity(0.1))
@@ -52,6 +63,9 @@ struct GymWorkoutSummaryView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .task(id: session.id) {
+            await loadRaceAnalysis()
+        }
     }
     
     // MARK: - Celebration Header
@@ -90,6 +104,103 @@ struct GymWorkoutSummaryView: View {
             StatCard(title: "Exercises", value: "\(session.exercises.count)", icon: "dumbbell.fill", color: .orange)
             StatCard(title: "Sets", value: "\(totalCompletedSets)/\(totalSets)", icon: "repeat", color: .purple)
             StatCard(title: "Est. Calories", value: "\(estimatedCalories)", icon: "flame.fill", color: .red)
+        }
+    }
+    
+    // MARK: - Race Analysis
+    
+    @ViewBuilder
+    private var raceDayAnalysisSection: some View {
+        if isLoadingAnalysis || weatherStamp != nil || !mileSplits.isEmpty || !routeSegments.isEmpty || analysisMessage != nil {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("RACE DAY ANALYSIS")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .tracking(1)
+                    Spacer()
+                    if isLoadingAnalysis {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+                
+                if let weatherStamp {
+                    Label(weatherStamp, systemImage: "cloud.sun.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                
+                if let targetPaceMinutesPerMile {
+                    Label("Target Pace \(formatPace(targetPaceMinutesPerMile))/mi", systemImage: "flag.checkered")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.cyan)
+                }
+                
+                if let mapRegion, !routeSegments.isEmpty {
+                    Map(initialPosition: .region(mapRegion)) {
+                        ForEach(routeSegments) { segment in
+                            MapPolyline(coordinates: segment.coordinates)
+                                .stroke(segment.isAhead ? .green : .red, lineWidth: 4)
+                        }
+                    }
+                    .frame(height: 220)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .overlay(alignment: .bottomLeading) {
+                        HStack(spacing: 12) {
+                            mapLegendDot(color: .green, label: "Ahead")
+                            mapLegendDot(color: .red, label: "Behind")
+                        }
+                        .padding(10)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .padding(12)
+                    }
+                } else if let analysisMessage {
+                    Text(analysisMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+                }
+                
+                if !mileSplits.isEmpty {
+                    Chart {
+                        if let targetPaceMinutesPerMile {
+                            RuleMark(y: .value("Target Pace", targetPaceMinutesPerMile))
+                                .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                                .foregroundStyle(.orange)
+                        }
+                        
+                        ForEach(mileSplits) { split in
+                            BarMark(
+                                x: .value("Mile", "M\(split.mile)"),
+                                y: .value("Pace", split.paceMinutesPerMile)
+                            )
+                            .foregroundStyle(splitColor(for: split))
+                        }
+                    }
+                    .frame(height: 180)
+                    .chartYAxis {
+                        AxisMarks(position: .leading) { value in
+                            AxisGridLine().foregroundStyle(.white.opacity(0.08))
+                            AxisTick()
+                            if let pace = value.as(Double.self) {
+                                AxisValueLabel("\(formatPace(pace))")
+                            }
+                        }
+                    }
+                    .chartXAxis {
+                        AxisMarks { value in
+                            AxisGridLine().foregroundStyle(.white.opacity(0.08))
+                            AxisTick()
+                            AxisValueLabel()
+                        }
+                    }
+                    .padding(12)
+                    .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+                }
+            }
         }
     }
     
@@ -216,6 +327,221 @@ struct GymWorkoutSummaryView: View {
         let setsCalories = totalCompletedSets * 5
         let durationCalories = Int(session.duration / 60) * 3
         return setsCalories + durationCalories
+    }
+    
+    private func mapLegendDot(color: Color, label: String) -> some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(color)
+                .frame(width: 8, height: 8)
+            Text(label)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white)
+        }
+    }
+    
+    private func splitColor(for split: RunSplit) -> Color {
+        guard let targetPaceMinutesPerMile else { return .blue }
+        return split.paceMinutesPerMile <= targetPaceMinutesPerMile ? .green : .red
+    }
+    
+    private func formatPace(_ minutesPerMile: Double) -> String {
+        guard minutesPerMile.isFinite, minutesPerMile > 0 else { return "--:--" }
+        let totalSeconds = Int((minutesPerMile * 60).rounded())
+        return String(format: "%d:%02d", totalSeconds / 60, totalSeconds % 60)
+    }
+    
+    private func loadRaceAnalysis() async {
+        guard session.type == "Running" else { return }
+        
+        isLoadingAnalysis = true
+        defer { isLoadingAnalysis = false }
+        
+        weatherStamp = session.weatherStampText
+        targetPaceMinutesPerMile = session.runAnalysisMetadata?.targetPaceMinutesPerMile
+        analysisMessage = nil
+        
+        if let workoutID = session.runAnalysisMetadata?.healthKitWorkoutID {
+            do {
+                try? await healthKitManager.requestAuthorization()
+                let routeLocations = try await healthKitManager.fetchWorkoutRouteLocations(for: workoutID)
+                applyRouteAnalysis(from: routeLocations, targetPace: targetPaceMinutesPerMile)
+                if routeLocations.isEmpty {
+                    analysisMessage = "Route unavailable for this run. Splits are estimated from treadmill intervals."
+                }
+            } catch {
+                analysisMessage = "Route data unavailable. Splits are estimated from recorded intervals."
+            }
+        } else {
+            analysisMessage = "No HealthKit route attached to this workout."
+        }
+        
+        if mileSplits.isEmpty {
+            mileSplits = fallbackSplitsFromIntervals()
+        }
+        
+        if mileSplits.isEmpty,
+           let distance = session.runAnalysisMetadata?.completedDistanceMiles ?? (session.totalDistanceMiles > 0 ? session.totalDistanceMiles : nil),
+           distance > 0 {
+            let pace = (session.duration / 60) / distance
+            if pace.isFinite, pace > 0 {
+                mileSplits = [RunSplit(mile: 1, paceMinutesPerMile: pace)]
+            }
+        }
+    }
+    
+    private func applyRouteAnalysis(from locations: [CLLocation], targetPace: Double?) {
+        routeSegments.removeAll()
+        mapRegion = nil
+        mileSplits.removeAll()
+        
+        let sorted = locations.sorted { $0.timestamp < $1.timestamp }
+        guard sorted.count > 1 else { return }
+        
+        var analyzedSegments: [RunRouteSegment] = []
+        var splitPoints: [RunSplit] = []
+        var mileIndex = 1
+        var distanceIntoMile = 0.0
+        var timeIntoMile = 0.0
+        
+        var coordinates: [CLLocationCoordinate2D] = []
+        coordinates.reserveCapacity(sorted.count)
+        
+        for index in 1..<sorted.count {
+            let previous = sorted[index - 1]
+            let current = sorted[index]
+            coordinates.append(previous.coordinate)
+            
+            let segmentDistanceMiles = max(0, current.distance(from: previous) / 1609.34)
+            let segmentDuration = max(0, current.timestamp.timeIntervalSince(previous.timestamp))
+            guard segmentDistanceMiles > 0.0003, segmentDuration > 0 else { continue }
+            
+            let segmentPace = (segmentDuration / 60) / segmentDistanceMiles
+            let isAhead: Bool
+            if let targetPace, targetPace > 0 {
+                isAhead = segmentPace <= targetPace
+            } else {
+                isAhead = true
+            }
+            
+            analyzedSegments.append(
+                RunRouteSegment(
+                    coordinates: [previous.coordinate, current.coordinate],
+                    isAhead: isAhead
+                )
+            )
+            
+            var remainingDistance = segmentDistanceMiles
+            var remainingDuration = segmentDuration
+            while remainingDistance > 0 {
+                let neededForMile = 1.0 - distanceIntoMile
+                if remainingDistance >= neededForMile, neededForMile > 0 {
+                    let ratio = neededForMile / remainingDistance
+                    let timeForMile = remainingDuration * ratio
+                    timeIntoMile += timeForMile
+                    let pace = timeIntoMile / 60
+                    if pace.isFinite, pace > 0 {
+                        splitPoints.append(RunSplit(mile: mileIndex, paceMinutesPerMile: pace))
+                    }
+                    
+                    mileIndex += 1
+                    remainingDistance -= neededForMile
+                    remainingDuration -= timeForMile
+                    distanceIntoMile = 0
+                    timeIntoMile = 0
+                } else {
+                    distanceIntoMile += remainingDistance
+                    timeIntoMile += remainingDuration
+                    remainingDistance = 0
+                    remainingDuration = 0
+                }
+            }
+        }
+        
+        if let last = sorted.last {
+            coordinates.append(last.coordinate)
+        }
+        
+        routeSegments = analyzedSegments
+        mileSplits = splitPoints
+        mapRegion = region(for: coordinates)
+    }
+    
+    private func region(for coordinates: [CLLocationCoordinate2D]) -> MKCoordinateRegion? {
+        guard !coordinates.isEmpty else { return nil }
+        
+        var minLat = coordinates[0].latitude
+        var maxLat = coordinates[0].latitude
+        var minLon = coordinates[0].longitude
+        var maxLon = coordinates[0].longitude
+        
+        for coordinate in coordinates {
+            minLat = min(minLat, coordinate.latitude)
+            maxLat = max(maxLat, coordinate.latitude)
+            minLon = min(minLon, coordinate.longitude)
+            maxLon = max(maxLon, coordinate.longitude)
+        }
+        
+        let center = CLLocationCoordinate2D(
+            latitude: (minLat + maxLat) / 2,
+            longitude: (minLon + maxLon) / 2
+        )
+        
+        let span = MKCoordinateSpan(
+            latitudeDelta: max((maxLat - minLat) * 1.35, 0.008),
+            longitudeDelta: max((maxLon - minLon) * 1.35, 0.008)
+        )
+        
+        return MKCoordinateRegion(center: center, span: span)
+    }
+    
+    private func fallbackSplitsFromIntervals() -> [RunSplit] {
+        let allIntervals = session.sortedExercises
+            .flatMap(\.sortedSets)
+            .compactMap(\.cardioIntervals)
+            .compactMap { try? JSONDecoder().decode([CardioInterval].self, from: $0) }
+            .flatMap { $0 }
+        
+        guard !allIntervals.isEmpty else { return [] }
+        
+        var splits: [RunSplit] = []
+        var mileIndex = 1
+        var distanceIntoMile = 0.0
+        var timeIntoMile = 0.0
+        
+        for interval in allIntervals {
+            guard let duration = interval.duration, duration > 0 else { continue }
+            let distanceMiles = max(0, (interval.speed * duration) / 3600)
+            guard distanceMiles > 0 else { continue }
+            
+            var remainingDistance = distanceMiles
+            var remainingDuration = duration
+            
+            while remainingDistance > 0 {
+                let neededForMile = 1.0 - distanceIntoMile
+                if remainingDistance >= neededForMile, neededForMile > 0 {
+                    let ratio = neededForMile / remainingDistance
+                    let timeForMile = remainingDuration * ratio
+                    timeIntoMile += timeForMile
+                    let pace = timeIntoMile / 60
+                    if pace.isFinite, pace > 0 {
+                        splits.append(RunSplit(mile: mileIndex, paceMinutesPerMile: pace))
+                    }
+                    mileIndex += 1
+                    remainingDistance -= neededForMile
+                    remainingDuration -= timeForMile
+                    distanceIntoMile = 0
+                    timeIntoMile = 0
+                } else {
+                    distanceIntoMile += remainingDistance
+                    timeIntoMile += remainingDuration
+                    remainingDistance = 0
+                    remainingDuration = 0
+                }
+            }
+        }
+        
+        return splits
     }
     
     // MARK: - Actions
@@ -489,6 +815,18 @@ private struct SetDetailRow: View {
         let secs = Int(seconds) % 60
         return mins > 0 ? "\(mins)m \(secs)s" : "\(secs)s"
     }
+}
+
+private struct RunRouteSegment: Identifiable {
+    let id = UUID()
+    let coordinates: [CLLocationCoordinate2D]
+    let isAhead: Bool
+}
+
+private struct RunSplit: Identifiable {
+    let id = UUID()
+    let mile: Int
+    let paceMinutesPerMile: Double
 }
 
 #Preview {

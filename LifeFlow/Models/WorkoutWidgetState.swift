@@ -55,6 +55,10 @@ struct WorkoutWidgetState: Codable {
     var currentIntervalName: String?
     var targetDistanceRemaining: Double?
     var targetDistanceTotal: Double?
+    var currentDistanceMiles: Double?
+    var targetPaceMinutesPerMile: Double?
+    var ghostExpectedDistanceMiles: Double?
+    var ghostDeltaMiles: Double?
     
     /// Default idle state
     static var idle: WorkoutWidgetState {
@@ -91,7 +95,11 @@ struct WorkoutWidgetState: Codable {
             intervalProgress: nil,
             currentIntervalName: nil,
             targetDistanceRemaining: nil,
-            targetDistanceTotal: nil
+            targetDistanceTotal: nil,
+            currentDistanceMiles: nil,
+            targetPaceMinutesPerMile: nil,
+            ghostExpectedDistanceMiles: nil,
+            ghostDeltaMiles: nil
         )
     }
     

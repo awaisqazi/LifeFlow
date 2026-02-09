@@ -493,6 +493,19 @@ struct RecentWorkoutCard: View {
         isFromHealthKit ? "Health" : "LifeFlow"
     }
     
+    private var runStampText: String? {
+        guard workout.type == "Running" else { return nil }
+        guard let weather = workout.weatherStampText, !weather.isEmpty else { return nil }
+        
+        let distance = workout.runAnalysisMetadata?.completedDistanceMiles
+            ?? (workout.totalDistanceMiles > 0 ? workout.totalDistanceMiles : nil)
+        
+        if let distance {
+            return String(format: "Ran %.1f mi in %@", distance, weather)
+        }
+        return weather
+    }
+    
     var body: some View {
         HStack(spacing: 12) {
             // Icon with source indicator overlay
@@ -555,6 +568,13 @@ struct RecentWorkoutCard: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                
+                if let runStampText {
+                    Text(runStampText)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
             }
             
             Spacer()
@@ -614,6 +634,14 @@ struct WorkoutDetailModal: View {
                         StatBubble(icon: "flame.fill", value: "\(Int(workout.calories))", label: "Calories", color: .red)
                     }
                     .padding(.horizontal)
+                    
+                    if let weatherStamp = workout.weatherStampText {
+                        Label(weatherStamp, systemImage: "cloud.sun.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                     
                     Divider()
                         .padding(.horizontal)
@@ -763,4 +791,3 @@ private struct ExerciseDetailCard: View {
     .modelContainer(for: [DayLog.self, WorkoutSession.self, Goal.self], inMemory: true)
     .preferredColorScheme(.dark)
 }
-

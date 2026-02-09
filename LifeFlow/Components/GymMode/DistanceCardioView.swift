@@ -452,7 +452,10 @@ struct DistanceCardioView: View {
         phase = .active
         gymModeManager.isCardioInProgress = true
         let setupSpeedOverride = hasCustomSetupSpeed ? speed : nil
-        gymModeManager.beginGuidedDistanceRun(setupSpeedMPH: setupSpeedOverride)
+        gymModeManager.beginGuidedDistanceRun(
+            setupSpeedMPH: setupSpeedOverride,
+            weatherSummary: weatherService.summaryText
+        )
         hasCustomSetupSpeed = false
         
         // Start live tracking if possible

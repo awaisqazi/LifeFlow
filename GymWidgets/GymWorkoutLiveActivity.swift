@@ -225,6 +225,12 @@ private extension GymWorkoutAttributes.ContentState {
         return total > 0
     }
     
+    var hasGhostRunnerContext: Bool {
+        hasDistanceTarget
+        && currentDistanceMiles != nil
+        && ghostExpectedDistanceMiles != nil
+    }
+    
     var distanceProgress: Double {
         guard hasDistanceTarget,
               let total = targetDistanceTotal,
@@ -234,11 +240,59 @@ private extension GymWorkoutAttributes.ContentState {
         return min(max((total - remaining) / total, 0), 1)
     }
     
+    var ghostRunnerProgress: Double {
+        guard hasDistanceTarget,
+              let total = targetDistanceTotal,
+              let currentDistanceMiles else {
+            return 0
+        }
+        return min(max(currentDistanceMiles / total, 0), 1)
+    }
+    
+    var ghostTargetProgress: Double {
+        guard hasDistanceTarget,
+              let total = targetDistanceTotal,
+              let expected = ghostExpectedDistanceMiles else {
+            return 0
+        }
+        return min(max(expected / total, 0), 1)
+    }
+    
+    var ghostDeltaColor: Color {
+        guard let delta = ghostDeltaMiles else { return accentColor }
+        return delta >= 0 ? .green : .orange
+    }
+    
+    var ghostDeltaText: String? {
+        guard let delta = ghostDeltaMiles else { return nil }
+        if abs(delta) < 0.01 {
+            return "On target pace"
+        }
+        if delta > 0 {
+            return String(format: "Ahead %.2f mi", delta)
+        }
+        return String(format: "Behind %.2f mi", abs(delta))
+    }
+    
+    var formattedTargetPace: String? {
+        guard let targetPaceMinutesPerMile, targetPaceMinutesPerMile > 0 else { return nil }
+        let totalSeconds = Int((targetPaceMinutesPerMile * 60).rounded())
+        let minutes = totalSeconds / 60
+        let seconds = totalSeconds % 60
+        return String(format: "Target %d:%02d/mi", minutes, seconds)
+    }
+    
     var primaryLabel: String {
         currentIntervalName ?? exerciseName
     }
     
     var secondaryLabel: String {
+        if let ghostDeltaText {
+            if let formattedTargetPace {
+                return "\(ghostDeltaText) • \(formattedTargetPace)"
+            }
+            return ghostDeltaText
+        }
         if let remaining = targetDistanceRemaining {
             return String(format: "%.2f mi remaining", max(0, remaining))
         }
@@ -294,46 +348,98 @@ private struct LiveActivityStateProgressBar: View {
     var body: some View {
         let tint = state.accentColor
         
-        Group {
-            if state.hasDistanceTarget {
-                ProgressView(value: state.distanceProgress)
+        VStack(alignment: .leading, spacing: 4) {
+            Group {
+                if state.hasGhostRunnerContext {
+                    LiveActivityGhostRunnerBar(
+                        progress: state.ghostRunnerProgress,
+                        ghostProgress: state.ghostTargetProgress,
+                        color: state.ghostDeltaColor
+                    )
+                } else if state.hasDistanceTarget {
+                    ProgressView(value: state.distanceProgress)
+                        .progressViewStyle(.linear)
+                        .tint(tint)
+                } else if let intervalProgress = state.intervalProgress {
+                    ProgressView(value: intervalProgress, total: 1)
+                        .progressViewStyle(.linear)
+                        .tint(tint)
+                } else if state.isPaused {
+                    ProgressView(
+                        value: Double(state.currentSet),
+                        total: Double(max(state.totalSets, 1))
+                    )
                     .progressViewStyle(.linear)
                     .tint(tint)
-            } else if let intervalProgress = state.intervalProgress {
-                ProgressView(value: intervalProgress, total: 1)
+                } else if state.isResting, let restEnd = state.restEndTime {
+                    let remaining = max(0, TimeInterval(state.restTimeRemaining))
+                    let restStart = restEnd.addingTimeInterval(-remaining)
+                    ProgressView(timerInterval: restStart...restEnd, countsDown: true)
+                        .progressViewStyle(.linear)
+                        .tint(tint)
+                } else if state.isTimedCardio, let cardioEnd = state.cardioEndTime, state.cardioDuration > 0 {
+                    let startTime = cardioEnd.addingTimeInterval(-state.cardioDuration)
+                    ProgressView(timerInterval: startTime...cardioEnd, countsDown: true)
+                        .progressViewStyle(.linear)
+                        .tint(tint)
+                } else if state.isCardio {
+                    let goal = state.cardioDuration > 0 ? state.cardioDuration : 1800
+                    let progress = min(Double(state.elapsedTime) / goal, 1)
+                    ProgressView(value: progress)
+                        .progressViewStyle(.linear)
+                        .tint(tint)
+                } else {
+                    ProgressView(
+                        value: Double(state.currentSet),
+                        total: Double(max(state.totalSets, 1))
+                    )
                     .progressViewStyle(.linear)
                     .tint(tint)
-            } else if state.isPaused {
-                ProgressView(
-                    value: Double(state.currentSet),
-                    total: Double(max(state.totalSets, 1))
-                )
-                .progressViewStyle(.linear)
-                .tint(tint)
-            } else if state.isResting, let restEnd = state.restEndTime {
-                let remaining = max(0, TimeInterval(state.restTimeRemaining))
-                let restStart = restEnd.addingTimeInterval(-remaining)
-                ProgressView(timerInterval: restStart...restEnd, countsDown: true)
-                    .progressViewStyle(.linear)
-                    .tint(tint)
-            } else if state.isTimedCardio, let cardioEnd = state.cardioEndTime, state.cardioDuration > 0 {
-                let startTime = cardioEnd.addingTimeInterval(-state.cardioDuration)
-                ProgressView(timerInterval: startTime...cardioEnd, countsDown: true)
-                    .progressViewStyle(.linear)
-                    .tint(tint)
-            } else if state.isCardio {
-                let goal = state.cardioDuration > 0 ? state.cardioDuration : 1800
-                let progress = min(Double(state.elapsedTime) / goal, 1)
-                ProgressView(value: progress)
-                    .progressViewStyle(.linear)
-                    .tint(tint)
-            } else {
-                ProgressView(
-                    value: Double(state.currentSet),
-                    total: Double(max(state.totalSets, 1))
-                )
-                .progressViewStyle(.linear)
-                .tint(tint)
+                }
+            }
+            .frame(height: 6)
+            
+            if let ghostDeltaText = state.ghostDeltaText {
+                HStack(spacing: 6) {
+                    Text(ghostDeltaText)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(state.ghostDeltaColor)
+                    if let pace = state.formattedTargetPace {
+                        Text("•")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text(pace)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct LiveActivityGhostRunnerBar: View {
+    let progress: Double
+    let ghostProgress: Double
+    let color: Color
+    
+    var body: some View {
+        GeometryReader { geometry in
+            let width = geometry.size.width
+            let safeGhost = min(max(ghostProgress, 0), 1)
+            let safeRunner = min(max(progress, 0), 1)
+            
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.white.opacity(0.14))
+                
+                Capsule()
+                    .fill(Color.white.opacity(0.35))
+                    .frame(width: width * safeGhost)
+                
+                Capsule()
+                    .fill(color)
+                    .frame(width: width * safeRunner)
             }
         }
         .frame(height: 6)

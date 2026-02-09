@@ -8,6 +8,7 @@
 import Foundation
 import HealthKit
 import Observation
+import CoreLocation
 
 // TimeScope is defined in AnalyticsCharts.swift and accessible within the module
 
@@ -60,7 +61,9 @@ final class HealthKitManager: NSObject {
         [
             workoutType,
             HKQuantityType(.heartRate),
-            HKQuantityType(.activeEnergyBurned)
+            HKQuantityType(.activeEnergyBurned),
+            HKQuantityType(.distanceWalkingRunning),
+            HKSeriesType.workoutRoute()
         ]
     }
     
@@ -296,6 +299,96 @@ final class HealthKitManager: NSObject {
         }
         
         return workout
+    }
+    
+    /// Apply heart-rate updates coming from watch connectivity mirroring.
+    @MainActor
+    func applyMirroredHeartRate(_ bpm: Double) {
+        guard bpm.isFinite, bpm > 0 else { return }
+        currentHeartRate = bpm
+    }
+    
+    /// Fetch a specific HealthKit workout by UUID.
+    func fetchWorkout(id: UUID) async throws -> HKWorkout? {
+        guard isAvailable else { throw HealthKitError.notAvailable }
+        
+        let predicate = HKQuery.predicateForObject(with: id)
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.workout(predicate)],
+            sortDescriptors: [SortDescriptor(\.startDate, order: .reverse)]
+        )
+        
+        let workouts = try await descriptor.result(for: healthStore)
+        return workouts.first
+    }
+    
+    /// Fetch all route points for a saved workout.
+    func fetchWorkoutRouteLocations(for workoutID: UUID) async throws -> [CLLocation] {
+        guard isAvailable else { throw HealthKitError.notAvailable }
+        guard let workout = try await fetchWorkout(id: workoutID) else { return [] }
+        
+        let routes = try await fetchRouteSamples(for: workout)
+        guard !routes.isEmpty else { return [] }
+        
+        var allLocations: [CLLocation] = []
+        for route in routes {
+            let locations = try await fetchLocations(for: route)
+            allLocations.append(contentsOf: locations)
+        }
+        
+        return allLocations.sorted { $0.timestamp < $1.timestamp }
+    }
+    
+    private func fetchRouteSamples(for workout: HKWorkout) async throws -> [HKWorkoutRoute] {
+        try await withCheckedThrowingContinuation { continuation in
+            let predicate = HKQuery.predicateForObjects(from: workout)
+            let sortDescriptors = [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]
+            
+            let query = HKSampleQuery(
+                sampleType: HKSeriesType.workoutRoute(),
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: sortDescriptors
+            ) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                
+                let routes = samples as? [HKWorkoutRoute] ?? []
+                continuation.resume(returning: routes)
+            }
+            
+            healthStore.execute(query)
+        }
+    }
+    
+    private func fetchLocations(for route: HKWorkoutRoute) async throws -> [CLLocation] {
+        try await withCheckedThrowingContinuation { continuation in
+            var collected: [CLLocation] = []
+            var hasResumed = false
+            
+            let query = HKWorkoutRouteQuery(route: route) { _, newLocations, done, error in
+                if hasResumed { return }
+                
+                if let error {
+                    hasResumed = true
+                    continuation.resume(throwing: error)
+                    return
+                }
+                
+                if let newLocations {
+                    collected.append(contentsOf: newLocations)
+                }
+                
+                if done {
+                    hasResumed = true
+                    continuation.resume(returning: collected)
+                }
+            }
+            
+            healthStore.execute(query)
+        }
     }
     
     // MARK: - Fetching Workouts

@@ -45,7 +45,11 @@ final class GymWorkoutLiveActivityManager {
         intervalProgress: Double? = nil,
         currentIntervalName: String? = nil,
         targetDistanceRemaining: Double? = nil,
-        targetDistanceTotal: Double? = nil
+        targetDistanceTotal: Double? = nil,
+        currentDistanceMiles: Double? = nil,
+        targetPaceMinutesPerMile: Double? = nil,
+        ghostExpectedDistanceMiles: Double? = nil,
+        ghostDeltaMiles: Double? = nil
     ) {
         // Check authorization status first
         let authInfo = ActivityAuthorizationInfo()
@@ -80,7 +84,11 @@ final class GymWorkoutLiveActivityManager {
                     intervalProgress: intervalProgress,
                     currentIntervalName: currentIntervalName,
                     targetDistanceRemaining: targetDistanceRemaining,
-                    targetDistanceTotal: targetDistanceTotal
+                    targetDistanceTotal: targetDistanceTotal,
+                    currentDistanceMiles: currentDistanceMiles,
+                    targetPaceMinutesPerMile: targetPaceMinutesPerMile,
+                    ghostExpectedDistanceMiles: ghostExpectedDistanceMiles,
+                    ghostDeltaMiles: ghostDeltaMiles
                 )
             }
         }
@@ -105,7 +113,11 @@ final class GymWorkoutLiveActivityManager {
         intervalProgress: Double?,
         currentIntervalName: String?,
         targetDistanceRemaining: Double?,
-        targetDistanceTotal: Double?
+        targetDistanceTotal: Double?,
+        currentDistanceMiles: Double?,
+        targetPaceMinutesPerMile: Double?,
+        ghostExpectedDistanceMiles: Double?,
+        ghostDeltaMiles: Double?
     ) {
         // Create attributes and initial state
         let attributes = GymWorkoutAttributes(
@@ -131,7 +143,11 @@ final class GymWorkoutLiveActivityManager {
             intervalProgress: intervalProgress,
             currentIntervalName: currentIntervalName,
             targetDistanceRemaining: targetDistanceRemaining,
-            targetDistanceTotal: targetDistanceTotal
+            targetDistanceTotal: targetDistanceTotal,
+            currentDistanceMiles: currentDistanceMiles,
+            targetPaceMinutesPerMile: targetPaceMinutesPerMile,
+            ghostExpectedDistanceMiles: ghostExpectedDistanceMiles,
+            ghostDeltaMiles: ghostDeltaMiles
         )
         
         print("🏋️ Starting Live Activity with title: \(workoutTitle), exercise: \(exerciseName)")
@@ -172,7 +188,11 @@ final class GymWorkoutLiveActivityManager {
         intervalProgress: Double? = nil,
         currentIntervalName: String? = nil,
         targetDistanceRemaining: Double? = nil,
-        targetDistanceTotal: Double? = nil
+        targetDistanceTotal: Double? = nil,
+        currentDistanceMiles: Double? = nil,
+        targetPaceMinutesPerMile: Double? = nil,
+        ghostExpectedDistanceMiles: Double? = nil,
+        ghostDeltaMiles: Double? = nil
     ) {
         guard let activity = currentActivity else { return }
         
@@ -194,7 +214,11 @@ final class GymWorkoutLiveActivityManager {
             intervalProgress: intervalProgress,
             currentIntervalName: currentIntervalName,
             targetDistanceRemaining: targetDistanceRemaining,
-            targetDistanceTotal: targetDistanceTotal
+            targetDistanceTotal: targetDistanceTotal,
+            currentDistanceMiles: currentDistanceMiles,
+            targetPaceMinutesPerMile: targetPaceMinutesPerMile,
+            ghostExpectedDistanceMiles: ghostExpectedDistanceMiles,
+            ghostDeltaMiles: ghostDeltaMiles
         )
         
         let content = ActivityContent(state: updatedState, staleDate: nil)
@@ -224,7 +248,11 @@ final class GymWorkoutLiveActivityManager {
         intervalProgress: Double? = nil,
         currentIntervalName: String? = nil,
         targetDistanceRemaining: Double? = nil,
-        targetDistanceTotal: Double? = nil
+        targetDistanceTotal: Double? = nil,
+        currentDistanceMiles: Double? = nil,
+        targetPaceMinutesPerMile: Double? = nil,
+        ghostExpectedDistanceMiles: Double? = nil,
+        ghostDeltaMiles: Double? = nil
     ) {
         guard let activity = currentActivity else { return }
         
@@ -243,7 +271,11 @@ final class GymWorkoutLiveActivityManager {
             intervalProgress: intervalProgress,
             currentIntervalName: currentIntervalName,
             targetDistanceRemaining: targetDistanceRemaining,
-            targetDistanceTotal: targetDistanceTotal
+            targetDistanceTotal: targetDistanceTotal,
+            currentDistanceMiles: currentDistanceMiles,
+            targetPaceMinutesPerMile: targetPaceMinutesPerMile,
+            ghostExpectedDistanceMiles: ghostExpectedDistanceMiles,
+            ghostDeltaMiles: ghostDeltaMiles
         )
         
         let content = ActivityContent(state: restState, staleDate: nil)
@@ -265,7 +297,11 @@ final class GymWorkoutLiveActivityManager {
         intervalProgress: Double? = nil,
         currentIntervalName: String? = nil,
         targetDistanceRemaining: Double? = nil,
-        targetDistanceTotal: Double? = nil
+        targetDistanceTotal: Double? = nil,
+        currentDistanceMiles: Double? = nil,
+        targetPaceMinutesPerMile: Double? = nil,
+        ghostExpectedDistanceMiles: Double? = nil,
+        ghostDeltaMiles: Double? = nil
     ) {
         updateWorkout(
             exerciseName: exerciseName,
@@ -278,7 +314,11 @@ final class GymWorkoutLiveActivityManager {
             intervalProgress: intervalProgress,
             currentIntervalName: currentIntervalName,
             targetDistanceRemaining: targetDistanceRemaining,
-            targetDistanceTotal: targetDistanceTotal
+            targetDistanceTotal: targetDistanceTotal,
+            currentDistanceMiles: currentDistanceMiles,
+            targetPaceMinutesPerMile: targetPaceMinutesPerMile,
+            ghostExpectedDistanceMiles: ghostExpectedDistanceMiles,
+            ghostDeltaMiles: ghostDeltaMiles
         )
     }
     
