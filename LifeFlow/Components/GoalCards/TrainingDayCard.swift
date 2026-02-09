@@ -24,6 +24,16 @@ struct TrainingDayCard: View {
     private var displayDistance: Double {
         adjustedDistance ?? session.targetDistance
     }
+    
+    private var guidedRunCTA: String {
+        guard let estimatedMinutes = MarathonPaceDefaults.estimatedDurationMinutes(
+            distanceMiles: displayDistance,
+            runType: session.runType
+        ) else {
+            return "Start Guided Run"
+        }
+        return String(format: "Target: %.1f mi • est %d mins", displayDistance, estimatedMinutes)
+    }
 
     private var runTypeColor: Color {
         switch session.runType {
@@ -182,7 +192,7 @@ struct TrainingDayCard: View {
 
                 // Start Guided Run
                 Button(action: onStartGuidedRun) {
-                    Label("Start Guided Run", systemImage: "play.fill")
+                    Label(guidedRunCTA, systemImage: "play.fill")
                         .font(.subheadline.weight(.bold))
                         .padding(.horizontal, 20)
                         .padding(.vertical, 10)

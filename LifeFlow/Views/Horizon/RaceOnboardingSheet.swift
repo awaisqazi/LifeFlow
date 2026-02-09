@@ -23,6 +23,7 @@ struct RaceOnboardingSheet: View {
     @State private var weeklyMileageString: String = ""
     @State private var longestRunString: String = ""
     @State private var restDays: Set<Int> = []
+    @State private var voiceCoachStartupMode: VoiceCoachStartupMode = MarathonCoachSettings.load().voiceCoachStartupMode
 
     private var weeklyMileage: Double {
         Double(weeklyMileageString) ?? 0
@@ -72,6 +73,7 @@ struct RaceOnboardingSheet: View {
 
                     ScheduleStepView(
                         restDays: $restDays,
+                        voiceCoachStartupMode: $voiceCoachStartupMode,
                         selectedDistance: selectedDistance,
                         raceDate: raceDate,
                         weeklyMileage: weeklyMileage,
@@ -143,6 +145,10 @@ struct RaceOnboardingSheet: View {
         )
         modelContext.insert(goal)
         try? modelContext.save()
+        
+        var settings = MarathonCoachSettings.load()
+        settings.voiceCoachStartupMode = voiceCoachStartupMode
+        settings.save()
 
         let impact = UIImpactFeedbackGenerator(style: .medium)
         impact.impactOccurred()
@@ -383,6 +389,7 @@ private struct MileageInputCard: View {
 
 private struct ScheduleStepView: View {
     @Binding var restDays: Set<Int>
+    @Binding var voiceCoachStartupMode: VoiceCoachStartupMode
     let selectedDistance: RaceDistance
     let raceDate: Date
     let weeklyMileage: Double
@@ -399,6 +406,7 @@ private struct ScheduleStepView: View {
                 headerSection
                 weekdaySelector
                 summaryCard
+                voiceCoachCard
                 if canCreate { readySummary }
             }
             .padding(.vertical)
@@ -454,6 +462,30 @@ private struct ScheduleStepView: View {
                 Label("Good balance of training and recovery", systemImage: "checkmark.circle")
                     .font(.caption).foregroundStyle(.secondary)
             }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.green.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal)
+    }
+    
+    private var voiceCoachCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Voice Coach starts", systemImage: "speaker.wave.2.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.green)
+            
+            Picker("Voice Coach starts", selection: $voiceCoachStartupMode) {
+                ForEach(VoiceCoachStartupMode.allCases, id: \.self) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            
+            Text("You can always mute or unmute during the run.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)

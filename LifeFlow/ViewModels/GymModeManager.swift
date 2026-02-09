@@ -123,6 +123,12 @@ final class GymModeManager {
     /// Live distance from HealthKit during running sessions
     var healthKitDistance: Double = 0
     
+    /// Whether Voice Coach is currently muted for this run
+    private(set) var isVoiceCoachMuted: Bool = false
+    
+    /// Target pace used by Voice Coach and Ghost Runner (minutes per mile)
+    private(set) var targetPaceMinutesPerMile: Double?
+    
     /// Helper to extract target distance from activeTarget
     var targetDistance: Double {
         if case .distance(let miles, _) = activeTarget {
@@ -159,6 +165,9 @@ final class GymModeManager {
     
     /// Manager for workout Live Activity (handles progress and rest)
     private var workoutLiveActivityManager = GymWorkoutLiveActivityManager()
+    
+    /// Handles spoken pace/distance coaching during guided runs
+    private let voiceCoach = VoiceCoach()
     
     // MARK: - Initialization
     
@@ -382,6 +391,78 @@ final class GymModeManager {
         }
     }
     
+    func defaultTargetPace(for runType: RunType) -> Double? {
+        MarathonPaceDefaults.targetPaceMinutesPerMile(for: runType)
+    }
+    
+    func resolveTargetPace(for session: TrainingSession?, setupSpeedMPH: Double?) -> Double? {
+        if let setupSpeedMPH, setupSpeedMPH > 0.1 {
+            return 60 / setupSpeedMPH
+        }
+        
+        guard let session else { return nil }
+        return defaultTargetPace(for: session.runType)
+    }
+    
+    /// Apply voice settings and target pace when a guided distance run is about to start.
+    func beginGuidedDistanceRun(setupSpeedMPH: Double?) {
+        configureVoiceCoachForActiveSession(setupSpeedMPH: setupSpeedMPH)
+    }
+    
+    func toggleVoiceCoachMute() {
+        guard case .distance = activeTarget else { return }
+        
+        isVoiceCoachMuted.toggle()
+        voiceCoach.setMuted(isVoiceCoachMuted)
+        
+        var settings = MarathonCoachSettings.load()
+        settings.isVoiceCoachEnabled = true
+        settings.voiceCoachStartupMode = isVoiceCoachMuted ? .muted : .enabled
+        settings.save()
+    }
+    
+    private func configureVoiceCoachForActiveSession(setupSpeedMPH: Double?) {
+        guard case .distance = activeTarget else {
+            resetVoiceCoach()
+            return
+        }
+        
+        let settings = MarathonCoachSettings.load()
+        voiceCoach.configure(from: settings)
+        voiceCoach.resetSession()
+        
+        targetPaceMinutesPerMile = resolveTargetPace(
+            for: activeTrainingSession,
+            setupSpeedMPH: setupSpeedMPH
+        )
+        
+        let shouldMute = !settings.isVoiceCoachEnabled || settings.voiceCoachStartupMode == .muted
+        isVoiceCoachMuted = shouldMute
+        voiceCoach.setMuted(shouldMute)
+    }
+    
+    private func processVoiceCheckIn(currentDistance: Double, elapsedTime: TimeInterval) {
+        guard case .distance = activeTarget else { return }
+        guard !isPaused else { return }
+        guard let targetPaceMinutesPerMile, targetPaceMinutesPerMile > 0 else { return }
+        guard currentDistance > 0.02, elapsedTime > 0 else { return }
+        
+        let currentPaceMinutesPerMile = (elapsedTime / 60) / currentDistance
+        guard currentPaceMinutesPerMile.isFinite, currentPaceMinutesPerMile > 0 else { return }
+        
+        voiceCoach.checkIn(
+            currentDistance: currentDistance,
+            currentPace: currentPaceMinutesPerMile,
+            targetPace: targetPaceMinutesPerMile
+        )
+    }
+    
+    private func resetVoiceCoach() {
+        voiceCoach.stop()
+        isVoiceCoachMuted = false
+        targetPaceMinutesPerMile = nil
+    }
+    
     private func liveContextValues(distanceOverride: Double? = nil) -> (intervalProgress: Double?, intervalName: String?, distanceRemaining: Double?, distanceTotal: Double?) {
         let intervalContext = intervalLiveContext()
         let distanceContext = distanceLiveContext(distanceOverride: distanceOverride)
@@ -549,6 +630,12 @@ final class GymModeManager {
         if let currentDistance {
             self.healthKitDistance = max(0, currentDistance)
         }
+        
+        if mode == 2 {
+            let distanceForCheckIn = max(currentDistance ?? self.healthKitDistance, 0)
+            processVoiceCheckIn(currentDistance: distanceForCheckIn, elapsedTime: elapsedTime)
+        }
+        
         syncWidgetState()
         
         // Also update Live Activity if active
@@ -618,6 +705,8 @@ final class GymModeManager {
             self.activeTarget = .open
         }
         
+        configureVoiceCoachForActiveSession(setupSpeedMPH: nil)
+        
         // Build the workout session using the marathon coach
         let workout = marathonCoach.buildGymModeSession(for: trainingSession)
         
@@ -636,6 +725,7 @@ final class GymModeManager {
         elapsedTime = 0
         isPaused = false
         healthKitDistance = 0
+        configureVoiceCoachForActiveSession(setupSpeedMPH: nil)
         
         // Enable screen wake lock
         UIApplication.shared.isIdleTimerDisabled = true
@@ -876,6 +966,7 @@ final class GymModeManager {
         // Stop timers
         stopElapsedTimer()
         stopRestTimer()
+        resetVoiceCoach()
         
         // Clean up all Live Activities
         Task {
@@ -914,6 +1005,7 @@ final class GymModeManager {
         guard let session = activeSession else { return }
         
         isPaused = true
+        voiceCoach.stopCurrentPrompt()
         
         // Save the current elapsed time to the session (but don't set endTime)
         session.duration = elapsedTime

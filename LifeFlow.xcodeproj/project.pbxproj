@@ -58,6 +58,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		D93509112F39C148004B42EC /* Exceptions for "LifeFlow" folder in "LifeFlow" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = D9501B592EFF213E00ED9FB6 /* LifeFlow */;
+		};
 		D9501C252F0079A300ED9FB6 /* Exceptions for "HydrationWidget" folder in "HydrationWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -113,6 +120,7 @@
 		D9501B5C2EFF213E00ED9FB6 /* LifeFlow */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
+				D93509112F39C148004B42EC /* Exceptions for "LifeFlow" folder in "LifeFlow" target */,
 				D9501C362F0083C200ED9FB6 /* Exceptions for "LifeFlow" folder in "HydrationWidgetExtension" target */,
 				D9501C892F00B57100ED9FB6 /* Exceptions for "LifeFlow" folder in "GymWidgetsExtension" target */,
 			);
@@ -506,6 +514,7 @@
 				DEVELOPMENT_TEAM = 3KZ25N2F2R;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LifeFlow/Info.plist;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "LifeFlow uses your workout data to track your daily momentum.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "LifeFlow saves your manual workouts to Apple Health";
 				INFOPLIST_KEY_NSMotionUsageDescription = "Used to animate water in the hydration view based on device tilt.\"";
@@ -543,6 +552,7 @@
 				DEVELOPMENT_TEAM = 3KZ25N2F2R;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LifeFlow/Info.plist;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "LifeFlow uses your workout data to track your daily momentum.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "LifeFlow saves your manual workouts to Apple Health";
 				INFOPLIST_KEY_NSMotionUsageDescription = "Used to animate water in the hydration view based on device tilt.\"";

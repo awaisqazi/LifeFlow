@@ -17,11 +17,13 @@ struct DistanceCardioView: View {
     
     @Environment(GymModeManager.self) private var gymModeManager
     @Environment(HealthKitManager.self) private var healthKitManager
+    @State private var weatherService = RunWeatherService()
     
     @State private var phase: DistancePhase = .setup
     @State private var speed: Double = 5.0
     @State private var incline: Double = 0.0
     @State private var expandedSetting: CardioSetting? = nil
+    @State private var hasCustomSetupSpeed: Bool = false
     
     enum CardioSetting {
         case speed
@@ -63,6 +65,9 @@ struct DistanceCardioView: View {
             }
         } message: {
             Text("Are you sure you want to end your run early? Your \(String(format: "%.2f", displayDistance)) mi will be saved.")
+        }
+        .onAppear {
+            weatherService.fetchIfNeeded()
         }
     }
     
@@ -106,30 +111,38 @@ struct DistanceCardioView: View {
                         unit: setting == .speed ? "mph" : "%",
                         color: setting == .speed ? .green : .orange,
                         increments: setting == .speed ? [0.1, 0.5, 1.0, 2.5] : [0.1, 0.5, 2.5, 5.0],
-                        onValueChanged: { }
+                        onValueChanged: {
+                            if setting == .speed {
+                                hasCustomSetupSpeed = true
+                            }
+                        }
                     )
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
             .padding(.top, 4)
             
-            // Start button
-            Button {
-                startWorkout()
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "play.fill")
-                        .font(.title3)
-                    Text("Start Guided Run")
-                        .font(.headline.weight(.bold))
-                }
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(Color.green.gradient, in: RoundedRectangle(cornerRadius: 16))
+            HStack(spacing: 8) {
+                Image(systemName: "cloud.sun.fill")
+                    .foregroundStyle(.cyan)
+                Text(weatherService.summaryText)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 0)
             }
-            .buttonStyle(.plain)
-            .padding(.top, 8)
+            .padding()
+            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14))
+            .padding(.top, 4)
+
+            SlideToStartControl(
+                title: "Slide to Start Guided Run",
+                tint: .green,
+                completionThreshold: 0.85
+            ) {
+                startWorkout()
+            }
+            .padding(.top, 4)
         }
     }
     
@@ -187,6 +200,35 @@ struct DistanceCardioView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            
+            VStack(spacing: 8) {
+                GhostRunnerBar(progress: progress, ghostProgress: ghostProgress)
+                
+                HStack {
+                    Text(ghostDeltaLabel)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(ghostDelta >= 0 ? .green : .orange)
+                    Spacer()
+                    Text("Target \(formattedTargetPace)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            
+            Button {
+                gymModeManager.toggleVoiceCoachMute()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: gymModeManager.isVoiceCoachMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                    Text(gymModeManager.isVoiceCoachMuted ? "Voice Muted" : "Voice On")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .foregroundStyle(gymModeManager.isVoiceCoachMuted ? .orange : .green)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Color.white.opacity(0.1), in: Capsule())
+            }
+            .buttonStyle(.plain)
             
             // Speed and Incline (Active phase)
             VStack(spacing: 12) {
@@ -288,7 +330,7 @@ struct DistanceCardioView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     
-                    Text("\(String(format: "%.2f", currentDistance)) miles")
+                    Text("\(String(format: "%.2f", displayDistance)) miles")
                         .font(.title.weight(.bold))
                         .foregroundStyle(.purple)
                     
@@ -324,6 +366,45 @@ struct DistanceCardioView: View {
         return min(1.0, displayDistance / targetDistance)
     }
     
+    private var ghostProgress: Double {
+        guard targetDistance > 0 else { return 0 }
+        return min(1.0, expectedDistance / targetDistance)
+    }
+    
+    private var expectedDistance: Double {
+        guard let targetPace = resolvedTargetPaceMinutesPerMile, targetPace > 0 else { return 0 }
+        return max(0, elapsedTime / (targetPace * 60))
+    }
+    
+    private var ghostDelta: Double {
+        displayDistance - expectedDistance
+    }
+    
+    private var ghostDeltaLabel: String {
+        if abs(ghostDelta) < 0.01 {
+            return "On target"
+        }
+        return ghostDelta > 0
+            ? String(format: "Ahead by %.2f mi", ghostDelta)
+            : String(format: "Behind by %.2f mi", abs(ghostDelta))
+    }
+    
+    private var resolvedTargetPaceMinutesPerMile: Double? {
+        if let pace = gymModeManager.targetPaceMinutesPerMile, pace > 0 {
+            return pace
+        }
+        guard speed > 0 else { return nil }
+        return 60 / speed
+    }
+    
+    private var formattedTargetPace: String {
+        guard let pace = resolvedTargetPaceMinutesPerMile else { return "--:-- /mi" }
+        let totalSeconds = Int((pace * 60).rounded())
+        let minutes = totalSeconds / 60
+        let seconds = totalSeconds % 60
+        return String(format: "%d:%02d /mi", minutes, seconds)
+    }
+    
     private var remainingDistance: Double {
         max(0, targetDistance - displayDistance)
     }
@@ -349,8 +430,8 @@ struct DistanceCardioView: View {
     }
     
     private var formattedPace: String {
-        guard currentDistance > 0 else { return "--:-- /mi" }
-        let paceSeconds = elapsedTime / currentDistance
+        guard displayDistance > 0 else { return "--:-- /mi" }
+        let paceSeconds = elapsedTime / displayDistance
         let mins = Int(paceSeconds) / 60
         let secs = Int(paceSeconds) % 60
         return String(format: "%d:%02d /mi", mins, secs)
@@ -370,6 +451,9 @@ struct DistanceCardioView: View {
         elapsedTime = 0
         phase = .active
         gymModeManager.isCardioInProgress = true
+        let setupSpeedOverride = hasCustomSetupSpeed ? speed : nil
+        gymModeManager.beginGuidedDistanceRun(setupSpeedMPH: setupSpeedOverride)
+        hasCustomSetupSpeed = false
         
         // Start live tracking if possible
         gymModeManager.startHealthKitRun(hkManager: healthKitManager)
@@ -390,6 +474,7 @@ struct DistanceCardioView: View {
         // Start timer - update every second
         // Distance is simulated based on speed (mph converted to miles per second)
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+            guard !gymModeManager.isPaused else { return }
             elapsedTime += 1
             
             // Calculate distance traveled this second (speed mph -> miles per second)
@@ -407,7 +492,7 @@ struct DistanceCardioView: View {
             )
             
             // Check if target reached
-            if currentDistance >= targetDistance {
+            if displayDistance >= targetDistance {
                 timer?.invalidate()
                 timer = nil
                 gymModeManager.isCardioInProgress = false
