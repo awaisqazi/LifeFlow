@@ -17,7 +17,7 @@ struct GymWorkoutLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: GymWorkoutAttributes.self) { context in
             // Lock Screen / Banner UI
-            LockScreenView(context: context)
+            LiveActivityContentView(context: context)
                 .activityBackgroundTint(context.state.accentColor.opacity(0.2))
                 .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { context in
@@ -130,6 +130,189 @@ struct GymWorkoutLiveActivity: Widget {
                 }
             }
             .keylineTint(context.state.accentColor)
+        }
+        .supplementalActivityFamilies([.small])
+    }
+}
+
+private struct LiveActivityContentView: View {
+    @Environment(\.activityFamily) private var activityFamily
+
+    let context: ActivityViewContext<GymWorkoutAttributes>
+
+    var body: some View {
+        switch activityFamily {
+        case .small:
+            WatchSmartStackSmallLiveActivityView(context: context)
+        case .medium:
+            LockScreenView(context: context)
+        @unknown default:
+            LockScreenView(context: context)
+        }
+    }
+}
+
+private struct WatchSmartStackSmallLiveActivityView: View {
+    private struct CompactMetric {
+        let line: String
+        let chip: String
+        let chipColor: Color
+    }
+
+    @Environment(\.widgetRenderingMode) private var renderingMode
+
+    let context: ActivityViewContext<GymWorkoutAttributes>
+
+    private var state: GymWorkoutAttributes.ContentState {
+        context.state
+    }
+
+    private var accentForegroundColor: Color {
+        renderingMode == .accented ? .white : state.accentColor
+    }
+
+    private var compactMetric: CompactMetric {
+        if state.hasGhostRunnerContext {
+            let chip = state.paceDeltaString.map { "\($0) mi" } ?? "On pace"
+            let color = state.paceDeltaString == nil ? state.accentColor : state.ghostDeltaColor
+            return CompactMetric(
+                line: "Distance \(state.distanceString) mi",
+                chip: chip,
+                chipColor: color
+            )
+        }
+
+        if state.hasDistanceTarget {
+            let remainingText = state.formattedDistanceRemaining == "--" ? "Distance goal" : "\(state.formattedDistanceRemaining) left"
+            return CompactMetric(
+                line: remainingText,
+                chip: state.formattedTargetPace ?? "Distance",
+                chipColor: state.accentColor
+            )
+        }
+
+        if state.isCardio {
+            let speedText = state.cardioSpeed > 0 ? String(format: "Speed %.1f mph", state.cardioSpeed) : "Speed --"
+            let inclineText = state.cardioIncline > 0 ? String(format: "Incl %.1f%%", state.cardioIncline) : "Incl --"
+            return CompactMetric(
+                line: speedText,
+                chip: inclineText,
+                chipColor: state.accentColor
+            )
+        }
+
+        let totalSets = max(state.totalSets, 1)
+        let currentSet = min(max(state.currentSet, 1), totalSets)
+        let totalExercises = max(context.attributes.totalExercises, 1)
+        let currentExercise = min(max(state.currentExerciseIndex + 1, 1), totalExercises)
+        return CompactMetric(
+            line: "Set \(currentSet)/\(totalSets)",
+            chip: "Ex \(currentExercise)/\(totalExercises)",
+            chipColor: state.accentColor
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                HStack(spacing: 5) {
+                    Image(systemName: state.activityIcon)
+                        .font(.system(size: 10, weight: .semibold))
+                    Text(state.statusText)
+                        .font(.system(size: 9, weight: .black, design: .rounded))
+                        .tracking(0.7)
+                }
+                .foregroundStyle(accentForegroundColor)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background {
+                    Capsule()
+                        .fill(Color.white.opacity(renderingMode == .accented ? 0.16 : 0.09))
+                        .overlay {
+                            Capsule()
+                                .stroke(accentForegroundColor.opacity(renderingMode == .accented ? 0.72 : 0.42), lineWidth: 0.8)
+                        }
+                }
+                .widgetAccentable()
+
+                Text(state.primaryLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            HStack(alignment: .lastTextBaseline, spacing: 6) {
+                LiveActivityTimerText(
+                    state: state,
+                    fontSize: 30,
+                    showsShadow: false,
+                    tintOverride: accentForegroundColor
+                )
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .widgetAccentable()
+
+                Spacer(minLength: 0)
+
+                Text(state.timerLabel.uppercased())
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .tracking(0.8)
+            }
+
+            HStack(spacing: 6) {
+                Text(compactMetric.line)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+
+                Spacer(minLength: 4)
+
+                Text(compactMetric.chip)
+                    .font(.system(size: 10, weight: .bold, design: .rounded).monospacedDigit())
+                    .foregroundStyle(renderingMode == .accented ? .white : compactMetric.chipColor)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .background {
+                        Capsule()
+                            .fill(compactMetric.chipColor.opacity(renderingMode == .accented ? 0.2 : 0.14))
+                            .overlay {
+                                Capsule()
+                                    .stroke(compactMetric.chipColor.opacity(renderingMode == .accented ? 0.72 : 0.42), lineWidth: 0.7)
+                            }
+                    }
+                    .widgetAccentable()
+            }
+
+            LiveActivityStateProgressBar(
+                state: state,
+                barHeight: 4,
+                showsSupplementalText: false
+            )
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 10)
+        .background {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.black.opacity(renderingMode == .accented ? 0.42 : 0.72))
+                .overlay {
+                    LinearGradient(
+                        colors: [
+                            state.accentColor.opacity(renderingMode == .accented ? 0.26 : 0.18),
+                            .clear
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(state.accentColor.opacity(renderingMode == .accented ? 0.75 : 0.32), lineWidth: 0.8)
+                }
         }
     }
 }
@@ -277,6 +460,19 @@ private extension GymWorkoutAttributes.ContentState {
         case .active: return .green
         }
     }
+
+    var activityIcon: String {
+        switch phase {
+        case .paused, .pausedResting, .pausedCardioTimed:
+            return "pause.fill"
+        case .resting:
+            return "timer"
+        case .cardioTimed, .cardioFreestyle:
+            return "figure.run"
+        case .active:
+            return exerciseIcon
+        }
+    }
     
     var isTimedCardio: Bool {
         isCardio && cardioModeIndex == 0 && cardioEndTime != nil
@@ -388,10 +584,11 @@ private struct LiveActivityTimerText: View {
     let state: GymWorkoutAttributes.ContentState
     let fontSize: CGFloat
     let showsShadow: Bool
+    var tintOverride: Color? = nil
     
     var body: some View {
         let font = Font.system(size: fontSize, weight: .bold, design: .rounded).monospacedDigit()
-        let tint = state.accentColor
+        let tint = tintOverride ?? state.accentColor
         
         Group {
             switch state.phase {
@@ -428,6 +625,8 @@ private struct LiveActivityTimerText: View {
 
 private struct LiveActivityStateProgressBar: View {
     let state: GymWorkoutAttributes.ContentState
+    var barHeight: CGFloat = 6
+    var showsSupplementalText: Bool = true
     
     var body: some View {
         let tint = state.accentColor
@@ -438,7 +637,8 @@ private struct LiveActivityStateProgressBar: View {
                     LiveActivityGhostRunnerBar(
                         progress: state.ghostRunnerProgress,
                         ghostProgress: state.ghostTargetProgress,
-                        color: state.ghostDeltaColor
+                        color: state.ghostDeltaColor,
+                        height: barHeight
                     )
                 } else if state.hasDistanceTarget {
                     ProgressView(value: state.distanceProgress)
@@ -481,9 +681,9 @@ private struct LiveActivityStateProgressBar: View {
                     .tint(tint)
                 }
             }
-            .frame(height: 6)
+            .frame(height: barHeight)
             
-            if let ghostDeltaText = state.ghostDeltaText {
+            if showsSupplementalText, let ghostDeltaText = state.ghostDeltaText {
                 HStack(spacing: 6) {
                     Text(ghostDeltaText)
                         .font(.caption2.weight(.semibold))
@@ -506,6 +706,7 @@ private struct LiveActivityGhostRunnerBar: View {
     let progress: Double
     let ghostProgress: Double
     let color: Color
+    var height: CGFloat = 6
     
     var body: some View {
         GeometryReader { geometry in
@@ -526,7 +727,7 @@ private struct LiveActivityGhostRunnerBar: View {
                     .frame(width: width * safeRunner)
             }
         }
-        .frame(height: 6)
+        .frame(height: height)
     }
 }
 

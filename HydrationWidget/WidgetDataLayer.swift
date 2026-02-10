@@ -14,7 +14,8 @@ extension URL {
         guard let fileContainer = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup) else {
             fatalError("Shared file container could not be created for App Group: \(appGroup)")
         }
-        return fileContainer.appendingPathComponent("LifeFlow.sqlite")
+        // Keep the widget store isolated to avoid schema conflicts with the main app.
+        return fileContainer.appendingPathComponent("LifeFlowHydrationWidget.sqlite")
     }
 }
 
@@ -36,7 +37,8 @@ final class WidgetDataLayer {
         ])
         
         let modelConfiguration = ModelConfiguration(
-            url: URL.storeURL(for: appGroupIdentifier)
+            url: URL.storeURL(for: appGroupIdentifier),
+            cloudKitDatabase: .none
         )
 
         do {

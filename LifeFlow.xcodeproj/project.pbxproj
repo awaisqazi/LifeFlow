@@ -30,6 +30,11 @@
 		C706B9DF4358F5378EEE147D /* WatchFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAA14D6D57830FC60076C8A3 /* WatchFormatting.swift */; };
 		D024115D03132988BD32B7F0 /* ThermalGovernor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FAC9962DD17ED7BA90073E1 /* ThermalGovernor.swift */; };
 		D5E8BBD8C6447CCBBF87FBD6 /* WatchDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A5678B5C6E46CFED0F8BE73 /* WatchDataStore.swift */; };
+		D91DAC392F3B257C0092E63F /* SmartStackRelevance.swift in Sources */ = {isa = PBXBuildFile; fileRef = D91DAC382F3B257C0092E63F /* SmartStackRelevance.swift */; };
+		D91DAC3B2F3B25B20092E63F /* WatchRunSchemaVersioning.swift in Sources */ = {isa = PBXBuildFile; fileRef = D91DAC3A2F3B25B20092E63F /* WatchRunSchemaVersioning.swift */; };
+		D91DAC3D2F3B263C0092E63F /* IMPLEMENTATION_NOTES.md in Resources */ = {isa = PBXBuildFile; fileRef = D91DAC3C2F3B263C0092E63F /* IMPLEMENTATION_NOTES.md */; };
+		D91DAC3F2F3B26DB0092E63F /* TROUBLESHOOTING.md in Resources */ = {isa = PBXBuildFile; fileRef = D91DAC3E2F3B26DB0092E63F /* TROUBLESHOOTING.md */; };
+		D91DAC412F3B28100092E63F /* QUICK_FIX.md in Resources */ = {isa = PBXBuildFile; fileRef = D91DAC402F3B28100092E63F /* QUICK_FIX.md */; };
 		D9501C132F0079A200ED9FB6 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D9501C122F0079A200ED9FB6 /* WidgetKit.framework */; };
 		D9501C152F0079A200ED9FB6 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D9501C142F0079A200ED9FB6 /* SwiftUI.framework */; };
 		D9501C242F0079A300ED9FB6 /* HydrationWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D9501C102F0079A200ED9FB6 /* HydrationWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -96,6 +101,11 @@
 		B73CA3A070ADFE8620109E51 /* LifeFlowWatchWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LifeFlowWatchWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		BA27F797F0CC70F067344F02 /* MetricPlatter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetricPlatter.swift; sourceTree = "<group>"; };
 		BAA14D6D57830FC60076C8A3 /* WatchFormatting.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchFormatting.swift; sourceTree = "<group>"; };
+		D91DAC382F3B257C0092E63F /* SmartStackRelevance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartStackRelevance.swift; sourceTree = "<group>"; };
+		D91DAC3A2F3B25B20092E63F /* WatchRunSchemaVersioning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchRunSchemaVersioning.swift; sourceTree = "<group>"; };
+		D91DAC3C2F3B263C0092E63F /* IMPLEMENTATION_NOTES.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = IMPLEMENTATION_NOTES.md; sourceTree = "<group>"; };
+		D91DAC3E2F3B26DB0092E63F /* TROUBLESHOOTING.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = TROUBLESHOOTING.md; sourceTree = "<group>"; };
+		D91DAC402F3B28100092E63F /* QUICK_FIX.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = QUICK_FIX.md; sourceTree = "<group>"; };
 		D9501B5A2EFF213E00ED9FB6 /* LifeFlow.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LifeFlow.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D9501C102F0079A200ED9FB6 /* HydrationWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HydrationWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		D9501C122F0079A200ED9FB6 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
@@ -248,8 +258,8 @@
 			isa = PBXGroup;
 			children = (
 				4CF35A79DA81EBB2FE140650 /* WatchRunModels.swift */,
+				D91DAC3A2F3B25B20092E63F /* WatchRunSchemaVersioning.swift */,
 			);
-			name = Models;
 			path = Models;
 			sourceTree = "<group>";
 		};
@@ -264,7 +274,6 @@
 				70F8A66FF5117A3967106B4B /* WatchExtensionDelegate.swift */,
 				F304B6F404563036A390D6B4 /* WatchWorkoutManager.swift */,
 			);
-			name = Services;
 			path = Services;
 			sourceTree = "<group>";
 		};
@@ -278,7 +287,6 @@
 				8A9455FC76EFAFCE2C28095A /* WatchRunHUDView.swift */,
 				5A51EAC6C8E8CDB5297C0D66 /* WatchSettingsView.swift */,
 			);
-			name = Views;
 			path = Views;
 			sourceTree = "<group>";
 		};
@@ -287,7 +295,6 @@
 			children = (
 				6209F5E29A594C0ADDB39834 /* LifeFlowRunIntents.swift */,
 			);
-			name = Intents;
 			path = Intents;
 			sourceTree = "<group>";
 		};
@@ -344,8 +351,8 @@
 				031ADA2C8F216746F5933D7A /* LifeFlowWatchWidgetsBundle.swift */,
 				1DCCE2164333DBA1031DB5A1 /* WatchWidgetIntents.swift */,
 				79011D46AD4789446BF240EA /* WidgetFormatting.swift */,
+				D91DAC382F3B257C0092E63F /* SmartStackRelevance.swift */,
 			);
-			name = LifeFlowWatchWidgets;
 			path = LifeFlowWatchWidgets;
 			sourceTree = "<group>";
 		};
@@ -357,8 +364,10 @@
 				6C362E8CDC9094403D03A514 /* Models */,
 				7A34F64679F56AA9AD93DCE5 /* Services */,
 				9931B6282409CFD9B5C44692 /* Views */,
+				D91DAC3C2F3B263C0092E63F /* IMPLEMENTATION_NOTES.md */,
+				D91DAC3E2F3B26DB0092E63F /* TROUBLESHOOTING.md */,
+				D91DAC402F3B28100092E63F /* QUICK_FIX.md */,
 			);
-			name = LifeFlowWatchApp;
 			path = LifeFlowWatchApp;
 			sourceTree = "<group>";
 		};
@@ -523,6 +532,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D91DAC3D2F3B263C0092E63F /* IMPLEMENTATION_NOTES.md in Resources */,
+				D91DAC3F2F3B26DB0092E63F /* TROUBLESHOOTING.md in Resources */,
+				D91DAC412F3B28100092E63F /* QUICK_FIX.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -570,6 +582,7 @@
 				3AF78108D3A9BCE81D1C0CE6 /* WatchConnectivityBridge.swift in Sources */,
 				D5E8BBD8C6447CCBBF87FBD6 /* WatchDataStore.swift in Sources */,
 				B7B19D6C46E1267DC3519BF5 /* WatchExtensionDelegate.swift in Sources */,
+				D91DAC3B2F3B25B20092E63F /* WatchRunSchemaVersioning.swift in Sources */,
 				3EA56AD4F761DDE1BF1F2495 /* WatchWorkoutManager.swift in Sources */,
 				E1FC25AE525AB9DCD47C7352 /* MetricPlatter.swift in Sources */,
 				E654D67F11E76F699AB7649A /* WatchDashboardView.swift in Sources */,
@@ -584,6 +597,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D91DAC392F3B257C0092E63F /* SmartStackRelevance.swift in Sources */,
 				8788428D28CFB15D6B940CF1 /* LifeFlowQuickControlWidget.swift in Sources */,
 				56441BECB0E214B90ED11D58 /* LifeFlowRunComplicationWidget.swift in Sources */,
 				C53C54991971BD86D7E664CC /* LifeFlowWatchWidgetsBundle.swift in Sources */,
@@ -629,13 +643,13 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-			4FE11B864F4BBB3414CDD681 /* Release */ = {
-				isa = XCBuildConfiguration;
-				buildSettings = {
-					ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-					ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+		4FE11B864F4BBB3414CDD681 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = LifeFlowWatchApp/LifeFlowWatchApp.entitlements;
-				GENERATE_INFOPLIST_FILE = NO;
+				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = LifeFlowWatchApp/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -656,13 +670,13 @@
 			};
 			name = Release;
 		};
-			BD0C07B58C43218142F42450 /* Debug */ = {
-				isa = XCBuildConfiguration;
-				buildSettings = {
-					ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-					ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+		BD0C07B58C43218142F42450 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = LifeFlowWatchApp/LifeFlowWatchApp.entitlements;
-				GENERATE_INFOPLIST_FILE = NO;
+				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = LifeFlowWatchApp/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -682,9 +696,9 @@
 			};
 			name = Debug;
 		};
-			D9501B652EFF213F00ED9FB6 /* Debug */ = {
-				isa = XCBuildConfiguration;
-				buildSettings = {
+		D9501B652EFF213F00ED9FB6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -735,21 +749,21 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-					IPHONEOS_DEPLOYMENT_TARGET = 26.1;
-					LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-					STRING_CATALOG_GENERATE_SYMBOLS = YES;
-					MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
 			name = Debug;
 		};
-			D9501B662EFF213F00ED9FB6 /* Release */ = {
-				isa = XCBuildConfiguration;
-				buildSettings = {
+		D9501B662EFF213F00ED9FB6 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -794,12 +808,12 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-					IPHONEOS_DEPLOYMENT_TARGET = 26.1;
-					LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-					STRING_CATALOG_GENERATE_SYMBOLS = YES;
-					MTL_ENABLE_DEBUG_INFO = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};
@@ -1014,7 +1028,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = LifeFlowWatchWidgets/LifeFlowWatchWidgets.entitlements;
-				GENERATE_INFOPLIST_FILE = NO;
+				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = LifeFlowWatchWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1041,7 +1055,7 @@
 			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = LifeFlowWatchWidgets/LifeFlowWatchWidgets.entitlements;
-				GENERATE_INFOPLIST_FILE = NO;
+				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = LifeFlowWatchWidgets/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

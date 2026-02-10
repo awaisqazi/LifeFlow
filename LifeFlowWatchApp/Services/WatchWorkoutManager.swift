@@ -217,6 +217,7 @@ final class WatchWorkoutManager: NSObject {
             )
 
             publishWidgetState()
+            donateSmartStackActivity()
         } catch {
             lifecycleState = .idle
             lastErrorMessage = "Unable to start run: \(error.localizedDescription)"
@@ -639,7 +640,10 @@ final class WatchWorkoutManager: NSObject {
 
         let event = RunEvent(timestamp: Date(), kind: kind, payloadJSON: payloadJSON)
         event.workoutSession = activeSessionRecord
-        activeSessionRecord.runEvents.append(event)
+        if activeSessionRecord.runEvents == nil {
+            activeSessionRecord.runEvents = []
+        }
+        activeSessionRecord.runEvents?.append(event)
 
         try? modelContext.save()
     }
@@ -666,7 +670,10 @@ final class WatchWorkoutManager: NSObject {
                 fuelRemainingGrams: snapshot.fuelRemainingGrams
             )
             point.workoutSession = activeSessionRecord
-            activeSessionRecord.telemetryPoints.append(point)
+            if activeSessionRecord.telemetryPoints == nil {
+                activeSessionRecord.telemetryPoints = []
+            }
+            activeSessionRecord.telemetryPoints?.append(point)
         }
 
         for draft in stateSnapshotBuffer {
@@ -680,7 +687,10 @@ final class WatchWorkoutManager: NSObject {
                 fuelRemainingGrams: draft.fuelRemainingGrams
             )
             state.workoutSession = activeSessionRecord
-            activeSessionRecord.stateSnapshots.append(state)
+            if activeSessionRecord.stateSnapshots == nil {
+                activeSessionRecord.stateSnapshots = []
+            }
+            activeSessionRecord.stateSnapshots?.append(state)
         }
 
         telemetryBuffer.removeAll(keepingCapacity: true)
@@ -712,15 +722,25 @@ final class WatchWorkoutManager: NSObject {
     }
 
     private func schedulePostRunRefresh() {
-        let preferredDate = Date().addingTimeInterval(5 * 60)
-        WKExtension.shared().scheduleBackgroundRefresh(
-            withPreferredDate: preferredDate,
-            userInfo: nil
-        ) { error in
-            if let error {
-                print("Background refresh scheduling failed: \(error)")
-            }
-        }
+        // CloudKit sync will happen automatically when app enters background
+        // SwiftUI watchOS apps don't use WKExtension.shared() for background tasks
+        // Instead, sync is triggered via WatchExtensionDelegate.handleScenePhase
+    }
+
+    private func donateSmartStackActivity() {
+        // Donate activity for Smart Stack learning
+        let activity = NSUserActivity(activityType: "com.Fez.LifeFlow.workout")
+        activity.title = "LifeFlow Run"
+        activity.isEligibleForPrediction = true
+        activity.isEligibleForSearch = false
+        activity.persistentIdentifier = "lifeflow-workout-\(UUID().uuidString)"
+
+        activity.addUserInfoEntries(from: [
+            "lifecycle_state": lifecycleState.rawValue,
+            "timestamp": Date().timeIntervalSince1970
+        ])
+
+        activity.becomeCurrent()
     }
 
     private func readinessInput(for style: RunType) -> ReadinessInput {

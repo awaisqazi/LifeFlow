@@ -81,8 +81,11 @@ struct DistanceCardioView: View {
         .onChange(of: gymModeManager.isIndoorRun) { _, isIndoor in
             if isIndoor {
                 liveLocationTracker.stopTracking()
-            } else if phase == .active {
-                liveLocationTracker.startTracking(indoor: false)
+            } else {
+                weatherService.fetchIfNeeded()
+                if phase == .active {
+                    liveLocationTracker.startTracking(indoor: false)
+                }
             }
         }
         .onReceive(liveLocationTracker.$latestCoordinate.compactMap { $0 }) { coordinate in
@@ -173,6 +176,26 @@ struct DistanceCardioView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.leading)
+                if !gymModeManager.isIndoorRun {
+                    if weatherService.isLoading {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .controlSize(.small)
+                            .tint(.cyan)
+                    } else {
+                        Button {
+                            weatherService.fetchIfNeeded(force: true)
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.cyan)
+                                .padding(7)
+                                .background(Color.white.opacity(0.08), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Refresh Weather Conditions")
+                    }
+                }
                 Spacer(minLength: 0)
             }
             .padding()
@@ -666,7 +689,7 @@ struct DistanceCardioView: View {
         let setupSpeedOverride = gymModeManager.isIndoorRun && hasCustomSetupSpeed ? speed : nil
         gymModeManager.beginGuidedDistanceRun(
             setupSpeedMPH: setupSpeedOverride,
-            weatherSummary: weatherService.summaryText
+            weatherSummary: weatherService.persistedSummary
         )
         hasCustomSetupSpeed = false
         

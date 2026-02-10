@@ -18,10 +18,13 @@ struct FlowDashboardView: View {
     @Environment(\.gymModeManager) private var gymModeManager
     @Environment(\.openTab) private var openTab
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
 
     @Query(sort: \DayLog.date, order: .reverse) private var dayLogs: [DayLog]
     @Query(sort: \Goal.deadline, order: .forward) private var goals: [Goal]
+    @Query(sort: \TrainingPlan.createdAt, order: .reverse) private var trainingPlans: [TrainingPlan]
 
+    @State private var weatherService = RunWeatherService()
     @State private var showPostRunCheckIn: Bool = false
     @State private var checkInSession: TrainingSession?
     @State private var showCrossTrainingSheet: Bool = false
@@ -37,10 +40,6 @@ struct FlowDashboardView: View {
         return DayLog(date: calendar.startOfDay(for: Date()))
     }
 
-    private var hasRaceTrainingGoal: Bool {
-        goals.contains { $0.type == .raceTraining }
-    }
-
     private var raceTrainingGoalIDs: [UUID] {
         goals
             .filter { $0.type == .raceTraining }
@@ -50,6 +49,10 @@ struct FlowDashboardView: View {
 
     private var briefingDateLine: String {
         Date.now.formatted(.dateTime.weekday(.wide).month(.wide).day())
+    }
+
+    private var briefingWeatherLine: String {
+        weatherService.compactSummaryText
     }
 
     private var briefingSubtitle: String {
@@ -125,7 +128,9 @@ struct FlowDashboardView: View {
                         SanctuaryHeaderView(
                             title: "Flow",
                             subtitle: briefingSubtitle,
-                            kicker: briefingDateLine
+                            kicker: briefingDateLine,
+                            kickerAccessory: briefingWeatherLine,
+                            kickerTrailingInset: 72
                         )
                         .id("top")
                         .padding(.horizontal)
@@ -145,8 +150,7 @@ struct FlowDashboardView: View {
                                 GymCard(dayLog: todayLog)
                             }
 
-                            if hasRaceTrainingGoal,
-                               let plan = coachManager.activePlan,
+                            if let plan = coachManager.activePlan,
                                let session = plan.todaysSession {
                                 streamDepthCard(index: 2) {
                                     TrainingDayCard(
@@ -204,9 +208,14 @@ struct FlowDashboardView: View {
         .onAppear {
             ensureTodayLogExists()
             coachManager.loadActivePlan(modelContext: modelContext)
-            if !hasRaceTrainingGoal, coachManager.activePlan != nil {
-                coachManager.cancelPlan(modelContext: modelContext)
-            }
+            recoverTrainingPlanIfNeeded()
+            weatherService.fetchIfNeeded()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            coachManager.loadActivePlan(modelContext: modelContext)
+            recoverTrainingPlanIfNeeded()
+            weatherService.fetchIfNeeded()
         }
         .sheet(isPresented: $showPostRunCheckIn) {
             if let session = checkInSession {
@@ -235,13 +244,27 @@ struct FlowDashboardView: View {
         } message: {
             Text(crossTrainingSaveError ?? "")
         }
-        .onChange(of: raceTrainingGoalIDs) { _, newIDs in
-            if newIDs.isEmpty {
+        .onChange(of: raceTrainingGoalIDs) { oldIDs, newIDs in
+            if !oldIDs.isEmpty, newIDs.isEmpty {
                 coachManager.cancelPlan(modelContext: modelContext)
             } else if coachManager.activePlan == nil {
                 coachManager.loadActivePlan(modelContext: modelContext)
+                recoverTrainingPlanIfNeeded()
             }
         }
+    }
+
+    private func recoverTrainingPlanIfNeeded() {
+        guard !raceTrainingGoalIDs.isEmpty else { return }
+        guard coachManager.activePlan == nil else { return }
+        guard let recoverablePlan = trainingPlans.first(where: { !$0.isCompleted }) else { return }
+
+        if !recoverablePlan.isActive {
+            recoverablePlan.isActive = true
+            try? modelContext.save()
+        }
+
+        coachManager.loadActivePlan(modelContext: modelContext)
     }
 
     @ViewBuilder

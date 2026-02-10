@@ -8,9 +8,16 @@
 	<string>LifeFlow writes completed workouts and fueling events to your Health data.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>LifeFlow uses location to measure outdoor distance, pace, and grade.</string>
+	<key>WKCompanionAppBundleIdentifier</key>
+	<string>com.fez.LifeFlow</string>
+	<key>WKSupportsLiveActivityLaunchAttributeTypes</key>
+	<array>
+		<string>LifeFlow.GymWorkoutAttributes</string>
+	</array>
 	<key>WKBackgroundModes</key>
 	<array>
 		<string>workout-processing</string>
+		<string>remote-notification</string>
 	</array>
 </dict>
 </plist>

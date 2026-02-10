@@ -91,15 +91,31 @@ struct SanctuaryHeaderView: View {
     let title: String
     let subtitle: String
     let kicker: String
+    var kickerAccessory: String? = nil
+    var kickerAccessorySystemImage: String = "cloud.sun.fill"
+    var kickerTrailingInset: CGFloat = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(kicker.uppercased())
-                .font(.system(size: 11, weight: .bold))
-                .tracking(1.1)
-                .foregroundStyle(.white.opacity(0.62))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+            if hasKickerAccessory {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        kickerText
+                        Spacer(minLength: 8)
+                        kickerAccessoryLabel
+                    }
+                    .padding(.trailing, kickerTrailingInset)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        kickerText
+                        kickerAccessoryLabel
+                    }
+                    .padding(.trailing, kickerTrailingInset)
+                }
+            } else {
+                kickerText
+                    .padding(.trailing, kickerTrailingInset)
+            }
 
             Text(title)
                 .font(.system(size: 46, weight: .bold, design: .serif))
@@ -123,6 +139,28 @@ struct SanctuaryHeaderView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
+    }
+
+    private var hasKickerAccessory: Bool {
+        guard let kickerAccessory else { return false }
+        return !kickerAccessory.isEmpty
+    }
+
+    private var kickerText: some View {
+        Text(kicker.uppercased())
+            .font(.system(size: 11, weight: .bold))
+            .tracking(1.1)
+            .foregroundStyle(.white.opacity(0.62))
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+    }
+
+    private var kickerAccessoryLabel: some View {
+        Label(kickerAccessory ?? "", systemImage: kickerAccessorySystemImage)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.76))
+            .lineLimit(1)
+            .minimumScaleFactor(0.9)
     }
 }
 

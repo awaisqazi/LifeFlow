@@ -3,10 +3,14 @@ import SwiftData
 
 @main
 struct LifeFlowWatchApp: App {
-    @WKExtensionDelegateAdaptor(WatchExtensionDelegate.self) private var extensionDelegate
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var coordinator = WatchAppCoordinator()
+
+    init() {
+        // Initialize Watch Connectivity early
+        _ = WatchExtensionDelegate.shared
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -15,6 +19,7 @@ struct LifeFlowWatchApp: App {
             }
             .onChange(of: scenePhase) { _, newPhase in
                 coordinator.handleScenePhase(newPhase)
+                WatchExtensionDelegate.shared.handleScenePhase(newPhase)
             }
             .onAppear {
                 coordinator.workoutManager.applyPendingIntentActions()

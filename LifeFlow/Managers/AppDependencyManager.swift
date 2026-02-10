@@ -40,6 +40,7 @@ final class AppDependencyManager {
 
     private init() {
         let appGroupIdentifier = HydrationSettings.appGroupID
+        let storeURL = URL.storeURL(for: appGroupIdentifier)
         let schema = Schema([
             DayLog.self,
             WorkoutSession.self,
@@ -55,13 +56,23 @@ final class AppDependencyManager {
             WatchRunStateSnapshot.self
         ])
 
-        // Use the shared App Group container
-        let modelConfiguration = ModelConfiguration(
-            url: URL.storeURL(for: appGroupIdentifier)
-        )
-
         do {
-            sharedModelContainer = try ModelContainer(for: schema, configurations: [modelConfiguration])
+            let initialContainer = try Self.makeSharedContainer(schema: schema, storeURL: storeURL)
+
+            do {
+                try Self.validateSharedStoreSchema(initialContainer)
+                sharedModelContainer = initialContainer
+            } catch {
+                guard Self.shouldResetSharedStore(after: error) else {
+                    throw error
+                }
+
+                Self.destroyStoreFiles(at: storeURL)
+
+                let rebuiltContainer = try Self.makeSharedContainer(schema: schema, storeURL: storeURL)
+                try Self.validateSharedStoreSchema(rebuiltContainer)
+                sharedModelContainer = rebuiltContainer
+            }
         } catch {
             fatalError("Could not create ModelContainer: \(error)")
         }
@@ -76,6 +87,53 @@ final class AppDependencyManager {
             Task { @MainActor [weak self] in
                 self?.consumeWatchRunMessage(message)
             }
+        }
+    }
+
+    private static func makeSharedContainer(schema: Schema, storeURL: URL) throws -> ModelContainer {
+        let configuration = ModelConfiguration(
+            url: storeURL,
+            cloudKitDatabase: .none
+        )
+        return try ModelContainer(for: schema, configurations: [configuration])
+    }
+
+    private static func validateSharedStoreSchema(_ container: ModelContainer) throws {
+        // Validate a recently added entity to catch stale/partial schemas early.
+        var descriptor = FetchDescriptor<TrainingPlan>()
+        descriptor.fetchLimit = 1
+        _ = try container.mainContext.fetch(descriptor)
+    }
+
+    private static func shouldResetSharedStore(after error: Error) -> Bool {
+        let nsError = error as NSError
+
+        if nsError.localizedDescription.localizedCaseInsensitiveContains("no such table") {
+            return true
+        }
+
+        if let reason = nsError.userInfo[NSLocalizedFailureReasonErrorKey] as? String,
+           reason.localizedCaseInsensitiveContains("no such table") {
+            return true
+        }
+
+        if let underlyingError = nsError.userInfo[NSUnderlyingErrorKey] as? NSError {
+            return shouldResetSharedStore(after: underlyingError)
+        }
+
+        return false
+    }
+
+    private static func destroyStoreFiles(at storeURL: URL) {
+        let fileManager = FileManager.default
+        let auxiliaryPaths = [
+            storeURL,
+            URL(fileURLWithPath: "\(storeURL.path)-wal"),
+            URL(fileURLWithPath: "\(storeURL.path)-shm")
+        ]
+
+        for path in auxiliaryPaths {
+            try? fileManager.removeItem(at: path)
         }
     }
 

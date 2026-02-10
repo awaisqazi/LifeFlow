@@ -14,20 +14,31 @@ final class WatchConnectivityBridge: NSObject, WCSessionDelegate {
 
     override init() {
         super.init()
-        activateIfNeeded()
+        Task { @MainActor in
+            activateIfNeeded()
+        }
     }
 
     func activateIfNeeded() {
         guard let session else { return }
-        guard session.delegate == nil else { return }
-        session.delegate = self
-        session.activate()
+
+        if session.delegate == nil {
+            session.delegate = self
+        }
+
+        if session.activationState == .notActivated {
+            session.activate()
+        }
+
         sync(session)
     }
 
     func send(_ message: WatchRunMessage) {
         guard let session else { return }
+
+        activateIfNeeded()
         guard session.activationState == .activated else { return }
+        guard session.isCompanionAppInstalled else { return }
 
         let context = message.toWCContext()
         guard !context.isEmpty else { return }
@@ -46,6 +57,11 @@ final class WatchConnectivityBridge: NSObject, WCSessionDelegate {
     }
 
     private func sync(_ session: WCSession) {
+        guard session.activationState == .activated else {
+            isReachable = false
+            return
+        }
+
         isReachable = session.isReachable
     }
 

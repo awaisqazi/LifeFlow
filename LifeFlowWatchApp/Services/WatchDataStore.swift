@@ -8,20 +8,23 @@ final class WatchDataStore {
     let modelContainer: ModelContainer
 
     private init() {
-        let schema = Schema([
-            WatchWorkoutSession.self,
-            TelemetryPoint.self,
-            RunEvent.self,
-            WatchRunStateSnapshot.self
-        ])
+        // Use versioned schema with migration plan
+        let schema = Schema(versionedSchema: WatchRunSchemaV1.self)
 
+        // Enable CloudKit sync with offline-first architecture
         let configuration = ModelConfiguration(
             schema: schema,
-            url: Self.storeURL(appGroupID: LifeFlowSharedConfig.appGroupID)
+            url: Self.storeURL(appGroupID: LifeFlowSharedConfig.appGroupID),
+            cloudKitDatabase: .private("iCloud.com.Fez.LifeFlow")
         )
 
         do {
-            modelContainer = try ModelContainer(for: schema, configurations: [configuration])
+            // Initialize with migration plan for automatic schema versioning
+            modelContainer = try ModelContainer(
+                for: schema,
+                migrationPlan: WatchRunMigrationPlan.self,
+                configurations: [configuration]
+            )
         } catch {
             fatalError("Unable to create watch SwiftData container: \(error)")
         }

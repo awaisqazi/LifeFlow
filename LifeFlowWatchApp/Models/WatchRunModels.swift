@@ -4,28 +4,28 @@ import LifeFlowCore
 
 @Model
 final class WatchWorkoutSession {
-    var id: UUID
-    var startedAt: Date
+    var id: UUID = UUID()
+    var startedAt: Date = Date()
     var endedAt: Date?
 
-    var totalEnergyBurned: Double
-    var totalDistanceMiles: Double
+    var totalEnergyBurned: Double = 0
+    var totalDistanceMiles: Double = 0
     var averageHeartRate: Double?
     var healthKitWorkoutID: UUID?
     var postRunEffort: Int?
     var postRunReflection: String?
-    var requiresRefinementSync: Bool
+    var requiresRefinementSync: Bool = false
 
-    var isCloudSynced: Bool
-
-    @Relationship(deleteRule: .cascade)
-    var telemetryPoints: [TelemetryPoint] = []
+    var isCloudSynced: Bool = false
 
     @Relationship(deleteRule: .cascade)
-    var runEvents: [RunEvent] = []
+    var telemetryPoints: [TelemetryPoint]? = []
 
     @Relationship(deleteRule: .cascade)
-    var stateSnapshots: [WatchRunStateSnapshot] = []
+    var runEvents: [RunEvent]? = []
+
+    @Relationship(deleteRule: .cascade)
+    var stateSnapshots: [WatchRunStateSnapshot]? = []
 
     init(
         id: UUID = UUID(),
@@ -56,10 +56,10 @@ final class WatchWorkoutSession {
 
 @Model
 final class TelemetryPoint {
-    var id: UUID
-    var timestamp: Date
+    var id: UUID = UUID()
+    var timestamp: Date = Date()
 
-    var distanceMiles: Double
+    var distanceMiles: Double = 0
     var heartRateBPM: Double?
     var paceSecondsPerMile: Double?
     var cadenceSPM: Double?
@@ -103,9 +103,9 @@ enum RunEventKind: String, Codable {
 
 @Model
 final class RunEvent {
-    var id: UUID
-    var timestamp: Date
-    var kindRawValue: String
+    var id: UUID = UUID()
+    var timestamp: Date = Date()
+    var kindRawValue: String = "started"
     var payloadJSON: String?
 
     @Relationship(inverse: \WatchWorkoutSession.runEvents)
@@ -131,12 +131,12 @@ final class RunEvent {
 
 @Model
 final class WatchRunStateSnapshot {
-    var id: UUID
-    var timestamp: Date
+    var id: UUID = UUID()
+    var timestamp: Date = Date()
 
-    var lifecycleStateRawValue: String
-    var elapsedSeconds: TimeInterval
-    var distanceMiles: Double
+    var lifecycleStateRawValue: String = "idle"
+    var elapsedSeconds: TimeInterval = 0
+    var distanceMiles: Double = 0
     var heartRateBPM: Double?
     var paceSecondsPerMile: Double?
     var fuelRemainingGrams: Double?
