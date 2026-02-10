@@ -118,16 +118,11 @@ struct GymModeView: View {
                 .zIndex(100)
             }
             
-            // AI Coach Orb Overlay (Placeholder for future state)
-            // if manager.isCoachSpeaking {
-            //    Image("ai_coach_orb")
-            //        .resizable()
-            //        .frame(width: 120, height: 120)
-            //        .shadow(color: .cyan.opacity(0.6), radius: 30)
-            //        .position(x: UIScreen.main.bounds.width / 2, y: 150)
-            //        .transition(.scale.combined(with: .opacity))
-            //        .zIndex(200)
-            // }
+            if manager.isCoachSpeaking {
+                coachOrbOverlay
+                    .transition(.scale(scale: 0.88).combined(with: .opacity))
+                    .zIndex(200)
+            }
         }
         .preferredColorScheme(.dark)
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: showEndConfirmation)
@@ -216,6 +211,20 @@ struct GymModeView: View {
         } message: {
             Text("Switching exercises will end your current cardio session. Are you sure you want to switch?")
         }
+    }
+    
+    private var coachOrbOverlay: some View {
+        VStack {
+            Image("ai_coach_orb")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 126, height: 126)
+                .shadow(color: .cyan.opacity(0.62), radius: 28)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.top, 92)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
     
     // MARK: - Active Workout View (Liquid Dashboard)

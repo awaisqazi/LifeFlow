@@ -185,6 +185,17 @@ struct FlowPrintPosterView: View {
         .frame(height: isStory ? 760 : 350)
         .padding(16)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 38))
+        .overlay(alignment: .bottomLeading) {
+            Image("icon_runner_fluid")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: isStory ? 96 : 68, height: isStory ? 96 : 68)
+                .opacity(0.82)
+                .blendMode(.screen)
+                .padding(.leading, 20)
+                .padding(.bottom, 18)
+                .accessibilityHidden(true)
+        }
         .overlay(
             RoundedRectangle(cornerRadius: 38)
                 .stroke(Color.white.opacity(0.13), lineWidth: 1)

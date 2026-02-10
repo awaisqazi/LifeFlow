@@ -131,6 +131,9 @@ final class GymModeManager {
     /// Whether Voice Coach is currently muted for this run
     private(set) var isVoiceCoachMuted: Bool = false
     
+    /// Whether the Voice Coach is actively speaking a prompt.
+    private(set) var isCoachSpeaking: Bool = false
+    
     /// Target pace used by Voice Coach and Ghost Runner (minutes per mile)
     private(set) var targetPaceMinutesPerMile: Double?
     
@@ -180,6 +183,10 @@ final class GymModeManager {
     // MARK: - Initialization
     
     init() {
+        voiceCoach.onSpeakingStateChange = { [weak self] isSpeaking in
+            self?.isCoachSpeaking = isSpeaking
+        }
+        
         // Register for Darwin notifications from widget extension
         registerForWidgetNotifications()
     }
@@ -519,6 +526,7 @@ final class GymModeManager {
     private func resetVoiceCoach() {
         voiceCoach.stop()
         isVoiceCoachMuted = false
+        isCoachSpeaking = false
         targetPaceMinutesPerMile = nil
     }
     

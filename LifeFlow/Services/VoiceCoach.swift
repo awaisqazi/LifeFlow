@@ -13,6 +13,7 @@ final class VoiceCoach: NSObject {
     private let synthesizer = AVSpeechSynthesizer()
     private var audioRouteObserver: NSObjectProtocol?
     private var isAudioSessionActiveForSpeech: Bool = false
+    var onSpeakingStateChange: ((Bool) -> Void)?
 
     private(set) var announceDistance: Bool = true
     private(set) var announcePace: Bool = true
@@ -52,18 +53,21 @@ final class VoiceCoach: NSObject {
         if muted {
             synthesizer.stopSpeaking(at: .immediate)
             deactivateAudioSessionAfterSpeech()
+            onSpeakingStateChange?(false)
         }
     }
 
     func stop() {
         synthesizer.stopSpeaking(at: .immediate)
         deactivateAudioSessionAfterSpeech()
+        onSpeakingStateChange?(false)
         resetSession()
     }
     
     func stopCurrentPrompt() {
         synthesizer.stopSpeaking(at: .immediate)
         deactivateAudioSessionAfterSpeech()
+        onSpeakingStateChange?(false)
     }
 
     func checkIn(currentDistance: Double, currentPace: Double, targetPace: Double) {
@@ -202,14 +206,22 @@ final class VoiceCoach: NSObject {
 }
 
 extension VoiceCoach: AVSpeechSynthesizerDelegate {
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
+        Task { @MainActor [weak self] in
+            self?.onSpeakingStateChange?(true)
+        }
+    }
+
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
         Task { @MainActor [weak self] in
+            self?.onSpeakingStateChange?(false)
             self?.deactivateAudioSessionAfterSpeech()
         }
     }
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
         Task { @MainActor [weak self] in
+            self?.onSpeakingStateChange?(false)
             self?.deactivateAudioSessionAfterSpeech()
         }
     }

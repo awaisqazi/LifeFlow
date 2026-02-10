@@ -516,6 +516,14 @@ private struct TempleChronicleEmptyState: View {
                 .frame(height: 180)
                 .shadow(color: .white.opacity(0.1), radius: 20)
                 .accessibilityHidden(true)
+            
+            Image("sculpture_start_line")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(height: 56)
+                .blendMode(.screen)
+                .opacity(0.72)
+                .accessibilityHidden(true)
 
             Text("Your digital sanctuary is quiet.")
                 .font(.system(.title3, design: .serif).weight(.semibold))

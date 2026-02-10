@@ -148,8 +148,8 @@ struct HorizonView: View {
                     Image("sculpture_mountain")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(height: 220)
-                        .shadow(color: .indigo.opacity(0.4), radius: 30)
+                        .frame(height: 250)
+                        .shadow(color: .indigo.opacity(0.5), radius: 30)
                         .accessibilityHidden(true)
                     
                     VStack(spacing: 8) {
@@ -161,6 +161,14 @@ struct HorizonView: View {
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.6))
                     }
+
+                    Image("sculpture_start_line")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(height: 72)
+                        .blendMode(.screen)
+                        .opacity(0.75)
+                        .accessibilityHidden(true)
 
                     Button {
                         showingAddGoal = true
