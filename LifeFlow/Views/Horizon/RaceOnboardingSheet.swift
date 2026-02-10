@@ -146,9 +146,7 @@ struct RaceOnboardingSheet: View {
         modelContext.insert(goal)
         try? modelContext.save()
         
-        var settings = MarathonCoachSettings.load()
-        settings.voiceCoachStartupMode = voiceCoachStartupMode
-        settings.save()
+        coachManager.settings.voiceCoachStartupMode = voiceCoachStartupMode
 
         SoundManager.shared.play(.successChime, volume: 0.6)
         SoundManager.shared.haptic(.success)

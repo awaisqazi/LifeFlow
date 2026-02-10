@@ -126,6 +126,13 @@ struct FlowPrintPosterView: View {
                 endRadius: 360
             )
             .blendMode(.screen)
+            
+            // Film Grain Texture
+            Image("texture_noise_grain")
+                .resizable()
+                .blendMode(.overlay)
+                .opacity(0.2)
+                .ignoresSafeArea()
         }
         .ignoresSafeArea()
     }
@@ -291,6 +298,10 @@ private struct FlowPrintRouteView: View {
     let fallbackSubtitle: String?
     let fallbackSymbol: String
 
+    private var isRunFallback: Bool {
+        fallbackSymbol == "figure.run"
+    }
+
     private struct SegmentPath: Identifiable {
         let id = UUID()
         let points: [CGPoint]
@@ -332,19 +343,23 @@ private struct FlowPrintRouteView: View {
     }
 
     private var routeFallback: some View {
-        VStack(spacing: 14) {
-            ZStack {
-                Circle()
-                    .fill(Color.white.opacity(0.06))
-                    .frame(width: 122, height: 122)
+        VStack(spacing: 18) {
+            if isRunFallback {
+                treadmillWaveFallback
+            } else {
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.06))
+                        .frame(width: 122, height: 122)
 
-                Circle()
-                    .stroke(Color.cyan.opacity(0.4), lineWidth: 2)
-                    .frame(width: 86, height: 86)
+                    Circle()
+                        .stroke(Color.cyan.opacity(0.4), lineWidth: 2)
+                        .frame(width: 86, height: 86)
 
-                Image(systemName: fallbackSymbol)
-                    .font(.system(size: 38, weight: .semibold))
-                    .foregroundStyle(.cyan)
+                    Image(systemName: fallbackSymbol)
+                        .font(.system(size: 38, weight: .semibold))
+                        .foregroundStyle(.cyan)
+                }
             }
 
             Text(fallbackTitle)
@@ -363,6 +378,43 @@ private struct FlowPrintRouteView: View {
                     .padding(.horizontal, 36)
             }
         }
+    }
+
+    private var treadmillWaveFallback: some View {
+        HStack(alignment: .bottom, spacing: 5) {
+            ForEach(0..<24, id: \.self) { index in
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.cyan.opacity(0.88),
+                                Color.blue.opacity(0.78),
+                                Color.purple.opacity(0.82)
+                            ],
+                            startPoint: .bottom,
+                            endPoint: .top
+                        )
+                    )
+                    .frame(width: 8, height: waveHeight(at: index))
+                    .shadow(color: Color.purple.opacity(0.26), radius: 6, x: 0, y: 2)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 18)
+        .background(
+            RoundedRectangle(cornerRadius: 22)
+                .fill(Color.white.opacity(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22)
+                        .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                )
+        )
+    }
+
+    private func waveHeight(at index: Int) -> CGFloat {
+        let normalized = Double(index) / 5.3
+        let amplitude = (sin(normalized) + cos(normalized * 0.62)) * 0.5 + 0.5
+        return CGFloat(48 + amplitude * 108)
     }
 
     private func path(for points: [CGPoint]) -> Path {

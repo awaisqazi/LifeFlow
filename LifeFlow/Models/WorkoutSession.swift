@@ -346,6 +346,37 @@ extension WorkoutSession {
         }
         notes = Self.runMetadataPrefix + json
     }
+
+    /// True when this session has an explicit end marker.
+    var isCompletedSession: Bool {
+        endTime != nil
+    }
+
+    /// True when the workout has non-empty performance data.
+    /// Guards against zero-duration placeholder imports being treated as completed training.
+    var hasMeaningfulOutput: Bool {
+        if duration > 0 || calories > 0 {
+            return true
+        }
+
+        if totalDistanceMiles > 0 {
+            return true
+        }
+
+        let completedSets = sortedExercises.contains { exercise in
+            exercise.sortedSets.contains(where: \.isCompleted)
+        }
+        if completedSets {
+            return true
+        }
+
+        return false
+    }
+
+    /// True when the workout is both ended and has meaningful output.
+    var isMeaningfullyCompleted: Bool {
+        isCompletedSession && hasMeaningfulOutput
+    }
     
     /// Common workout types for manual entry
     static let workoutTypes: [String] = [

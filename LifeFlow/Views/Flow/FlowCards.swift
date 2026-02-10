@@ -122,11 +122,20 @@ struct GymCard: View {
     /// Get today's completed workout session
     private var todaysCompletedWorkout: WorkoutSession? {
         let calendar = Calendar.current
-        return completedWorkouts.first { calendar.isDateInToday($0.startTime) }
+        return completedWorkouts.first { session in
+            guard session.resolvedIsLifeFlowNative else { return false }
+            guard session.isMeaningfullyCompleted else { return false }
+            let anchorDate = session.endTime ?? session.startTime
+            return calendar.isDateInToday(anchorDate)
+        }
+    }
+
+    private var hasCompletedWorkoutToday: Bool {
+        todaysCompletedWorkout != nil
     }
     
     private var statusColor: Color {
-        if dayLog.hasWorkedOut {
+        if hasCompletedWorkoutToday {
             return .green
         } else if hasPausedWorkout {
             return .yellow
@@ -136,7 +145,7 @@ struct GymCard: View {
     }
     
     private var statusIcon: String {
-        if dayLog.hasWorkedOut {
+        if hasCompletedWorkoutToday {
             return "checkmark"
         } else if hasPausedWorkout {
             return "pause.circle.fill"
@@ -148,7 +157,7 @@ struct GymCard: View {
     var body: some View {
         ZStack(alignment: .trailing) {
             // Undo background (revealed on swipe)
-            if dayLog.hasWorkedOut || hasPausedWorkout {
+            if hasCompletedWorkoutToday || hasPausedWorkout {
                 HStack {
                     Spacer()
                     Button {
@@ -157,8 +166,12 @@ struct GymCard: View {
                                 // Delete paused workout
                                 modelContext.delete(paused)
                                 try? modelContext.save()
-                            } else if let index = dayLog.workouts.lastIndex(where: { $0.source == "Flow" || $0.source == "GymMode" }) {
-                                dayLog.workouts.remove(at: index)
+                            } else if let todayWorkout = todaysCompletedWorkout {
+                                if let index = dayLog.workouts.firstIndex(where: { $0.id == todayWorkout.id }) {
+                                    dayLog.workouts.remove(at: index)
+                                }
+                                modelContext.delete(todayWorkout)
+                                try? modelContext.save()
                             } else if !dayLog.workouts.isEmpty {
                                 dayLog.workouts.removeLast()
                             }
@@ -198,7 +211,7 @@ struct GymCard: View {
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(.secondary)
                         
-                        if dayLog.hasWorkedOut {
+                        if hasCompletedWorkoutToday {
                             Text("Workout Logged")
                                 .font(.headline)
                                 .foregroundStyle(.green)
@@ -216,7 +229,7 @@ struct GymCard: View {
                     Spacer()
                     
                     // Button based on state
-                    if dayLog.hasWorkedOut {
+                    if hasCompletedWorkoutToday {
                         // Show Completed status with circular icon buttons
                         HStack(spacing: 12) {
                             // View details button
@@ -285,14 +298,14 @@ struct GymCard: View {
             }
             .overlay {
                 // Green border when completed for visual emphasis
-                if dayLog.hasWorkedOut {
+                if hasCompletedWorkoutToday {
                     RoundedRectangle(cornerRadius: 16)
                         .stroke(Color.green.opacity(0.6), lineWidth: 2)
                 }
             }
             .offset(x: offset)
             .gesture(
-                (dayLog.hasWorkedOut || hasPausedWorkout) ?
+                (hasCompletedWorkoutToday || hasPausedWorkout) ?
                 DragGesture()
                     .onChanged { gesture in
                         isDragging = true
@@ -312,7 +325,7 @@ struct GymCard: View {
                                 } else if let todayWorkout = todaysCompletedWorkout {
                                     modelContext.delete(todayWorkout)
                                     // Also remove from dayLog
-                                    if let index = dayLog.workouts.lastIndex(where: { $0.source == "Flow" || $0.source == "GymMode" }) {
+                                    if let index = dayLog.workouts.firstIndex(where: { $0.id == todayWorkout.id }) {
                                         dayLog.workouts.remove(at: index)
                                     } else if !dayLog.workouts.isEmpty {
                                         dayLog.workouts.removeLast()
@@ -330,18 +343,16 @@ struct GymCard: View {
             )
             .contentShape(Rectangle())
             .contextMenu {
-                if dayLog.hasWorkedOut {
+                if hasCompletedWorkoutToday {
                     Button(role: .destructive) {
                         withAnimation {
-                            // Remove the most recent Flow workout
-                            if let index = dayLog.workouts.lastIndex(where: { $0.source == "Flow" || $0.source == "GymMode" }) {
-                                dayLog.workouts.remove(at: index)
-                            } else if !dayLog.workouts.isEmpty {
-                                dayLog.workouts.removeLast()
-                            }
-                            
-                            // Also delete from WorkoutSession
+                            // Remove the completed workout from day log and model storage.
                             if let todayWorkout = todaysCompletedWorkout {
+                                if let index = dayLog.workouts.firstIndex(where: { $0.id == todayWorkout.id }) {
+                                    dayLog.workouts.remove(at: index)
+                                } else if !dayLog.workouts.isEmpty {
+                                    dayLog.workouts.removeLast()
+                                }
                                 modelContext.delete(todayWorkout)
                                 try? modelContext.save()
                             }

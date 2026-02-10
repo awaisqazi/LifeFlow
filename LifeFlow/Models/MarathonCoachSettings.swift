@@ -20,23 +20,65 @@ enum VoiceCoachStartupMode: String, Codable, CaseIterable {
 }
 
 struct MarathonCoachSettings: Codable {
+    static let defaultMantra = "Relentless Forward Motion"
+
     var voiceCoachStartupMode: VoiceCoachStartupMode
     var isVoiceCoachEnabled: Bool
     var announceDistance: Bool
     var announcePace: Bool
+    var mantra: String
+
+    private enum CodingKeys: String, CodingKey {
+        case voiceCoachStartupMode
+        case isVoiceCoachEnabled
+        case announceDistance
+        case announcePace
+        case mantra
+    }
+
+    init(
+        voiceCoachStartupMode: VoiceCoachStartupMode,
+        isVoiceCoachEnabled: Bool,
+        announceDistance: Bool,
+        announcePace: Bool,
+        mantra: String
+    ) {
+        self.voiceCoachStartupMode = voiceCoachStartupMode
+        self.isVoiceCoachEnabled = isVoiceCoachEnabled
+        self.announceDistance = announceDistance
+        self.announcePace = announcePace
+        self.mantra = Self.normalizeMantra(mantra)
+    }
 
     static var `default`: MarathonCoachSettings {
         MarathonCoachSettings(
             voiceCoachStartupMode: .enabled,
             isVoiceCoachEnabled: true,
             announceDistance: true,
-            announcePace: true
+            announcePace: true,
+            mantra: defaultMantra
         )
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        voiceCoachStartupMode = try container.decodeIfPresent(VoiceCoachStartupMode.self, forKey: .voiceCoachStartupMode) ?? .enabled
+        isVoiceCoachEnabled = try container.decodeIfPresent(Bool.self, forKey: .isVoiceCoachEnabled) ?? true
+        announceDistance = try container.decodeIfPresent(Bool.self, forKey: .announceDistance) ?? true
+        announcePace = try container.decodeIfPresent(Bool.self, forKey: .announcePace) ?? true
+        let decodedMantra = try container.decodeIfPresent(String.self, forKey: .mantra) ?? Self.defaultMantra
+        mantra = Self.normalizeMantra(decodedMantra)
+    }
+
+    private static func normalizeMantra(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return defaultMantra }
+        return String(trimmed.prefix(80))
     }
 }
 
 extension MarathonCoachSettings {
-    private static let appGroupID = "group.com.Fez.LifeFlow"
+    private static let appGroupID = HydrationSettings.appGroupID
     private static let storageKey = "marathonCoachSettings"
 
     func save() {

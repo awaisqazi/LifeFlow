@@ -12,10 +12,12 @@ import Foundation
 final class VoiceCoach: NSObject {
     private let synthesizer = AVSpeechSynthesizer()
     private var audioRouteObserver: NSObjectProtocol?
+    private var isAudioSessionActiveForSpeech: Bool = false
 
     private(set) var announceDistance: Bool = true
     private(set) var announcePace: Bool = true
     private(set) var isMuted: Bool = false
+    private(set) var mantra: String = MarathonCoachSettings.defaultMantra
 
     private var lastAnnouncedMile: Int = 0
     private var announcedHalfMileCheckpoints: Set<Int> = []
@@ -25,6 +27,7 @@ final class VoiceCoach: NSObject {
     
     override init() {
         super.init()
+        synthesizer.delegate = self
         configureAudioSession()
         startObservingAudioRouteChangesIfNeeded()
     }
@@ -33,6 +36,7 @@ final class VoiceCoach: NSObject {
         announceDistance = settings.announceDistance
         announcePace = settings.announcePace
         isMuted = !settings.isVoiceCoachEnabled || settings.voiceCoachStartupMode == .muted
+        mantra = normalizedMantra(settings.mantra)
         configureAudioSession()
         startObservingAudioRouteChangesIfNeeded()
     }
@@ -47,16 +51,19 @@ final class VoiceCoach: NSObject {
         isMuted = muted
         if muted {
             synthesizer.stopSpeaking(at: .immediate)
+            deactivateAudioSessionAfterSpeech()
         }
     }
 
     func stop() {
         synthesizer.stopSpeaking(at: .immediate)
+        deactivateAudioSessionAfterSpeech()
         resetSession()
     }
     
     func stopCurrentPrompt() {
         synthesizer.stopSpeaking(at: .immediate)
+        deactivateAudioSessionAfterSpeech()
     }
 
     func checkIn(currentDistance: Double, currentPace: Double, targetPace: Double) {
@@ -74,7 +81,7 @@ final class VoiceCoach: NSObject {
             let paceDiff = currentPace - targetPace
             let status: String
             if paceDiff > 0.5 {
-                status = "You're a bit behind target."
+                status = mantra.isEmpty ? "You're a bit behind target." : "You're a bit behind target. \(mantra)."
             } else if paceDiff < -0.5 {
                 status = "You're ahead of target pace."
             } else {
@@ -96,7 +103,9 @@ final class VoiceCoach: NSObject {
            !announcedHalfMileCheckpoints.contains(checkpoint),
            currentDistance >= checkpointDistance,
            paceDelta >= 0.75 {
-            let message = "Check your pace. Target is \(formatPace(targetPace)) per mile."
+            let isBehind = currentPace - targetPace >= 0.75
+            let mantraLine = isBehind && !mantra.isEmpty ? " \(mantra)." : ""
+            let message = "Check your pace. Target is \(formatPace(targetPace)) per mile.\(mantraLine)"
             if speak(message) {
                 announcedHalfMileCheckpoints.insert(checkpoint)
             }
@@ -119,6 +128,7 @@ final class VoiceCoach: NSObject {
         utterance.pitchMultiplier = 1.0
         utterance.volume = 1.0
 
+        activateAudioSessionForSpeechIfNeeded()
         synthesizer.speak(utterance)
         lastAnnouncementDate = now
         return true
@@ -132,10 +142,29 @@ final class VoiceCoach: NSObject {
                 mode: .voicePrompt,
                 options: [.mixWithOthers, .duckOthers, .interruptSpokenAudioAndMixWithOthers]
             )
-            try audioSession.setActive(true)
         } catch {
             print("VoiceCoach audio session configuration failed: \(error)")
         }
+    }
+
+    private func activateAudioSessionForSpeechIfNeeded() {
+        guard !isAudioSessionActiveForSpeech else { return }
+        do {
+            try AVAudioSession.sharedInstance().setActive(true, options: [])
+            isAudioSessionActiveForSpeech = true
+        } catch {
+            print("VoiceCoach audio session activation failed: \(error)")
+        }
+    }
+
+    private func deactivateAudioSessionAfterSpeech() {
+        guard isAudioSessionActiveForSpeech else { return }
+        do {
+            try AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+        } catch {
+            print("VoiceCoach audio session deactivation failed: \(error)")
+        }
+        isAudioSessionActiveForSpeech = false
     }
     
     private func startObservingAudioRouteChangesIfNeeded() {
@@ -163,5 +192,25 @@ final class VoiceCoach: NSObject {
         let minutes = max(0, totalSeconds / 60)
         let seconds = max(0, totalSeconds % 60)
         return String(format: "%d:%02d", minutes, seconds)
+    }
+
+    private func normalizedMantra(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return MarathonCoachSettings.defaultMantra }
+        return String(trimmed.prefix(80))
+    }
+}
+
+extension VoiceCoach: AVSpeechSynthesizerDelegate {
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        Task { @MainActor [weak self] in
+            self?.deactivateAudioSessionAfterSpeech()
+        }
+    }
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        Task { @MainActor [weak self] in
+            self?.deactivateAudioSessionAfterSpeech()
+        }
     }
 }

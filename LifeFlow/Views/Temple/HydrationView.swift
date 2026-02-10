@@ -35,8 +35,8 @@ struct HydrationView: View {
     
     /// Get today's metrics by filtering in Swift
     private var todayLog: DayLog? {
-        let startOfDay = Calendar.current.startOfDay(for: Date())
-        return allLogs.first { $0.date >= startOfDay }
+        let calendar = Calendar.current
+        return allLogs.first { calendar.isDateInToday($0.date) }
     }
     
     /// Current water intake from SwiftData

@@ -40,7 +40,7 @@ final class DayLog {
     
     /// Whether any workouts have been logged today
     var hasWorkedOut: Bool {
-        !workouts.isEmpty
+        workouts.contains { $0.isMeaningfullyCompleted }
     }
     
     /// Creates a new daily metrics record

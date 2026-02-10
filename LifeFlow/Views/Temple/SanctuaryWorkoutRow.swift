@@ -43,6 +43,12 @@ struct SanctuaryWorkoutRow: View {
                         isNative: true
                     )
                 }
+                
+                Text(completionTimestampLine)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.78))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
 
                 metricLayout
 
@@ -137,6 +143,12 @@ struct SanctuaryWorkoutRow: View {
                         isNative: false
                     )
                 }
+                
+                Text(completionTimestampLine)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
 
                 HStack(spacing: 12) {
                     importedMetric(value: workout.formattedDuration, label: "Time")
@@ -170,18 +182,52 @@ struct SanctuaryWorkoutRow: View {
     }
 
     private var dateBadge: some View {
-        VStack(spacing: 2) {
-            Text(workout.startTime.formatted(.dateTime.day()))
-                .font(.title3.weight(.bold))
+        VStack(spacing: 1) {
+            Text(completionAnchorDate.formatted(.dateTime.day()))
+                .font(.system(size: 24, weight: .heavy, design: .rounded))
                 .foregroundStyle(.white)
 
-            Text(workout.startTime.formatted(.dateTime.month(.abbreviated)))
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.75))
+            Text(completionAnchorDate.formatted(.dateTime.month(.abbreviated)))
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.88))
                 .textCase(.uppercase)
+                .tracking(0.8)
+            
+            Text(completionAnchorDate.formatted(.dateTime.weekday(.abbreviated)))
+                .font(.system(size: 9, weight: .medium, design: .rounded))
+                .foregroundStyle(.white.opacity(0.64))
         }
-        .frame(width: 52, height: 56)
-        .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 12))
+        .frame(width: 60, height: 68)
+        .background(
+            LinearGradient(
+                colors: [
+                    .white.opacity(0.22),
+                    .white.opacity(0.1)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 14)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(.white.opacity(0.26), lineWidth: 1)
+        )
+    }
+
+    private var completionAnchorDate: Date {
+        workout.endTime ?? workout.startTime
+    }
+
+    private var completionTimestampLine: String {
+        completionAnchorDate.formatted(
+            .dateTime
+                .weekday(.abbreviated)
+                .month(.abbreviated)
+                .day()
+                .hour()
+                .minute()
+        )
     }
 
     private var metricLayout: some View {

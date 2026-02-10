@@ -10,6 +10,7 @@ import SwiftUI
 /// Lightweight profile hub for settings and TestFlight feedback entry points.
 struct ProfileCenterSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.marathonCoachManager) private var coachManager
     @State private var showingFeedback: Bool = false
     @State private var experienceSettings: LifeFlowExperienceSettings = .load()
     
@@ -73,6 +74,34 @@ struct ProfileCenterSheet: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+
+                Section {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Power Mantra")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        TextField(
+                            "e.g., Relentless Forward Motion",
+                            text: Binding(
+                                get: { coachManager.settings.mantra },
+                                set: { newValue in
+                                    coachManager.settings.mantra = String(newValue.prefix(80))
+                                }
+                            )
+                        )
+                        .font(.headline)
+                        .textFieldStyle(.plain)
+                        .autocorrectionDisabled(true)
+                        .textInputAutocapitalization(.sentences)
+                        .submitLabel(.done)
+                    }
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("Mindset")
+                } footer: {
+                    Text("The Voice Coach will whisper this when you drift off pace in harder segments.")
+                }
             }
             .scrollContentBackground(.hidden)
             .background(SanctuaryTimeBackdrop(includeMeshOverlay: true))
@@ -89,6 +118,9 @@ struct ProfileCenterSheet: View {
             }
             .onChange(of: experienceSettings.microDelightIntensity) { _, _ in
                 experienceSettings.save()
+            }
+            .onAppear {
+                coachManager.reloadSettings()
             }
         }
         .preferredColorScheme(.dark)

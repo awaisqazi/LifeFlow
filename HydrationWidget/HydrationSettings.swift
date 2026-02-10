@@ -34,7 +34,7 @@ struct HydrationSettings: Codable {
 // MARK: - App Group Storage
 
 extension HydrationSettings {
-    private static let appGroupID = "group.com.Fez.LifeFlow"
+    static let appGroupID = "group.com.Fez.LifeFlow"
     private static let storageKey = "hydrationSettings"
     private static let intakeStorageKey = "hydrationCurrentIntake"
     private static let intakeDateStorageKey = "hydrationCurrentIntakeDate"

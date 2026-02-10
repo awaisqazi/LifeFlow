@@ -39,6 +39,9 @@ final class MarathonCoachManager {
 
     // MARK: - State
 
+    var settings: MarathonCoachSettings = .load() {
+        didSet { settings.save() }
+    }
     private(set) var activePlan: TrainingPlan?
     private(set) var todaysSession: TrainingSession?
     private(set) var isGeneratingPlan: Bool = false
@@ -61,6 +64,10 @@ final class MarathonCoachManager {
     }
     
     private var autoCompletionSnapshots: [UUID: AutoCompletionSnapshot] = [:]
+
+    func reloadSettings() {
+        settings = .load()
+    }
 
     // MARK: - Plan Lifecycle
 

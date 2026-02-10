@@ -590,13 +590,13 @@ struct GymModeView: View {
                     session.setRunAnalysisMetadata(runMetadata)
                 }
                 
-                let startOfDay = Calendar.current.startOfDay(for: Date())
-                if let todayLog = dayLogs.first(where: { $0.date >= startOfDay }) {
+                let calendar = Calendar.current
+                if let todayLog = dayLogs.first(where: { calendar.isDateInToday($0.date) }) {
                     if !todayLog.workouts.contains(where: { $0.id == session.id }) {
                         todayLog.workouts.append(session)
                     }
                 } else {
-                    let newLog = DayLog(date: Date(), workouts: [session])
+                    let newLog = DayLog(date: calendar.startOfDay(for: Date()), workouts: [session])
                     modelContext.insert(newLog)
                 }
             }

@@ -30,11 +30,11 @@ struct FlowDashboardView: View {
 
     /// Get or create today's DayLog
     private var todayLog: DayLog {
-        let startOfDay = Calendar.current.startOfDay(for: Date())
-        if let existing = dayLogs.first(where: { $0.date >= startOfDay }) {
+        let calendar = Calendar.current
+        if let existing = dayLogs.first(where: { calendar.isDateInToday($0.date) }) {
             return existing
         }
-        return dayLogs.first ?? DayLog()
+        return DayLog(date: calendar.startOfDay(for: Date()))
     }
 
     private var hasRaceTrainingGoal: Bool {
@@ -87,8 +87,14 @@ struct FlowDashboardView: View {
     }
 
     private var latestCompletedWorkoutToday: WorkoutSession? {
-        todayLog.workouts
-            .filter { $0.endTime != nil }
+        let calendar = Calendar.current
+        return todayLog.workouts
+            .filter { workout in
+                guard workout.resolvedIsLifeFlowNative else { return false }
+                guard workout.isMeaningfullyCompleted else { return false }
+                let anchorDate = workout.endTime ?? workout.startTime
+                return calendar.isDateInToday(anchorDate)
+            }
             .sorted {
                 let lhs = $0.endTime ?? $0.startTime
                 let rhs = $1.endTime ?? $1.startTime
@@ -305,9 +311,9 @@ struct FlowDashboardView: View {
     }
 
     private func ensureTodayLogExists() {
-        let startOfDay = Calendar.current.startOfDay(for: Date())
-        if dayLogs.first(where: { $0.date >= startOfDay }) == nil {
-            let newLog = DayLog(date: Date())
+        let calendar = Calendar.current
+        if dayLogs.first(where: { calendar.isDateInToday($0.date) }) == nil {
+            let newLog = DayLog(date: calendar.startOfDay(for: Date()))
             modelContext.insert(newLog)
             try? modelContext.save()
         }
@@ -332,13 +338,13 @@ struct FlowDashboardView: View {
         workout.endTime = Date()
         modelContext.insert(workout)
 
-        let startOfDay = Calendar.current.startOfDay(for: Date())
-        if let today = dayLogs.first(where: { $0.date >= startOfDay }) {
+        let calendar = Calendar.current
+        if let today = dayLogs.first(where: { calendar.isDateInToday($0.date) }) {
             if !today.workouts.contains(where: { $0.id == workout.id }) {
                 today.workouts.append(workout)
             }
         } else {
-            let newLog = DayLog(date: Date(), workouts: [workout])
+            let newLog = DayLog(date: calendar.startOfDay(for: Date()), workouts: [workout])
             modelContext.insert(newLog)
         }
 

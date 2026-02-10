@@ -60,6 +60,7 @@ struct HydrationWidget: Widget {
         .configurationDisplayName("Hydration Tracker")
         .description("Log water and track your daily progress.")
         .supportedFamilies([.systemSmall, .systemMedium])
+        .contentMarginsDisabled()
     }
 }
 

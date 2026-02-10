@@ -33,11 +33,9 @@ struct HydrationWidgetEntryView: View {
 
     var body: some View {
         ZStack {
-            if !isAccented {
-                Color(red: 0.04, green: 0.05, blue: 0.12)
-            }
-
+            baseGlassLayer
             liquidLayer
+            glassChromeOverlay
 
             if family == .systemSmall {
                 smallLayout
@@ -45,41 +43,103 @@ struct HydrationWidgetEntryView: View {
                 mediumLayout
             }
         }
+        .clipShape(ContainerRelativeShape())
+        .compositingGroup()
         .containerBackground(for: .widget) {
             if isAccented {
                 Color.clear
             } else {
-                ZStack {
-                    Color(red: 0.03, green: 0.04, blue: 0.1)
+                Color(red: 0.03, green: 0.04, blue: 0.09)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var baseGlassLayer: some View {
+        if isAccented {
+            Color.clear
+        } else {
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.01, green: 0.03, blue: 0.16),
+                        Color(red: 0.02, green: 0.06, blue: 0.22)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+
+                RadialGradient(
+                    colors: [
+                        Color.cyan.opacity(0.22),
+                        .clear
+                    ],
+                    center: .bottomLeading,
+                    startRadius: 22,
+                    endRadius: 250
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var glassChromeOverlay: some View {
+        if !isAccented {
+            ContainerRelativeShape()
+                .strokeBorder(
                     LinearGradient(
                         colors: [
-                            Color.cyan.opacity(0.24),
-                            Color.blue.opacity(0.20),
-                            Color.indigo.opacity(0.14)
+                            .white.opacity(0.32),
+                            .white.opacity(0.08)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
-                    )
-                }
-            }
+                    ),
+                    lineWidth: 1
+                )
+
+            LinearGradient(
+                colors: [
+                    .white.opacity(0.18),
+                    .clear,
+                    .clear
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .blendMode(.screen)
+            .allowsHitTesting(false)
         }
     }
 
     private var liquidLayer: some View {
         GeometryReader { geo in
             ZStack {
-                WidgetWave(progress: entry.progress, waveHeight: 0.028, phase: 1.55)
+                WidgetWave(progress: entry.progress, waveHeight: 0.030, phase: 1.55)
                     .fill(backWaveStyle)
                     .widgetAccentable()
 
-                WidgetWave(progress: entry.progress, waveHeight: 0.045, phase: 0.2)
+                WidgetWave(progress: entry.progress, waveHeight: 0.046, phase: 0.2)
                     .fill(frontWaveStyle)
                     .overlay {
-                        WidgetWave(progress: entry.progress, waveHeight: 0.045, phase: 0.2)
-                            .stroke(Color.white.opacity(isAccented ? 0.32 : 0.24), lineWidth: 1)
+                        WidgetWave(progress: entry.progress, waveHeight: 0.046, phase: 0.2)
+                            .stroke(Color.white.opacity(isAccented ? 0.30 : 0.40), lineWidth: 1)
                     }
-                    .shadow(color: isAccented ? .clear : Color.cyan.opacity(0.30), radius: 10, x: 0, y: -4)
+                    .shadow(color: isAccented ? .clear : Color.cyan.opacity(0.34), radius: 12, x: 0, y: -5)
                     .widgetAccentable()
+
+                if !isAccented {
+                    LinearGradient(
+                        colors: [
+                            .white.opacity(0.15),
+                            .clear
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: max(24, geo.size.height * 0.26))
+                    .allowsHitTesting(false)
+                }
             }
             .frame(width: geo.size.width, height: geo.size.height)
         }
@@ -89,14 +149,14 @@ struct HydrationWidgetEntryView: View {
 
     private var backWaveStyle: AnyShapeStyle {
         if isAccented {
-            return AnyShapeStyle(Color.primary.opacity(0.18))
+            return AnyShapeStyle(Color.primary.opacity(0.20))
         }
 
         return AnyShapeStyle(
             LinearGradient(
                 colors: [
-                    Color.blue.opacity(0.45),
-                    Color.indigo.opacity(0.58)
+                    Color.blue.opacity(0.54),
+                    Color.indigo.opacity(0.62)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
@@ -106,14 +166,14 @@ struct HydrationWidgetEntryView: View {
 
     private var frontWaveStyle: AnyShapeStyle {
         if isAccented {
-            return AnyShapeStyle(Color.primary.opacity(0.7))
+            return AnyShapeStyle(Color.primary.opacity(0.72))
         }
 
         return AnyShapeStyle(
             LinearGradient(
                 colors: [
-                    Color.cyan.opacity(0.88),
-                    Color.blue.opacity(0.92)
+                    Color.cyan.opacity(0.94),
+                    Color.blue.opacity(0.96)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -122,7 +182,7 @@ struct HydrationWidgetEntryView: View {
     }
 
     private var smallLayout: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Image(systemName: "drop.fill")
                     .font(.caption.weight(.bold))
@@ -146,13 +206,13 @@ struct HydrationWidgetEntryView: View {
                 .foregroundStyle(secondaryTextColor)
                 .lineLimit(1)
 
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
                 compactActionButton(amount: -8, icon: "minus")
                 compactActionButton(amount: 8, icon: "plus")
                 Spacer(minLength: 0)
             }
         }
-        .padding(12)
+        .padding(13)
     }
 
     private var mediumLayout: some View {
@@ -181,7 +241,7 @@ struct HydrationWidgetEntryView: View {
                     .foregroundStyle(secondaryTextColor)
                     .lineLimit(1)
 
-                capsuleProgress
+                goalStatusPill
             }
 
             Spacer(minLength: 8)
@@ -193,22 +253,38 @@ struct HydrationWidgetEntryView: View {
             }
             .frame(width: 66)
         }
-        .padding(14)
+        .padding(16)
     }
 
-    private var capsuleProgress: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(isAccented ? Color.primary.opacity(0.20) : Color.white.opacity(0.20))
+    private var remainingOunces: Int {
+        max(0, Int((entry.dailyGoal - entry.waterIntake).rounded()))
+    }
 
-                Capsule()
-                    .fill(isAccented ? Color.primary : Color.white.opacity(0.88))
-                    .frame(width: geo.size.width * max(0, min(entry.progress, 1)))
-                    .widgetAccentable()
-            }
+    private var goalStatusPill: some View {
+        HStack(spacing: 6) {
+            Image(systemName: remainingOunces == 0 ? "checkmark.circle.fill" : "drop.fill")
+                .font(.caption.weight(.semibold))
+                .widgetAccentable()
+
+            Text(remainingOunces == 0 ? "Goal reached" : "\(remainingOunces) oz to goal")
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
         }
-        .frame(height: 11)
+        .foregroundStyle(secondaryTextColor)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background {
+            Capsule()
+                .fill(isAccented ? Color.primary.opacity(0.18) : Color.white.opacity(0.14))
+                .overlay {
+                    Capsule()
+                        .stroke(
+                            isAccented ? Color.primary.opacity(0.26) : Color.white.opacity(0.18),
+                            lineWidth: 1
+                        )
+                }
+                .widgetAccentable()
+        }
     }
 
     private func actionButton(amount: Double, icon: String, label: String) -> some View {
@@ -242,14 +318,14 @@ struct HydrationWidgetEntryView: View {
             Image(systemName: icon)
                 .font(.caption.weight(.bold))
                 .foregroundStyle(valueColor)
-                .frame(width: 24, height: 24)
+                .frame(width: 28, height: 28)
                 .background {
                     Circle()
-                        .fill(isAccented ? Color.primary.opacity(0.18) : Color.white.opacity(0.18))
+                        .fill(isAccented ? Color.primary.opacity(0.20) : Color.white.opacity(0.20))
                         .overlay {
                             Circle()
                                 .stroke(
-                                    isAccented ? Color.primary.opacity(0.35) : Color.white.opacity(0.24),
+                                    isAccented ? Color.primary.opacity(0.36) : Color.white.opacity(0.28),
                                     lineWidth: 1
                                 )
                         }

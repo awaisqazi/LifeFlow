@@ -25,7 +25,7 @@ final class WidgetDataLayer {
     let modelContainer: ModelContainer
     
     private init() {
-        let appGroupIdentifier = "group.com.Fez.LifeFlow"
+        let appGroupIdentifier = HydrationSettings.appGroupID
         let schema = Schema([
             DayLog.self,
             WorkoutSession.self,

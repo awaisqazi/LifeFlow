@@ -25,6 +25,10 @@ struct LiquidBackgroundView: View {
     
     /// Multiplier for pulse intensity, used by micro-delight accessibility settings.
     var successPulseScale: Double = 1.0
+
+    /// Controls whether photographic light leaks are composited over the mesh.
+    /// Some dense sheet layouts look cleaner with pure gradient + mesh only.
+    var showsAtmosphereLeaks: Bool = true
     
     /// Internal state for animating the success pulse intensity
     @State private var successPulseIntensity: Double = 0.0
@@ -36,11 +40,13 @@ struct LiquidBackgroundView: View {
     init(
         currentTab: LifeFlowTab = .flow,
         showSuccessPulse: Binding<Bool> = .constant(false),
-        successPulseScale: Double = 1.0
+        successPulseScale: Double = 1.0,
+        showsAtmosphereLeaks: Bool = true
     ) {
         self.currentTab = currentTab
         self._showSuccessPulse = showSuccessPulse
         self.successPulseScale = successPulseScale
+        self.showsAtmosphereLeaks = showsAtmosphereLeaks
     }
     
     /// The current theme based on tab selection
@@ -54,20 +60,22 @@ struct LiquidBackgroundView: View {
                 theme: currentTheme,
                 successPulseIntensity: successPulseIntensity
             )
-            
-            // Atmosphere Layer
-            Image("light_leak_dawn")
-                .resizable()
-                .blendMode(.screen)
-                .opacity(0.4)
-                .ignoresSafeArea()
-            
-            // Subtle dusk leak for contrast
-            Image("light_leak_dusk")
-                .resizable()
-                .blendMode(.screen)
-                .opacity(0.2)
-                .ignoresSafeArea()
+
+            if showsAtmosphereLeaks {
+                // Atmosphere Layer
+                Image("light_leak_dawn")
+                    .resizable()
+                    .blendMode(.screen)
+                    .opacity(0.4)
+                    .ignoresSafeArea()
+
+                // Subtle dusk leak for contrast
+                Image("light_leak_dusk")
+                    .resizable()
+                    .blendMode(.screen)
+                    .opacity(0.2)
+                    .ignoresSafeArea()
+            }
         }
         .onChange(of: currentTab) { oldValue, newValue in
             // Trigger smooth theme transition

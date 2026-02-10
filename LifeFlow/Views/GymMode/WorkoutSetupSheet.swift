@@ -37,7 +37,25 @@ struct WorkoutSetupSheet: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                LiquidBackgroundView(currentTab: .temple)
+                LiquidBackgroundView(
+                    currentTab: .temple,
+                    showsAtmosphereLeaks: false
+                )
+                    .ignoresSafeArea()
+
+                GeometryReader { proxy in
+                    Image("light_leak_dawn")
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                        .clipped()
+                        .blendMode(.screen)
+                        .opacity(0.28)
+                }
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+
+                Color.black.opacity(0.08)
                     .ignoresSafeArea()
                 
                 List {
