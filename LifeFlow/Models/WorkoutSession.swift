@@ -166,6 +166,18 @@ final class WorkoutSession {
     /// Exercises performed in this workout session
     @Relationship(deleteRule: .cascade)
     var exercises: [WorkoutExercise] = []
+
+    /// 1Hz telemetry snapshots persisted from watch-originated runs.
+    @Relationship(deleteRule: .cascade)
+    var telemetryPoints: [TelemetryPoint] = []
+
+    /// Event markers (lap, fuel, alerts) for watch-originated runs.
+    @Relationship(deleteRule: .cascade)
+    var runEvents: [RunEvent] = []
+
+    /// Lifecycle snapshots captured during watch runs.
+    @Relationship(deleteRule: .cascade)
+    var stateSnapshots: [WatchRunStateSnapshot] = []
     
     /// Creates a new workout session
     /// - Parameters:
