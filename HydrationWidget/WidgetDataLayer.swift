@@ -48,17 +48,17 @@ final class WidgetDataLayer {
         }
     }
     
-    /// Fast path used by widget timeline rendering.
+    /// Returns today's water intake, preferring the App Group UserDefaults cache.
+    /// Falls back to the widget's local SwiftData only if no cached value exists,
+    /// but does NOT overwrite UserDefaults from the fallback (the main app owns that value).
     func todayWaterIntake() -> Double {
         if let cached = HydrationSettings.loadCurrentIntake() {
             return max(0, cached)
         }
-        
+
         let context = ModelContext(modelContainer)
         guard let log = fetchTodayLog(in: context) else { return 0 }
-        let intake = max(0, log.waterIntake)
-        HydrationSettings.saveCurrentIntake(intake)
-        return intake
+        return max(0, log.waterIntake)
     }
     
     /// Updates both App Group defaults and SwiftData for consistency with the main app.

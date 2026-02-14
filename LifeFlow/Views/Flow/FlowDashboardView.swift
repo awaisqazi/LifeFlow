@@ -213,6 +213,7 @@ struct FlowDashboardView: View {
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
+            ensureTodayLogExists()
             coachManager.loadActivePlan(modelContext: modelContext)
             recoverTrainingPlanIfNeeded()
             weatherService.fetchIfNeeded()
@@ -335,11 +336,24 @@ struct FlowDashboardView: View {
 
     private func ensureTodayLogExists() {
         let calendar = Calendar.current
-        if dayLogs.first(where: { calendar.isDateInToday($0.date) }) == nil {
+        if let existingLog = dayLogs.first(where: { calendar.isDateInToday($0.date) }) {
+            // Sync widget-logged water into the main app's DayLog
+            syncWidgetHydration(into: existingLog)
+        } else {
             let newLog = DayLog(date: calendar.startOfDay(for: Date()))
+            // Pull any water logged via the widget before the app opened
+            syncWidgetHydration(into: newLog)
             modelContext.insert(newLog)
             try? modelContext.save()
         }
+    }
+
+    /// Sync the app's DayLog with the widget's UserDefaults value (source of truth).
+    private func syncWidgetHydration(into log: DayLog) {
+        guard let cachedIntake = HydrationSettings.loadCurrentIntake(),
+              cachedIntake != log.waterIntake else { return }
+        log.waterIntake = cachedIntake
+        try? modelContext.save()
     }
 
     private func handleCrossTrainingLog(_ entry: CrossTrainingLogEntry, for session: TrainingSession) {

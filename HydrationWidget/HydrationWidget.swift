@@ -15,9 +15,14 @@ struct Provider: TimelineProvider {
     }
     
     private func makeEntry(for date: Date) -> SimpleEntry {
-        SimpleEntry(
+        // Read directly from App Group UserDefaults — the single source of truth
+        // shared by both the main app and LogWaterIntent.
+        // Avoid WidgetDataLayer.todayWaterIntake() which can fall back to a
+        // separate SQLite database and return stale data.
+        let intake = HydrationSettings.loadCurrentIntake() ?? 0
+        return SimpleEntry(
             date: date,
-            waterIntake: WidgetDataLayer.shared.todayWaterIntake(),
+            waterIntake: max(0, intake),
             dailyGoal: getDailyGoal()
         )
     }
