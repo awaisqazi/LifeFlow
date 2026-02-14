@@ -114,11 +114,7 @@ struct WelcomeView: View {
             .buttonStyle(.plain)
         }
         .padding(20)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 26))
-        .overlay(
-            RoundedRectangle(cornerRadius: 26)
-                .stroke(Color.white.opacity(0.16), lineWidth: 1)
-        )
+        .liquidGlassCard(cornerRadius: 26)
     }
     
     private var integrationPanel: some View {
@@ -186,11 +182,7 @@ struct WelcomeView: View {
             .buttonStyle(.plain)
         }
         .padding(20)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 26))
-        .overlay(
-            RoundedRectangle(cornerRadius: 26)
-                .stroke(Color.white.opacity(0.16), lineWidth: 1)
-        )
+        .liquidGlassCard(cornerRadius: 26)
     }
     
     private func permissionRow(title: String, granted: Bool, fallbackMessage: String?) -> some View {

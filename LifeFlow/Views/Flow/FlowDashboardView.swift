@@ -256,7 +256,24 @@ struct FlowDashboardView: View {
     }
 
     private func recoverTrainingPlanIfNeeded() {
-        guard !raceTrainingGoalIDs.isEmpty else { return }
+        // If there are no race training goals, clean up any orphaned plans
+        if raceTrainingGoalIDs.isEmpty {
+            if coachManager.activePlan != nil {
+                coachManager.cancelPlan(modelContext: modelContext)
+            }
+            // Delete any stale TrainingPlans left over from deleted goals
+            for plan in trainingPlans {
+                for session in plan.sessions {
+                    modelContext.delete(session)
+                }
+                modelContext.delete(plan)
+            }
+            if !trainingPlans.isEmpty {
+                try? modelContext.save()
+            }
+            return
+        }
+
         guard coachManager.activePlan == nil else { return }
         guard let recoverablePlan = trainingPlans.first(where: { !$0.isCompleted }) else { return }
 
@@ -310,11 +327,7 @@ struct FlowDashboardView: View {
             .accessibilityHint("Shows this workout in your training history.")
         }
         .padding(12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.cyan.opacity(0.32), lineWidth: 1)
-        )
+        .liquidGlassChip(cornerRadius: 14)
         .accessibilityElement(children: .contain)
     }
 
@@ -411,16 +424,6 @@ struct FlowDashboardView: View {
     }
 }
 
-/// Reusable glass card component using native Liquid Glass.
-struct GlassCard<Content: View>: View {
-    var cornerRadius: CGFloat = 20
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        content
-            .glassEffect(in: .rect(cornerRadius: cornerRadius))
-    }
-}
 
 #Preview {
     ZStack {

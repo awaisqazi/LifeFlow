@@ -149,7 +149,7 @@ struct RaceTrackCard: View {
             }
         }
         .padding()
-        .glassEffect(in: .rect(cornerRadius: 20))
+        .liquidGlassCard(cornerRadius: 20)
     }
 
     // MARK: - Milestone Data
@@ -165,8 +165,8 @@ struct RaceTrackCard: View {
     /// Calculate Y position on the winding path
     private func yPosition(for x: Double, in size: CGSize) -> Double {
         let midY = size.height / 2
-        let amplitude = size.height * 0.3
-        return midY + sin(x * .pi * 2.5) * amplitude
+        let waveAmp = size.height * 0.3
+        return midY + sin(x * .pi * 2.5) * waveAmp
     }
     
     private var meshTheme: MeshGradientTheme {
@@ -185,7 +185,7 @@ struct RaceTrackShape: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
         let midY = rect.midY
-        let amplitude = rect.height * 0.3
+        let waveAmp = rect.height * 0.3
 
         path.move(to: CGPoint(x: 0, y: midY))
 
@@ -193,7 +193,7 @@ struct RaceTrackShape: Shape {
         for i in 1...steps {
             let fraction = Double(i) / Double(steps)
             let x = rect.width * fraction
-            let y = midY + sin(fraction * .pi * 2.5) * amplitude
+            let y = midY + sin(fraction * .pi * 2.5) * waveAmp
             path.addLine(to: CGPoint(x: x, y: y))
         }
 

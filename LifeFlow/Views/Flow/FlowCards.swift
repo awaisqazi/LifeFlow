@@ -16,64 +16,63 @@ struct HydrationCard: View {
     @Environment(\.modelContext) private var modelContext
     
     var body: some View {
-        GlassCard(cornerRadius: 16) {
-            HStack(spacing: 16) {
-                // Icon / Status
-                ZStack {
-                    Circle()
-                        .fill(.cyan.opacity(0.15))
-                        .frame(width: 50, height: 50)
-                    
-                    Image(systemName: "drop.fill")
-                        .font(.title2)
-                        .foregroundStyle(.cyan)
-                }
+        HStack(spacing: 16) {
+            // Icon / Status
+            ZStack {
+                Circle()
+                    .fill(.cyan.opacity(0.15))
+                    .frame(width: 50, height: 50)
                 
-                // Content
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Hydration")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    
-                    Text("\(Int(dayLog.waterIntake)) oz")
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(.primary)
-                }
+                Image(systemName: "drop.fill")
+                    .font(.title2)
+                    .foregroundStyle(.cyan)
+            }
+            
+            // Content
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Hydration")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
                 
-                Spacer()
-                
-                // Controls
-                HStack(spacing: 4) {
-                    Button {
-                        if dayLog.waterIntake >= 8 {
-                            dayLog.waterIntake -= 8
-                            HydrationSettings.saveCurrentIntake(dayLog.waterIntake)
-                            try? modelContext.save()
-                            WidgetCenter.shared.reloadAllTimelines()
-                        }
-                    } label: {
-                        Image(systemName: "minus")
-                            .frame(width: 32, height: 32)
-                            .background(.ultraThinMaterial, in: Circle())
-                    }
-                    .buttonStyle(.plain)
-                    
-                    Button {
-                        dayLog.waterIntake += 8
+                Text("\(Int(dayLog.waterIntake)) oz")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.primary)
+            }
+            
+            Spacer()
+            
+            // Controls
+            HStack(spacing: 4) {
+                Button {
+                    if dayLog.waterIntake >= 8 {
+                        dayLog.waterIntake -= 8
                         HydrationSettings.saveCurrentIntake(dayLog.waterIntake)
                         try? modelContext.save()
                         WidgetCenter.shared.reloadAllTimelines()
-                    } label: {
-                        Image(systemName: "plus")
-                            .frame(width: 32, height: 32)
-                            .background(Color.cyan.opacity(0.8), in: Circle())
-                            .foregroundStyle(.white)
                     }
-                    .buttonStyle(.plain)
+                } label: {
+                    Image(systemName: "minus")
+                        .frame(width: 32, height: 32)
+                        .background(.ultraThinMaterial, in: Circle())
                 }
+                .buttonStyle(.plain)
+                
+                Button {
+                    dayLog.waterIntake += 8
+                    HydrationSettings.saveCurrentIntake(dayLog.waterIntake)
+                    try? modelContext.save()
+                    WidgetCenter.shared.reloadAllTimelines()
+                } label: {
+                    Image(systemName: "plus")
+                        .frame(width: 32, height: 32)
+                        .background(Color.cyan.opacity(0.8), in: Circle())
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
             }
-            .padding(16)
         }
+        .padding(16)
+        .liquidGlassCard(cornerRadius: LiquidGlass.cornerRadiusSmall)
     }
 }
 
@@ -192,110 +191,109 @@ struct GymCard: View {
                 .opacity(offset < -20 ? 1 : 0)
             }
             
-            GlassCard(cornerRadius: 16) {
-                HStack(spacing: 16) {
-                    // Icon / Status
-                    ZStack {
-                        Circle()
-                            .fill(statusColor.opacity(0.15))
-                            .frame(width: 50, height: 50)
-                        
-                        Image(systemName: statusIcon)
-                            .font(.title2)
-                            .foregroundStyle(statusColor)
-                    }
+            HStack(spacing: 16) {
+                // Icon / Status
+                ZStack {
+                    Circle()
+                        .fill(statusColor.opacity(0.15))
+                        .frame(width: 50, height: 50)
                     
-                    // Content
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Movement")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.secondary)
-                        
-                        if hasCompletedWorkoutToday {
-                            Text("Workout Logged")
-                                .font(.headline)
-                                .foregroundStyle(.green)
-                        } else if hasPausedWorkout {
-                            Text("Workout Paused")
-                                .font(.headline)
-                                .foregroundStyle(.yellow)
-                        } else {
-                            Text("Ready to train?")
-                                .font(.headline)
-                                .foregroundStyle(.primary)
-                        }
-                    }
+                    Image(systemName: statusIcon)
+                        .font(.title2)
+                        .foregroundStyle(statusColor)
+                }
+                
+                // Content
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Movement")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
                     
-                    Spacer()
-                    
-                    // Button based on state
                     if hasCompletedWorkoutToday {
-                        // Show Completed status with circular icon buttons
-                        HStack(spacing: 12) {
-                            // View details button
-                            Button {
-                                showWorkoutDetailSheet = true
-                            } label: {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 16, weight: .bold))
-                                    .foregroundStyle(.white)
-                                    .frame(width: 44, height: 44)
-                                    .background(Color.green.gradient, in: Circle())
-                            }
-                            
-                            // Add More / Continue Training button
-                            Button {
-                                enterGymMode()
-                                let impact = UIImpactFeedbackGenerator(style: .medium)
-                                impact.impactOccurred()
-                            } label: {
-                                Image(systemName: "plus")
-                                    .font(.system(size: 16, weight: .bold))
-                                    .foregroundStyle(.white)
-                                    .frame(width: 44, height: 44)
-                                    .background(Color.orange.gradient, in: Circle())
-                            }
-                        }
+                        Text("Workout Logged")
+                            .font(.headline)
+                            .foregroundStyle(.green)
                     } else if hasPausedWorkout {
-                        // Continue button
-                        Button {
-                            enterGymMode()
-                            let impact = UIImpactFeedbackGenerator(style: .medium)
-                            impact.impactOccurred()
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "play.fill")
-                                    .font(.caption)
-                                Text("Continue")
-                                    .font(.caption.weight(.bold))
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(Color.yellow.gradient, in: Capsule())
-                            .foregroundStyle(.black)
-                        }
+                        Text("Workout Paused")
+                            .font(.headline)
+                            .foregroundStyle(.yellow)
                     } else {
-                        // Start button
-                        Button {
-                            enterGymMode()
-                            let impact = UIImpactFeedbackGenerator(style: .medium)
-                            impact.impactOccurred()
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "flame.fill")
-                                    .font(.caption)
-                                Text("Start")
-                                    .font(.caption.weight(.bold))
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(Color.orange.gradient, in: Capsule())
-                            .foregroundStyle(.white)
-                        }
+                        Text("Ready to train?")
+                            .font(.headline)
+                            .foregroundStyle(.primary)
                     }
                 }
-                .padding(16)
+                
+                Spacer()
+                
+                // Button based on state
+                if hasCompletedWorkoutToday {
+                    // Show Completed status with circular icon buttons
+                    HStack(spacing: 12) {
+                        // View details button
+                        Button {
+                            showWorkoutDetailSheet = true
+                        } label: {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 44, height: 44)
+                                .background(Color.green.gradient, in: Circle())
+                        }
+                        
+                        // Add More / Continue Training button
+                        Button {
+                            enterGymMode()
+                            let impact = UIImpactFeedbackGenerator(style: .medium)
+                            impact.impactOccurred()
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 44, height: 44)
+                                .background(Color.orange.gradient, in: Circle())
+                        }
+                    }
+                } else if hasPausedWorkout {
+                    // Continue button
+                    Button {
+                        enterGymMode()
+                        let impact = UIImpactFeedbackGenerator(style: .medium)
+                        impact.impactOccurred()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "play.fill")
+                                .font(.caption)
+                            Text("Continue")
+                                .font(.caption.weight(.bold))
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.yellow.gradient, in: Capsule())
+                        .foregroundStyle(.black)
+                    }
+                } else {
+                    // Start button
+                    Button {
+                        enterGymMode()
+                        let impact = UIImpactFeedbackGenerator(style: .medium)
+                        impact.impactOccurred()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "flame.fill")
+                                .font(.caption)
+                            Text("Start")
+                                .font(.caption.weight(.bold))
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.orange.gradient, in: Capsule())
+                        .foregroundStyle(.white)
+                    }
+                }
             }
+            .padding(16)
+            .liquidGlassCard(cornerRadius: LiquidGlass.cornerRadiusSmall)
             .overlay {
                 // Green border when completed for visual emphasis
                 if hasCompletedWorkoutToday {
@@ -434,104 +432,103 @@ struct GoalActionCard: View {
                 .opacity(offset < -20 ? 1 : 0)
             }
             
-            GlassCard(cornerRadius: 16) {
-                VStack(spacing: 12) {
-                    // Header: Icon + Goal Title
-                    HStack {
-                        Image(systemName: iconForGoal(goal))
-                            .foregroundStyle(colorForGoal(goal))
-                        Text(goal.title)
-                            .font(.headline)
-                        Spacer()
-                        if isCompletedToday {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                        }
+            VStack(spacing: 12) {
+                // Header: Icon + Goal Title
+                HStack {
+                    Image(systemName: iconForGoal(goal))
+                        .foregroundStyle(colorForGoal(goal))
+                    Text(goal.title)
+                        .font(.headline)
+                    Spacer()
+                    if isCompletedToday {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
                     }
-                    
-                    Divider()
-                    
-                    // Action Area
-                    if isCompletedToday, let entry = todaysEntry {
-                        HStack {
-                            Text("Today's Progress:")
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Text("+\(entry.valueAdded, format: .number) \(unitLabelForGoal(goal))")
-                                .font(.headline)
-                        }
-                        .contentShape(Rectangle())
-                    } else {
-                        // Input View
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(promptForGoal(goal))
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            
-                            if goal.type == .habit {
-                                Button(action: {
-                                    saveEntry(value: 1.0)
-                                }) {
-                                    HStack {
-                                        Spacer()
-                                        Label("Mark Complete", systemImage: "checkmark")
-                                            .font(.headline)
-                                        Spacer()
-                                    }
-                                    .padding(.vertical, 8)
-                                    .background(colorForGoal(goal).opacity(0.15), in: Capsule())
-                                    .foregroundStyle(colorForGoal(goal))
+                }
+                
+                Divider()
+                
+                // Action Area
+                if isCompletedToday, let entry = todaysEntry {
+                    HStack {
+                        Text("Today's Progress:")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("+\(entry.valueAdded, format: .number) \(unitLabelForGoal(goal))")
+                            .font(.headline)
+                    }
+                    .contentShape(Rectangle())
+                } else {
+                    // Input View
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(promptForGoal(goal))
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        
+                        if goal.type == .habit {
+                            Button(action: {
+                                saveEntry(value: 1.0)
+                            }) {
+                                HStack {
+                                    Spacer()
+                                    Label("Mark Complete", systemImage: "checkmark")
+                                        .font(.headline)
+                                    Spacer()
                                 }
-                            } else {
-                                HStack(spacing: 12) {
-                                    // Styled Input Setup
-                                    HStack(spacing: 4) {
-                                        TextField("0", text: $amountString)
-                                            .keyboardType(.decimalPad)
-                                            .multilineTextAlignment(.trailing)
-                                            .font(.title3.weight(.semibold))
-                                            .onReceive(NotificationCenter.default.publisher(for: UITextField.textDidBeginEditingNotification)) { obj in
-                                                if let textField = obj.object as? UITextField {
-                                                    // Async dispatch is crucial to beat the system's default cursor placement
-                                                    DispatchQueue.main.async {
-                                                        textField.selectAll(nil)
-                                                    }
-                                                    // Notify parent to scroll
-                                                    onFocus?()
+                                .padding(.vertical, 8)
+                                .background(colorForGoal(goal).opacity(0.15), in: Capsule())
+                                .foregroundStyle(colorForGoal(goal))
+                            }
+                        } else {
+                            HStack(spacing: 12) {
+                                // Styled Input Setup
+                                HStack(spacing: 4) {
+                                    TextField("0", text: $amountString)
+                                        .keyboardType(.decimalPad)
+                                        .multilineTextAlignment(.trailing)
+                                        .font(.title3.weight(.semibold))
+                                        .onReceive(NotificationCenter.default.publisher(for: UITextField.textDidBeginEditingNotification)) { obj in
+                                            if let textField = obj.object as? UITextField {
+                                                // Async dispatch is crucial to beat the system's default cursor placement
+                                                DispatchQueue.main.async {
+                                                    textField.selectAll(nil)
                                                 }
+                                                // Notify parent to scroll
+                                                onFocus?()
                                             }
-                                        
-                                        Text(unitLabelForGoal(goal))
-                                            .font(.subheadline.weight(.medium))
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 12)
-                                    .background(Color(uiColor: .secondarySystemFill))
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                                    
-                                    // Submit Button
-                                    Button {
-                                        if let value = Double(amountString) {
-                                            saveEntry(value: value)
-                                            // Dismiss keyboard
-                                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                                         }
-                                    } label: {
-                                        Image(systemName: "arrow.up.circle.fill")
-                                            .font(.system(size: 38))
-                                            .foregroundStyle(colorForGoal(goal))
-                                            .symbolEffect(.bounce, value: amountString)
-                                    }
-                                    .disabled(Double(amountString) == nil)
-                                    .opacity(Double(amountString) == nil ? 0.5 : 1)
+                                    
+                                    Text(unitLabelForGoal(goal))
+                                        .font(.subheadline.weight(.medium))
+                                        .foregroundStyle(.secondary)
                                 }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 12)
+                                .background(Color(uiColor: .secondarySystemFill))
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                
+                                // Submit Button
+                                Button {
+                                    if let value = Double(amountString) {
+                                        saveEntry(value: value)
+                                        // Dismiss keyboard
+                                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                                    }
+                                } label: {
+                                    Image(systemName: "arrow.up.circle.fill")
+                                        .font(.system(size: 38))
+                                        .foregroundStyle(colorForGoal(goal))
+                                        .symbolEffect(.bounce, value: amountString)
+                                }
+                                .disabled(Double(amountString) == nil)
+                                .opacity(Double(amountString) == nil ? 0.5 : 1)
                             }
                         }
                     }
                 }
-                .padding(16)
             }
+            .padding(16)
+            .liquidGlassCard(cornerRadius: LiquidGlass.cornerRadiusSmall)
             .overlay(alignment: .bottom) {
                 if delightIntensity.isEnabled {
                     BubbleBurstView(

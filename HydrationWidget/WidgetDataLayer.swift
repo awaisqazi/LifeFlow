@@ -7,12 +7,14 @@
 
 import Foundation
 import SwiftData
+import os
 
 // Duplicate URL extension for Widget target
 extension URL {
     static func storeURL(for appGroup: String) -> URL {
         guard let fileContainer = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup) else {
-            fatalError("Shared file container could not be created for App Group: \(appGroup)")
+            // Fallback to temp dir instead of fatalError — widget will degrade gracefully
+            return FileManager.default.temporaryDirectory.appendingPathComponent("LifeFlowHydrationWidget.sqlite")
         }
         // Keep the widget store isolated to avoid schema conflicts with the main app.
         return fileContainer.appendingPathComponent("LifeFlowHydrationWidget.sqlite")
@@ -24,6 +26,7 @@ final class WidgetDataLayer {
     static let shared = WidgetDataLayer()
     
     let modelContainer: ModelContainer
+    private let logger = Logger(subsystem: "com.Fez.LifeFlow.widget", category: "DataLayer")
     
     private init() {
         let appGroupIdentifier = HydrationSettings.appGroupID
@@ -44,7 +47,12 @@ final class WidgetDataLayer {
         do {
             modelContainer = try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
-            fatalError("Widget ModelContainer creation failed: \(error)")
+            logger.error("Widget ModelContainer creation failed: \(error.localizedDescription). Using in-memory fallback.")
+            // Graceful degradation: in-memory container so the widget still renders
+            modelContainer = try! ModelContainer(
+                for: schema,
+                configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
+            )
         }
     }
     

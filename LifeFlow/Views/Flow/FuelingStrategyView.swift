@@ -192,11 +192,7 @@ struct FuelingStrategyView: View {
             }
         }
         .padding()
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-        )
+        .liquidGlassCard(cornerRadius: 18)
     }
     
     private func ensureSessionDayLogExists() {

@@ -19,8 +19,8 @@ struct WaterShape: Shape {
     /// Phase for wave animation (0 to 2π)
     var wavePhase: Double
     
-    /// Amplitude of the surface wave
-    var waveAmplitude: CGFloat = 12
+    /// Height of the surface wave
+    var waveHeight: CGFloat = 12
     
     var animatableData: AnimatablePair<Double, AnimatablePair<Double, Double>> {
         get { AnimatablePair(fillLevel, AnimatablePair(tiltAngle, wavePhase)) }
@@ -89,9 +89,9 @@ struct WaterShape: Shape {
             let normalizedX = CGFloat(i) / CGFloat(steps)
             
             // Multi-frequency waves for organic look
-            let wave1 = sin(normalizedX * .pi * 2 + wavePhase) * waveAmplitude
-            let wave2 = sin(normalizedX * .pi * 3.5 + wavePhase * 1.5) * (waveAmplitude * 0.5)
-            let wave3 = sin(normalizedX * .pi * 5 + wavePhase * 0.7) * (waveAmplitude * 0.25)
+            let wave1 = sin(normalizedX * .pi * 2 + wavePhase) * waveHeight
+            let wave2 = sin(normalizedX * .pi * 3.5 + wavePhase * 1.5) * (waveHeight * 0.5)
+            let wave3 = sin(normalizedX * .pi * 5 + wavePhase * 0.7) * (waveHeight * 0.25)
             
             // Create a "curl" effect - wave rises higher in the middle based on tilt
             let curlFactor = sin(normalizedX * .pi) * abs(tiltAngle) * 25

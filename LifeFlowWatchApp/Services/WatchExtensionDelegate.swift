@@ -1,9 +1,12 @@
 import Foundation
 import SwiftData
 import SwiftUI
+import os
 
+@MainActor
 final class WatchExtensionDelegate: NSObject {
     static let shared = WatchExtensionDelegate()
+    private let logger = Logger(subsystem: "com.Fez.LifeFlow.watch", category: "ExtensionDelegate")
 
     private override init() {
         super.init()
@@ -12,10 +15,10 @@ final class WatchExtensionDelegate: NSObject {
     func handleScenePhase(_ phase: ScenePhase) {
         switch phase {
         case .background:
-            // When app enters background, trigger CloudKit sync
-            Task {
-                await performCloudKitSync()
-            }
+            // Save the context so CloudKit can sync opportunistically.
+            // Do NOT call WKExtension.shared().scheduleBackgroundRefresh()
+            // as it triggers _dispatch_assert_queue_fail from CloudKit threads.
+            saveContextIfNeeded()
         case .active, .inactive:
             break
         @unknown default:
@@ -23,30 +26,15 @@ final class WatchExtensionDelegate: NSObject {
         }
     }
 
-    private func performCloudKitSync() async {
-        // SwiftData with CloudKit handles sync automatically when using
-        // ModelConfiguration with cloudKitDatabase parameter.
-        // This method ensures the context is saved and gives CloudKit
-        // an opportunity to sync during background refresh.
-
+    private func saveContextIfNeeded() {
         let context = WatchDataStore.shared.modelContainer.mainContext
-
         do {
-            // Force save to trigger CloudKit sync
-            try context.save()
-
-            // Schedule next refresh for 6 hours later
-            let nextRefresh = Date().addingTimeInterval(6 * 60 * 60)
-            WKExtension.shared().scheduleBackgroundRefresh(
-                withPreferredDate: nextRefresh,
-                userInfo: nil
-            ) { error in
-                if let error = error {
-                    print("Failed to schedule background refresh: \(error.localizedDescription)")
-                }
+            if context.hasChanges {
+                try context.save()
+                logger.info("Context saved for background CloudKit sync opportunity.")
             }
         } catch {
-            print("CloudKit sync save failed: \(error.localizedDescription)")
+            logger.error("Context save failed: \(error.localizedDescription)")
         }
     }
 }

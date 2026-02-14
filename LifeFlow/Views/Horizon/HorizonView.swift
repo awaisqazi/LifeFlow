@@ -131,11 +131,7 @@ struct HorizonView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(accent.opacity(0.32), lineWidth: 1)
-        )
+        .liquidGlassChip(cornerRadius: 10)
         .accessibilityElement(children: .combine)
     }
 
@@ -237,11 +233,7 @@ struct HorizonView: View {
             }
         }
         .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
-        .overlay(
-            RoundedRectangle(cornerRadius: 24)
-                .stroke(.white.opacity(0.1), lineWidth: 1)
-        )
+        .liquidGlassCard()
     }
 
     private var motivationPanel: some View {
@@ -262,11 +254,7 @@ struct HorizonView: View {
         }
         .frame(maxWidth: .infinity)
         .padding()
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20))
-        .overlay(
-            RoundedRectangle(cornerRadius: 20)
-                .stroke(.white.opacity(0.08), lineWidth: 1)
-        )
+        .liquidGlassCard(cornerRadius: 20)
     }
 
     private func colorForGoal(_ goal: Goal) -> Color {
@@ -286,12 +274,29 @@ struct HorizonView: View {
                 let hasOtherRaceGoals = goals.contains { $0.id != goal.id && $0.type == .raceTraining }
                 if !hasOtherRaceGoals {
                     coachManager.cancelPlan(modelContext: modelContext)
+                    // Delete all orphaned TrainingPlans so Flow can't resurrect them
+                    deleteOrphanedTrainingPlans()
                 }
             }
 
             modelContext.delete(goal)
             try? modelContext.save()
         }
+    }
+
+    /// Remove all TrainingPlan objects (and cascade-delete their sessions)
+    /// when no race training goals remain.
+    private func deleteOrphanedTrainingPlans() {
+        let descriptor = FetchDescriptor<TrainingPlan>()
+        guard let plans = try? modelContext.fetch(descriptor) else { return }
+        for plan in plans {
+            // Delete child sessions first in case cascade isn't configured
+            for session in plan.sessions {
+                modelContext.delete(session)
+            }
+            modelContext.delete(plan)
+        }
+        try? modelContext.save()
     }
 }
 
@@ -538,9 +543,9 @@ private struct AddGoalPanoramaCard: View {
                     .foregroundStyle(.white.opacity(0.72))
             }
             .frame(width: width, height: height)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28))
+            .liquidGlassCard(cornerRadius: 28)
             .overlay(
-                RoundedRectangle(cornerRadius: 28)
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
                     .stroke(style: StrokeStyle(lineWidth: 1.5, dash: [5]))
                     .foregroundStyle(.white.opacity(0.22))
             )
@@ -648,11 +653,7 @@ struct HydrationGoalCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20))
-        .overlay(
-            RoundedRectangle(cornerRadius: 20)
-                .stroke(.white.opacity(0.09), lineWidth: 1)
-        )
+        .liquidGlassCard(cornerRadius: 20)
     }
 
     private func saveGoal() {

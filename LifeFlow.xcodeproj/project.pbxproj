@@ -41,8 +41,8 @@
 		D9501C732F00B52700ED9FB6 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D9501C122F0079A200ED9FB6 /* WidgetKit.framework */; };
 		D9501C742F00B52700ED9FB6 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D9501C142F0079A200ED9FB6 /* SwiftUI.framework */; };
 		D9501C832F00B52700ED9FB6 /* GymWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D9501C722F00B52700ED9FB6 /* GymWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		D985B1A52F4026650005D568 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D985B1A42F4026650005D568 /* Assets.xcassets */; };
 		DEF1F004F57AE5D6AA097ECC /* WatchAppCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B8385548803D0D42E272CC2 /* WatchAppCoordinator.swift */; };
-		E1FC25AE525AB9DCD47C7352 /* MetricPlatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA27F797F0CC70F067344F02 /* MetricPlatter.swift */; };
 		E654D67F11E76F699AB7649A /* WatchDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B038E936685116316034063B /* WatchDashboardView.swift */; };
 /* End PBXBuildFile section */
 
@@ -99,7 +99,6 @@
 		A7998FC16C5C70260F101EAB /* LifeFlowWatchApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LifeFlowWatchApp.swift; sourceTree = "<group>"; };
 		B038E936685116316034063B /* WatchDashboardView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchDashboardView.swift; sourceTree = "<group>"; };
 		B73CA3A070ADFE8620109E51 /* LifeFlowWatchWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LifeFlowWatchWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		BA27F797F0CC70F067344F02 /* MetricPlatter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetricPlatter.swift; sourceTree = "<group>"; };
 		BAA14D6D57830FC60076C8A3 /* WatchFormatting.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchFormatting.swift; sourceTree = "<group>"; };
 		D91DAC382F3B257C0092E63F /* SmartStackRelevance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartStackRelevance.swift; sourceTree = "<group>"; };
 		D91DAC3A2F3B25B20092E63F /* WatchRunSchemaVersioning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchRunSchemaVersioning.swift; sourceTree = "<group>"; };
@@ -113,6 +112,7 @@
 		D9501C4F2F00879100ED9FB6 /* HydrationWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HydrationWidgetExtension.entitlements; sourceTree = "<group>"; };
 		D9501C722F00B52700ED9FB6 /* GymWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = GymWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		D9501C942F00BB0300ED9FB6 /* GymWidgetsExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GymWidgetsExtension.entitlements; sourceTree = "<group>"; };
+		D985B1A42F4026650005D568 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		DB3B594CB9BB69BDE45FA18E /* LifeFlowQuickControlWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LifeFlowQuickControlWidget.swift; sourceTree = "<group>"; };
 		F304B6F404563036A390D6B4 /* WatchWorkoutManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchWorkoutManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -280,7 +280,6 @@
 		9931B6282409CFD9B5C44692 /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				BA27F797F0CC70F067344F02 /* MetricPlatter.swift */,
 				B038E936685116316034063B /* WatchDashboardView.swift */,
 				BAA14D6D57830FC60076C8A3 /* WatchFormatting.swift */,
 				77F3B7EE50E5E4F18CF8E726 /* WatchPostRunSummaryView.swift */,
@@ -359,6 +358,7 @@
 		FACCC4C499AD0FD1FD74A99A /* LifeFlowWatchApp */ = {
 			isa = PBXGroup;
 			children = (
+				D985B1A42F4026650005D568 /* Assets.xcassets */,
 				C36B0E8259FDF75001163848 /* Intents */,
 				A7998FC16C5C70260F101EAB /* LifeFlowWatchApp.swift */,
 				6C362E8CDC9094403D03A514 /* Models */,
@@ -534,6 +534,7 @@
 			files = (
 				D91DAC3D2F3B263C0092E63F /* IMPLEMENTATION_NOTES.md in Resources */,
 				D91DAC3F2F3B26DB0092E63F /* TROUBLESHOOTING.md in Resources */,
+				D985B1A52F4026650005D568 /* Assets.xcassets in Resources */,
 				D91DAC412F3B28100092E63F /* QUICK_FIX.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -584,7 +585,6 @@
 				B7B19D6C46E1267DC3519BF5 /* WatchExtensionDelegate.swift in Sources */,
 				D91DAC3B2F3B25B20092E63F /* WatchRunSchemaVersioning.swift in Sources */,
 				3EA56AD4F761DDE1BF1F2495 /* WatchWorkoutManager.swift in Sources */,
-				E1FC25AE525AB9DCD47C7352 /* MetricPlatter.swift in Sources */,
 				E654D67F11E76F699AB7649A /* WatchDashboardView.swift in Sources */,
 				C706B9DF4358F5378EEE147D /* WatchFormatting.swift in Sources */,
 				5539109B630CF992EE022789 /* WatchPostRunSummaryView.swift in Sources */,

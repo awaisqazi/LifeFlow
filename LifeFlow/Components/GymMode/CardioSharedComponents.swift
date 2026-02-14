@@ -203,3 +203,92 @@ struct CelebrationParticles: View {
         }
     }
 }
+
+// MARK: - Metric Column
+
+/// Vertically stacked metric display for the floating workout platter.
+struct MetricColumn: View {
+    let title: String
+    let value: String
+    let unit: String
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            Text(title)
+                .font(.caption2.weight(.heavy))
+                .foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text(value)
+                    .font(.system(.title, design: .rounded, weight: .black).monospacedDigit())
+                    .foregroundStyle(.primary)
+                    .contentTransition(.numericText())
+                Text(unit)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Primary Glass Button Style
+
+/// 72pt circular gradient button with spring press animation.
+struct PrimaryGlassButtonStyle: ButtonStyle {
+    let color: Color
+    
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.title2.weight(.bold))
+            .frame(width: 72, height: 72)
+            .background(color.gradient, in: Circle())
+            .foregroundStyle(.white)
+            .shadow(color: color.opacity(0.4), radius: 10, y: 5)
+            .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
+    }
+}
+
+// MARK: - Milestone Toast
+
+/// Achievement toast for distance milestones (25%, 50%, 75%, 100%).
+struct MilestoneToast: View {
+    let milestone: String
+    let icon: String
+    
+    @State private var isVisible = false
+    
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(.yellow)
+            Text(milestone)
+                .font(.headline.weight(.heavy))
+                .foregroundStyle(.white)
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 14)
+        .background {
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    Capsule()
+                        .stroke(
+                            LinearGradient(colors: [.yellow.opacity(0.6), .orange.opacity(0.3)],
+                                           startPoint: .topLeading, endPoint: .bottomTrailing),
+                            lineWidth: 1.5
+                        )
+                }
+        }
+        .shadow(color: .yellow.opacity(0.3), radius: 20, y: 8)
+        .scaleEffect(isVisible ? 1.0 : 0.5)
+        .opacity(isVisible ? 1.0 : 0)
+        .onAppear {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+                isVisible = true
+            }
+        }
+    }
+}
+

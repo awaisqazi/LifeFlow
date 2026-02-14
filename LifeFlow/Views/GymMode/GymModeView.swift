@@ -230,17 +230,38 @@ struct GymModeView: View {
     // MARK: - Active Workout View (Liquid Dashboard)
     
     private var activeWorkoutView: some View {
-        VStack(spacing: 0) {
-            // Header
-            workoutHeader
-            
-            // Dashboard - Use different layouts for edit mode vs normal mode
-            if isEditMode {
-                // EDIT MODE: Use native List with .onMove for reliable reordering
-                editModeList
+        Group {
+            if manager.isCardioInProgress, let exercise = manager.currentExercise {
+                // === IMMERSIVE GUIDED RUN — bypass all containers ===
+                ExerciseInputCard(
+                    exercise: exercise,
+                    setNumber: manager.currentSetIndex + 1,
+                    previousData: manager.getPreviousSetData(
+                        for: exercise.name,
+                        setIndex: manager.currentSetIndex,
+                        using: modelContext
+                    ),
+                    weight: $currentWeight,
+                    reps: $currentReps,
+                    duration: $currentDuration,
+                    distance: $currentDistance,
+                    speed: $currentSpeed,
+                    incline: $currentIncline,
+                    onComplete: { completeCurrentSet() }
+                )
+                .ignoresSafeArea()
+                .transition(.opacity)
             } else {
-                // NORMAL MODE: Use the beautiful GlassEffectContainer
-                normalModeView
+                // === NORMAL WORKOUT FLOW ===
+                VStack(spacing: 0) {
+                    workoutHeader
+                    
+                    if isEditMode {
+                        editModeList
+                    } else {
+                        normalModeView
+                    }
+                }
             }
         }
         .onAppear {

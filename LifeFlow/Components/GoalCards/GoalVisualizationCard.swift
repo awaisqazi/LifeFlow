@@ -57,7 +57,7 @@ struct RaceTrainingVisualizationCard: View {
                     .foregroundStyle(.secondary)
             }
             .padding()
-            .glassEffect(in: .rect(cornerRadius: 20))
+            .liquidGlassCard(cornerRadius: 20)
         }
     }
 }
@@ -178,7 +178,7 @@ struct StudyProgressCard: View {
                 .foregroundStyle(.secondary)
         }
         .padding()
-        .glassEffect(in: .rect(cornerRadius: 20))
+        .liquidGlassCard(cornerRadius: 20)
     }
 }
 
@@ -284,7 +284,7 @@ struct DefaultProgressCard: View {
             }
         }
         .padding()
-        .glassEffect(in: .rect(cornerRadius: 20))
+        .liquidGlassCard(cornerRadius: 20)
     }
 }
 

@@ -39,61 +39,76 @@ struct ExerciseInputCard: View {
     }
     
     var body: some View {
-        GlassCard(cornerRadius: 24) {
-            VStack(spacing: 20) {
-                // Header
+        let content = VStack(spacing: 20) {
+            // Header (hidden during immersive guided run)
+            if !isGuidedRunInProgress {
                 exerciseHeader
-                
-                // Progressive overload hint (Hide for guided runs)
-                if !isGuidedRunActive {
-                    if let previous = previousData, let w = previous.weight, let r = previous.reps {
-                        previousSessionHint(weight: w, reps: r)
-                    }
-                }
-                
-                // Phase-specific content
-                switch exercise.type {
-                case .weight, .calisthenics, .machine, .functional:
-                    if phase == .setup {
-                        setupPhaseView
-                    } else {
-                        activePhaseView
-                    }
-                case .cardio:
-                    if case .distance(let miles, _) = manager.activeTarget {
-                        DistanceCardioView(
-                            exerciseName: exercise.name,
-                            targetDistance: miles,
-                            onComplete: { actualDistance, finalSpeed, finalIncline, history, early in
-                                // Update state for save
-                                self.distance = actualDistance
-                                self.speed = finalSpeed
-                                self.incline = finalIncline
-                                self.duration = history?.reduce(0) { $0 + ($1.duration ?? 0) } ?? 0
-                                
-                                // Call complete through manager flow
-                                self.onComplete()
-                            },
-                            onCancel: {
-                                // Default to manual inputs if cancelled/skipped
-                                self.cardioMode = .timed
-                            }
-                        )
-                    } else {
-                        cardioInputs
-                    }
-                case .flexibility:
-                    flexibilityInputs
+            }
+            
+            // Progressive overload hint (Hide for guided runs)
+            if !isGuidedRunActive {
+                if let previous = previousData, let w = previous.weight, let r = previous.reps {
+                    previousSessionHint(weight: w, reps: r)
                 }
             }
-            .padding(20)
+            
+            // Phase-specific content
+            switch exercise.type {
+            case .weight, .calisthenics, .machine, .functional:
+                if phase == .setup {
+                    setupPhaseView
+                } else {
+                    activePhaseView
+                }
+            case .cardio:
+                if case .distance(let miles, _) = manager.activeTarget {
+                    DistanceCardioView(
+                        exerciseName: exercise.name,
+                        targetDistance: miles,
+                        onComplete: { actualDistance, finalSpeed, finalIncline, history, early in
+                            // Update state for save
+                            self.distance = actualDistance
+                            self.speed = finalSpeed
+                            self.incline = finalIncline
+                            self.duration = history?.reduce(0) { $0 + ($1.duration ?? 0) } ?? 0
+                            
+                            // Call complete through manager flow
+                            self.onComplete()
+                        },
+                        onCancel: {
+                            // Default to manual inputs if cancelled/skipped
+                            self.cardioMode = .timed
+                        }
+                    )
+                } else {
+                    cardioInputs
+                }
+            case .flexibility:
+                flexibilityInputs
+            }
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.82), value: phase)
+        
+        // When a guided run is in progress (active/complete phase),
+        // skip the card wrapper so it can go edge-to-edge
+        if isGuidedRunInProgress {
+            content
+                .animation(.spring(response: 0.35, dampingFraction: 0.82), value: phase)
+        } else {
+            content
+                .padding(20)
+                .liquidGlassCard()
+                .animation(.spring(response: 0.35, dampingFraction: 0.82), value: phase)
+        }
     }
     
     private var isGuidedRunActive: Bool {
         if case .distance = manager.activeTarget { return true }
         return false
+    }
+    
+    /// True when a guided distance run is actively running (not in setup).
+    private var isGuidedRunInProgress: Bool {
+        isGuidedRunActive && manager.isCardioInProgress
     }
     
     // MARK: - Header
@@ -783,21 +798,16 @@ private struct CompactInput: View {
                 } label: {
                     Image(systemName: "minus")
                         .font(.title3.weight(.bold))
-                        .foregroundStyle(color.opacity(0.8))
+                        .foregroundStyle(color)
                         .frame(width: 54, height: 54)
+                        .contentShape(Circle())
                         .background {
-                            if #available(iOS 26.0, *) {
-                                Circle()
-                                    .fill(.clear)
-                                    .glassEffect(.regular.interactive())
-                            } else {
-                                Circle()
-                                    .fill(.ultraThinMaterial)
-                            }
+                            Circle()
+                                .fill(color.opacity(0.2))
                         }
                         .overlay {
                             Circle()
-                                .stroke(color.opacity(0.2), lineWidth: 1)
+                                .stroke(color.opacity(0.4), lineWidth: 1)
                         }
                 }
                 .buttonStyle(InteractingButtonStyle())
@@ -827,15 +837,10 @@ private struct CompactInput: View {
                         .font(.title3.weight(.bold))
                         .foregroundStyle(.black)
                         .frame(width: 54, height: 54)
+                        .contentShape(Circle())
                         .background {
-                            if #available(iOS 26.0, *) {
-                                Circle()
-                                    .fill(color.opacity(0.5))
-                                    .glassEffect(.regular.interactive())
-                            } else {
-                                Circle()
-                                    .fill(color.gradient)
-                            }
+                            Circle()
+                                .fill(color.gradient)
                         }
                         .clipShape(Circle())
                         .shadow(color: color.opacity(0.3), radius: 8, x: 0, y: 4)

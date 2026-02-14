@@ -65,27 +65,26 @@ struct HydrationVesselCard: View {
     }
     
     var body: some View {
-        GlassCard(cornerRadius: 26) {
-            VStack(spacing: 18) {
-                headerRow
-                mainShowcaseRow
-                cupProgressRow
-                controlsRow
-            }
-            .padding(20)
-            .background(
-                LinearGradient(
-                    colors: [
-                        .cyan.opacity(0.16),
-                        .blue.opacity(0.09),
-                        .clear
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ),
-                in: RoundedRectangle(cornerRadius: 24)
-            )
+        VStack(spacing: 18) {
+            headerRow
+            mainShowcaseRow
+            cupProgressRow
+            controlsRow
         }
+        .padding(20)
+        .background(
+            LinearGradient(
+                colors: [
+                    .cyan.opacity(0.16),
+                    .blue.opacity(0.09),
+                    .clear
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 24)
+        )
+        .liquidGlassCard()
         .overlay(alignment: .bottom) {
             if delightIntensity.isEnabled {
                 BubbleBurstView(

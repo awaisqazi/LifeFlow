@@ -110,7 +110,7 @@ struct SavingsJarCard: View {
             }
         }
         .padding()
-        .glassEffect(in: .rect(cornerRadius: 20))
+        .liquidGlassCard(cornerRadius: 20)
         .onAppear {
             startAnimations()
         }
@@ -331,13 +331,13 @@ struct JarLiquidShape: Shape {
         // Wavy surface
         let steps = 30
         let stepWidth = (width - 2 * bodyInset) / CGFloat(steps)
-        let waveAmplitude: CGFloat = 4
+        let waveAmp: CGFloat = 4
         
         for i in 0...steps {
             let x = bodyInset + stepWidth * CGFloat(i)
             let normalizedX = CGFloat(i) / CGFloat(steps)
             
-            let wave = sin(normalizedX * .pi * 3 + wavePhase) * waveAmplitude
+            let wave = sin(normalizedX * .pi * 3 + wavePhase) * waveAmp
             let y = liquidTop + wave
             
             path.addLine(to: CGPoint(x: x, y: y))

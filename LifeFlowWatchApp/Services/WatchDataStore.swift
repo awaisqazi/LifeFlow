@@ -11,28 +11,42 @@ final class WatchDataStore: Sendable {
     private let logger = Logger(subsystem: "com.Fez.LifeFlow.watch", category: "DataStore")
 
     private init() {
-        let schema = Schema(versionedSchema: WatchRunSchemaV1.self)
+        // Use the actual top-level @Model types — NOT the nested VersionedSchema copies.
+        // Using Schema(versionedSchema:) registers WatchRunSchemaV1.WatchWorkoutSession,
+        // which is a different type than the top-level WatchWorkoutSession used throughout the app.
+        let schema = Schema([
+            WatchWorkoutSession.self,
+            TelemetryPoint.self,
+            RunEvent.self,
+            WatchRunStateSnapshot.self
+        ])
         let storeURL = Self.storeURL(appGroupID: LifeFlowSharedConfig.appGroupID)
 
-        // Attempt 1: CloudKit sync (preferred)
-        let cloudConfig = ModelConfiguration(
+        // watchOS: Use local-only persistence.
+        //
+        // CloudKit on watchOS causes _dispatch_assert_queue_fail crashes because
+        // CloudKit's push notification registration internally runs on the
+        // WatchConnectivity background queue instead of the main queue.
+        // The iPhone app handles CloudKit sync; the watch syncs via WatchConnectivity.
+        let localConfig = ModelConfiguration(
             schema: schema,
             url: storeURL,
-            cloudKitDatabase: .private("iCloud.com.Fez.LifeFlow")
+            cloudKitDatabase: .none
         )
 
         do {
             modelContainer = try ModelContainer(
                 for: schema,
-                migrationPlan: WatchRunMigrationPlan.self,
-                configurations: [cloudConfig]
+                configurations: [localConfig]
             )
-            logger.info("CloudKit ModelContainer initialized successfully.")
+            logger.info("Local ModelContainer initialized successfully.")
         } catch {
-            logger.error("CloudKit init failed: \(error.localizedDescription). Falling back to local store.")
+            logger.error("Local store init failed: \(error.localizedDescription). Deleting corrupted store and retrying.")
 
-            // Attempt 2: Local-only persistence
-            let localConfig = ModelConfiguration(
+            // Attempt 2: Delete corrupted store files and retry
+            Self.deleteStoreFiles(at: storeURL)
+
+            let freshConfig = ModelConfiguration(
                 schema: schema,
                 url: storeURL,
                 cloudKitDatabase: .none
@@ -41,24 +55,31 @@ final class WatchDataStore: Sendable {
             do {
                 modelContainer = try ModelContainer(
                     for: schema,
-                    migrationPlan: WatchRunMigrationPlan.self,
-                    configurations: [localConfig]
+                    configurations: [freshConfig]
                 )
-                logger.info("Local ModelContainer initialized successfully.")
+                logger.info("Fresh local ModelContainer initialized after store reset.")
             } catch {
-                logger.fault("Local store failed: \(error.localizedDescription). Using in-memory container.")
-
                 // Attempt 3: In-memory fallback to prevent crash loops
+                logger.fault("All persistent stores failed. Using in-memory container.")
                 let memoryConfig = ModelConfiguration(
                     schema: schema,
                     isStoredInMemoryOnly: true
                 )
                 modelContainer = try! ModelContainer(
                     for: schema,
-                    migrationPlan: WatchRunMigrationPlan.self,
                     configurations: [memoryConfig]
                 )
             }
+        }
+    }
+
+    /// Deletes the SQLite store and its companion -wal/-shm files.
+    private static func deleteStoreFiles(at url: URL) {
+        let fm = FileManager.default
+        let suffixes = ["", "-wal", "-shm"]
+        for suffix in suffixes {
+            let fileURL = URL(fileURLWithPath: url.path + suffix)
+            try? fm.removeItem(at: fileURL)
         }
     }
 

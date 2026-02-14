@@ -165,7 +165,7 @@ struct HabitHeatmapCard: View {
             }
         }
         .padding()
-        .glassEffect(in: .rect(cornerRadius: 20))
+        .liquidGlassCard(cornerRadius: 20)
     }
     
     // MARK: - Data Generation

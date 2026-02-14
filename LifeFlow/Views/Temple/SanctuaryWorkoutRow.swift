@@ -167,18 +167,7 @@ struct SanctuaryWorkoutRow: View {
                 .foregroundStyle(.secondary)
         }
         .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
-        .overlay(
-            RoundedRectangle(cornerRadius: 24)
-                .stroke(
-                    LinearGradient(
-                        colors: [.white.opacity(0.18), .white.opacity(0.04)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
-        )
+        .liquidGlassCard()
     }
 
     private var dateBadge: some View {

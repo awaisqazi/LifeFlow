@@ -60,6 +60,8 @@ final class WatchWorkoutManager: NSObject {
     private var lapIndex: Int = 0
     private var lastDistanceTimestamp: Date?
     private var lastDistanceMilesForPace: Double = 0
+    private var lastWidgetPublishDate: Date = .distantPast
+    private var currentActivity: NSUserActivity?
 
     private var totalEnergyKcal: Double = 0
 
@@ -213,10 +215,11 @@ final class WatchWorkoutManager: NSObject {
                     event: .runStarted,
                     runID: record.id,
                     lifecycleState: .running
-                )
+                ),
+                force: true
             )
 
-            publishWidgetState()
+            publishWidgetState(force: true)
             donateSmartStackActivity()
         } catch {
             lifecycleState = .idle
@@ -235,10 +238,11 @@ final class WatchWorkoutManager: NSObject {
                 event: .runPaused,
                 runID: activeSessionRecord?.id,
                 lifecycleState: .paused
-            )
+            ),
+            force: true
         )
 
-        publishWidgetState()
+        publishWidgetState(force: true)
     }
 
     func resumeRun() {
@@ -252,10 +256,11 @@ final class WatchWorkoutManager: NSObject {
                 event: .runResumed,
                 runID: activeSessionRecord?.id,
                 lifecycleState: .running
-            )
+            ),
+            force: true
         )
 
-        publishWidgetState()
+        publishWidgetState(force: true)
     }
 
     func endRun(discarded: Bool = false) async {
@@ -308,11 +313,12 @@ final class WatchWorkoutManager: NSObject {
                 runID: activeSessionRecord?.id,
                 lifecycleState: .ended,
                 discarded: discarded
-            )
+            ),
+            force: true
         )
 
         schedulePostRunRefresh()
-        publishWidgetState()
+        publishWidgetState(force: true)
 
         workoutSession = nil
         workoutBuilder = nil
@@ -335,10 +341,11 @@ final class WatchWorkoutManager: NSObject {
                         runID: activeSessionRecord?.id,
                         lifecycleState: lifecycleState,
                         carbsGrams: carbs
-                    )
+                    ),
+                    force: true
                 )
                 WKInterfaceDevice.current().play(.click)
-                publishWidgetState()
+                publishWidgetState(force: true)
             }
         }
     }
@@ -363,7 +370,8 @@ final class WatchWorkoutManager: NSObject {
                 runID: activeSessionRecord?.id,
                 lifecycleState: lifecycleState,
                 lapIndex: lapIndex
-            )
+            ),
+            force: true
         )
 
         WKInterfaceDevice.current().play(.notification)
@@ -379,7 +387,8 @@ final class WatchWorkoutManager: NSObject {
                 event: .metricSnapshot,
                 runID: activeSessionRecord?.id,
                 lifecycleState: lifecycleState
-            )
+            ),
+            force: true
         )
     }
 
@@ -622,8 +631,8 @@ final class WatchWorkoutManager: NSObject {
         motionManager.stopDeviceMotionUpdates()
     }
 
-    private func sendConnectivity(_ message: WatchRunMessage) {
-        connectivityBridge.send(message)
+    private func sendConnectivity(_ message: WatchRunMessage, force: Bool = false) {
+        connectivityBridge.send(message, force: force)
     }
 
     private func recordEvent(kind: RunEventKind, payload: [String: Any]? = nil) {
@@ -699,9 +708,17 @@ final class WatchWorkoutManager: NSObject {
         try? modelContext.save()
     }
 
-    private func publishWidgetState() {
+    private func publishWidgetState(force: Bool = false) {
+        let now = Date()
+        // Throttle widget updates to every 15 seconds.
+        // WidgetCenter.shared.invalidateRelevance dispatches to ChronoCore queue
+        // which conflicts with WatchConnectivity threads → _dispatch_assert_queue_fail.
+        // Widget timelines only refresh at ~15s intervals anyway.
+        guard force || now.timeIntervalSince(lastWidgetPublishDate) >= 15 else { return }
+        lastWidgetPublishDate = now
+
         let state = WatchWidgetState(
-            lastUpdated: Date(),
+            lastUpdated: now,
             lifecycleState: lifecycleState,
             elapsedSeconds: elapsedSeconds,
             distanceMiles: currentDistanceMiles,
@@ -712,7 +729,6 @@ final class WatchWorkoutManager: NSObject {
 
         WatchWidgetStateStore.save(state)
         WidgetCenter.shared.reloadTimelines(ofKind: LifeFlowWidgetKinds.runStatus)
-        WidgetCenter.shared.invalidateRelevance(ofKind: LifeFlowWidgetKinds.runStatus)
     }
 
     private func handleIncomingMessage(_ message: WatchRunMessage) {
@@ -728,19 +744,21 @@ final class WatchWorkoutManager: NSObject {
     }
 
     private func donateSmartStackActivity() {
-        // Donate activity for Smart Stack learning
-        let activity = NSUserActivity(activityType: "com.Fez.LifeFlow.workout")
-        activity.title = "LifeFlow Run"
-        activity.isEligibleForPrediction = true
-        activity.isEligibleForSearch = false
-        activity.persistentIdentifier = "lifeflow-workout-\(UUID().uuidString)"
+        // Reuse a single NSUserActivity to prevent rapid creation/invalidation
+        // which causes "sendUserActivityToServer called after invalidated" errors.
+        if currentActivity == nil {
+            let activity = NSUserActivity(activityType: "com.Fez.LifeFlow.workout")
+            activity.title = "LifeFlow Run"
+            activity.isEligibleForPrediction = true
+            activity.isEligibleForSearch = false
+            currentActivity = activity
+        }
 
-        activity.addUserInfoEntries(from: [
+        currentActivity?.userInfo = [
             "lifecycle_state": lifecycleState.rawValue,
             "timestamp": Date().timeIntervalSince1970
-        ])
-
-        activity.becomeCurrent()
+        ]
+        currentActivity?.becomeCurrent()
     }
 
     private func readinessInput(for style: RunType) -> ReadinessInput {

@@ -125,7 +125,7 @@ struct WeightLossChartCard: View {
             }
         }
         .padding()
-        .glassEffect(in: .rect(cornerRadius: 20))
+        .liquidGlassCard(cornerRadius: 20)
     }
     
     // MARK: - Chart Data Generation

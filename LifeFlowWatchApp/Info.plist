@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleDisplayName</key>
+	<string>LifeFlow</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>LifeFlow needs Health access to read your live running metrics and readiness context.</string>
 	<key>NSHealthUpdateUsageDescription</key>
@@ -17,6 +19,10 @@
 	<key>WKBackgroundModes</key>
 	<array>
 		<string>workout-processing</string>
+		<string>remote-notification</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
 		<string>remote-notification</string>
 	</array>
 </dict>

@@ -237,11 +237,7 @@ struct TempleView: View {
             .padding(.horizontal, 4)
         }
         .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
-        .overlay(
-            RoundedRectangle(cornerRadius: 24)
-                .stroke(.white.opacity(0.08), lineWidth: 1)
-        )
+        .liquidGlassCard()
     }
 
     private var chronicleSection: some View {
@@ -319,11 +315,7 @@ struct TempleView: View {
             }
         }
         .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
-        .overlay(
-            RoundedRectangle(cornerRadius: 24)
-                .stroke(.white.opacity(0.08), lineWidth: 1)
-        )
+        .liquidGlassCard()
     }
 
     @ViewBuilder
@@ -343,11 +335,7 @@ struct TempleView: View {
                 }
             }
             .padding(16)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
-            .overlay(
-                RoundedRectangle(cornerRadius: 24)
-                    .stroke(.white.opacity(0.08), lineWidth: 1)
-            )
+            .liquidGlassCard()
         }
     }
 
@@ -463,11 +451,7 @@ private struct TempleInsightTile: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(accent.opacity(0.25), lineWidth: 1)
-        )
+        .liquidGlassChip(cornerRadius: LiquidGlass.cornerRadiusSmall)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(title): \(value), \(caption)")
     }
@@ -602,7 +586,7 @@ struct WorkoutDetailModal: View {
                                 .foregroundStyle(.secondary)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 6)
-                                .background(.ultraThinMaterial, in: Capsule())
+                                .liquidGlassChip()
                         }
 
                         Spacer()
@@ -1025,7 +1009,7 @@ private struct StatBubble: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .liquidGlassChip(cornerRadius: LiquidGlass.cornerRadiusSmall)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(label): \(value)")
     }

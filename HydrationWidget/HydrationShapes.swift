@@ -25,7 +25,7 @@ struct WidgetWave: Shape {
         
         let clampedProgress = max(0, min(progress, 1))
         let waterline = rect.height * CGFloat(1 - clampedProgress)
-        let amplitude = rect.height * CGFloat(max(0.01, waveHeight))
+        let waveAmp = rect.height * CGFloat(max(0.01, waveHeight))
         
         path.move(to: CGPoint(x: 0, y: waterline))
         
@@ -34,7 +34,7 @@ struct WidgetWave: Shape {
         while x <= rect.width {
             let relativeX = x / max(rect.width, 1)
             let sine = sin((relativeX * .pi * 2) + CGFloat(phase))
-            let y = waterline + (amplitude * sine)
+            let y = waterline + (waveAmp * sine)
             path.addLine(to: CGPoint(x: x, y: y))
             x += step
         }

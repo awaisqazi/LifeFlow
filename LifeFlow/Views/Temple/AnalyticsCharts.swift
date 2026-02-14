@@ -232,7 +232,7 @@ struct HydrationChart: View {
             .font(.caption2)
         }
         .padding()
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .liquidGlassCard(cornerRadius: LiquidGlass.cornerRadiusSmall)
         .sheet(item: $selectedDate) { wrapper in
             HydrationDayDetailSheet(
                 date: wrapper.date,
@@ -630,7 +630,7 @@ struct GoalProgressChart: View {
             .chartYScale(domain: 0...goal.targetAmount)
         }
         .padding()
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .liquidGlassCard(cornerRadius: LiquidGlass.cornerRadiusSmall)
     }
 }
 
@@ -707,7 +707,7 @@ struct ConsistencyHeatmap: View {
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding()
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .liquidGlassCard(cornerRadius: LiquidGlass.cornerRadiusSmall)
     }
     
     private func calculateIntensity(for log: DayLog?) -> Double {

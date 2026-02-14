@@ -93,16 +93,25 @@ struct DistanceCardioView: View {
             
             if !hasCenteredMap {
                 hasCenteredMap = true
-                mapPosition = .region(Self.region(around: coordinate))
-            } else {
                 mapPosition = .camera(
                     MapCamera(
                         centerCoordinate: coordinate,
-                        distance: 900,
+                        distance: 800,
                         heading: 0,
-                        pitch: 0
+                        pitch: 45
                     )
                 )
+            } else {
+                withAnimation(.easeInOut(duration: 1.0)) {
+                    mapPosition = .camera(
+                        MapCamera(
+                            centerCoordinate: coordinate,
+                            distance: 600,
+                            heading: liveLocationTracker.currentHeading ?? 0,
+                            pitch: 45
+                        )
+                    )
+                }
             }
         }
     }
@@ -216,147 +225,173 @@ struct DistanceCardioView: View {
     // MARK: - Active View
     
     private var activeView: some View {
-        VStack(spacing: 20) {
-            HStack(spacing: 8) {
-                Image(systemName: gymModeManager.isIndoorRun ? "house.fill" : "location.fill")
-                    .foregroundStyle(gymModeManager.isIndoorRun ? .orange : .cyan)
-                Text(gymModeManager.isIndoorRun ? "Indoor run" : "Outdoor run")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 4)
-            
-            // Progress ring with distance (Standard sizing)
-            ZStack {
-                Circle()
-                    .stroke(Color.white.opacity(0.1), lineWidth: 10)
-                    .frame(width: 160, height: 160)
-                
-                Circle()
-                    .trim(from: 0, to: progress)
-                    .stroke(
-                        LinearGradient(
-                            colors: [.purple, .pink],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        style: StrokeStyle(lineWidth: 10, lineCap: .round)
-                    )
-                    .frame(width: 160, height: 160)
-                    .rotationEffect(.degrees(-90))
-                    .animation(.linear(duration: 1), value: progress)
-                
-                VStack(spacing: 2) {
-                    Text(String(format: "%.2f", displayDistance))
-                        .font(.system(size: 36, weight: .bold, design: .rounded).monospacedDigit())
-                        .foregroundStyle(.primary)
+        ZStack(alignment: .bottom) {
+            // === IMMERSIVE BACKGROUND ===
+            if gymModeManager.isIndoorRun {
+                // Gamified treadmill experience
+                TreadmillRunnerView(
+                    currentDistance: displayDistance,
+                    targetDistance: targetDistance,
+                    speed: speed,
+                    elapsedTime: elapsedTime,
+                    formattedPace: formattedPace,
+                    formattedTime: formattedElapsedTime,
+                    ghostProgress: ghostProgress,
+                    ghostDeltaLabel: ghostDeltaLabel,
+                    ghostDelta: ghostDelta,
+                    showGhostRunner: shouldShowGhostRunner
+                )
+                .ignoresSafeArea()
+            } else {
+                // Edge-to-edge 3D terrain map
+                Map(position: $mapPosition) {
+                    UserAnnotation()
                     
-                    Text("of \(String(format: "%.1f", targetDistance)) mi")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(.top, 8)
-            
-            // Elapsed and Pace
-            HStack(spacing: 32) {
-                VStack(spacing: 2) {
-                    Text(formattedElapsedTime)
-                        .font(.title3.weight(.bold).monospacedDigit())
-                    Text("TIME")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(.secondary)
-                }
-                
-                VStack(spacing: 2) {
-                    Text(formattedPace)
-                        .font(.title3.weight(.bold).monospacedDigit())
-                    Text("PACE")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            
-            if gymModeManager.isIndoorRun, shouldShowGhostRunner {
-                VStack(spacing: 8) {
-                    GhostRunnerBar(progress: progress, ghostProgress: ghostProgress)
-                    
-                    HStack {
-                        Text(ghostDeltaLabel)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(ghostDelta >= 0 ? .green : .orange)
-                        Spacer()
-                        Text("Target \(formattedTargetPace)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    if liveLocationTracker.routeCoordinates.count > 1 {
+                        MapPolyline(coordinates: liveLocationTracker.routeCoordinates)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [.cyan, .indigo],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ),
+                                style: StrokeStyle(lineWidth: 8, lineCap: .round, lineJoin: .round)
+                            )
                     }
                 }
-                .padding(.horizontal, 2)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-            
-            if !gymModeManager.isIndoorRun {
-                outdoorLiveMapPanel
-            }
-            
-            Button {
-                gymModeManager.toggleVoiceCoachMute()
-            } label: {
-                HStack(spacing: 8) {
-                    Image("ai_coach_orb")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 22, height: 22)
-                        .clipShape(Circle())
-                        .overlay(
-                            Circle()
-                                .stroke(Color.white.opacity(0.18), lineWidth: 0.8)
-                        )
-
-                    Image(systemName: gymModeManager.isVoiceCoachMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                    Text(gymModeManager.isVoiceCoachMuted ? "Voice Muted" : "Voice On")
-                        .font(.subheadline.weight(.semibold))
+                .mapStyle(.standard(elevation: .realistic))
+                .mapControls {
+                    MapCompass()
+                    MapPitchToggle()
                 }
-                .foregroundStyle(gymModeManager.isVoiceCoachMuted ? .orange : .green)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(Color.white.opacity(0.1), in: Capsule())
+                .ignoresSafeArea()
             }
-            .buttonStyle(.plain)
             
-            if gymModeManager.isIndoorRun {
-                // Speed and incline are only editable for treadmill sessions.
+            // === COMPACT FLOATING CONTROLS ===
+            VStack(spacing: 0) {
+                Spacer()
+                
                 VStack(spacing: 12) {
-                    HStack(spacing: 12) {
-                        CardioSettingBox(
-                            label: "Speed",
-                            value: speed,
-                            unit: "mph",
-                            color: .green,
-                            isExpanded: expandedSetting == .speed,
-                            onTap: {
+                    // Metric row — single line
+                    HStack(spacing: 0) {
+                        // Distance
+                        VStack(spacing: 2) {
+                            Text(String(format: "%.2f", displayDistance))
+                                .font(.system(size: 28, weight: .black, design: .rounded).monospacedDigit())
+                                .foregroundStyle(.white)
+                                .contentTransition(.numericText())
+                            Text("MI")
+                                .font(.system(size: 9, weight: .heavy))
+                                .foregroundStyle(.white.opacity(0.5))
+                        }
+                        .frame(maxWidth: .infinity)
+                        
+                        // Divider
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(.white.opacity(0.15))
+                            .frame(width: 1, height: 32)
+                        
+                        // Pace
+                        VStack(spacing: 2) {
+                            Text(paceDisplayValue)
+                                .font(.system(size: 28, weight: .black, design: .rounded).monospacedDigit())
+                                .foregroundStyle(.white)
+                                .contentTransition(.numericText())
+                            Text("/MI")
+                                .font(.system(size: 9, weight: .heavy))
+                                .foregroundStyle(.white.opacity(0.5))
+                        }
+                        .frame(maxWidth: .infinity)
+                        
+                        // Divider
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(.white.opacity(0.15))
+                            .frame(width: 1, height: 32)
+                        
+                        // Time
+                        VStack(spacing: 2) {
+                            Text(formattedElapsedTime)
+                                .font(.system(size: 28, weight: .black, design: .rounded).monospacedDigit())
+                                .foregroundStyle(.white)
+                                .contentTransition(.numericText())
+                            Text("TIME")
+                                .font(.system(size: 9, weight: .heavy))
+                                .foregroundStyle(.white.opacity(0.5))
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    
+                    // Controls strip
+                    HStack(spacing: 16) {
+                        // Voice
+                        Button {
+                            gymModeManager.toggleVoiceCoachMute()
+                        } label: {
+                            Image(systemName: gymModeManager.isVoiceCoachMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                                .font(.body.weight(.semibold))
+                                .foregroundStyle(gymModeManager.isVoiceCoachMuted ? .orange : .green)
+                                .frame(width: 44, height: 44)
+                                .background(Color.white.opacity(0.08), in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        
+                        if gymModeManager.isIndoorRun {
+                            // Compact speed/incline
+                            Button {
                                 withAnimation(.spring(response: 0.3)) {
                                     expandedSetting = expandedSetting == .speed ? nil : .speed
                                 }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "speedometer")
+                                        .font(.caption2)
+                                    Text(String(format: "%.1f", speed))
+                                        .font(.caption.weight(.bold).monospacedDigit())
+                                }
+                                .foregroundStyle(.green)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Color.green.opacity(0.12), in: Capsule())
                             }
-                        )
-                        
-                        CardioSettingBox(
-                            label: "Incline",
-                            value: incline,
-                            unit: "%",
-                            color: .orange,
-                            isExpanded: expandedSetting == .incline,
-                            onTap: {
+                            .buttonStyle(.plain)
+                            
+                            Button {
                                 withAnimation(.spring(response: 0.3)) {
                                     expandedSetting = expandedSetting == .incline ? nil : .incline
                                 }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "arrow.up.right")
+                                        .font(.caption2)
+                                    Text(String(format: "%.1f%%", incline))
+                                        .font(.caption.weight(.bold).monospacedDigit())
+                                }
+                                .foregroundStyle(.orange)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Color.orange.opacity(0.12), in: Capsule())
                             }
-                        )
+                            .buttonStyle(.plain)
+                        }
+                        
+                        Spacer()
+                        
+                        // Stop
+                        Button {
+                            showEndEarlyAlert = true
+                        } label: {
+                            Image(systemName: "stop.fill")
+                                .font(.body.weight(.bold))
+                                .foregroundStyle(.white)
+                                .frame(width: 52, height: 52)
+                                .background(.red.gradient, in: Circle())
+                                .shadow(color: .red.opacity(0.4), radius: 8, y: 4)
+                        }
+                        .buttonStyle(.plain)
                     }
                     
-                    if let setting = expandedSetting {
+                    // Expanded speed/incline adjuster
+                    if gymModeManager.isIndoorRun, let setting = expandedSetting {
                         CardioIncrementInput(
                             value: setting == .speed ? $speed : $incline,
                             unit: setting == .speed ? "mph" : "%",
@@ -369,28 +404,15 @@ struct DistanceCardioView: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
-            } else {
-                sensorMeasuredActivePanel
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-            
-            // End early button
-            Button {
-                showEndEarlyAlert = true
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "stop.fill")
-                        .font(.caption)
-                    Text("End Run Early")
-                        .font(.subheadline.weight(.semibold))
-                }
-                .foregroundStyle(.red)
                 .padding(.horizontal, 20)
-                .padding(.vertical, 10)
-                .background(Color.red.opacity(0.15), in: Capsule())
+                .padding(.vertical, 16)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28))
+                .padding(.horizontal, 12)
+                .padding(.bottom, 8)
             }
-            .buttonStyle(.plain)
+            .ignoresSafeArea(edges: .bottom)
         }
+        .toolbarBackground(.hidden, for: .navigationBar)
     }
     
     // MARK: - Celebration View
@@ -667,6 +689,15 @@ struct DistanceCardioView: View {
         return String(format: "%d:%02d /mi", mins, secs)
     }
     
+    /// Clean pace value for compact display (no suffix).
+    private var paceDisplayValue: String {
+        guard displayDistance > 0 else { return "--:--" }
+        let paceSeconds = elapsedTime / displayDistance
+        let mins = Int(paceSeconds) / 60
+        let secs = Int(paceSeconds) % 60
+        return String(format: "%d:%02d", mins, secs)
+    }
+    
     private var allIntervalsWithCurrent: [CardioInterval] {
         let all = intervals
         var current = CardioInterval(speed: speed, incline: incline)
@@ -830,6 +861,7 @@ private final class LiveRunLocationTracker: NSObject, ObservableObject, CLLocati
     @Published private(set) var trackedDistanceMiles: Double = 0
     @Published private(set) var currentSpeedMPH: Double?
     @Published private(set) var currentGradePercent: Double?
+    @Published private(set) var currentHeading: Double?
     @Published private(set) var authorizationStatus: CLAuthorizationStatus
     @Published private(set) var locationError: String?
     
@@ -881,6 +913,7 @@ private final class LiveRunLocationTracker: NSObject, ObservableObject, CLLocati
         trackedDistanceMiles = 0
         currentSpeedMPH = nil
         currentGradePercent = nil
+        currentHeading = nil
         locationError = nil
     }
     
@@ -944,6 +977,15 @@ private final class LiveRunLocationTracker: NSObject, ObservableObject, CLLocati
         } else {
             currentSpeedMPH = speedMPH
         }
+        
+        // Track heading for map camera
+        if location.course >= 0, location.course.isFinite {
+            if let existingHeading = currentHeading {
+                currentHeading = (existingHeading * 0.7) + (location.course * 0.3)
+            } else {
+                currentHeading = location.course
+            }
+        }
     }
     
     private func updateGrade(from last: CLLocation, to current: CLLocation, horizontalDistance: Double) {
@@ -992,6 +1034,60 @@ private struct SensorReadoutBox: View {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(color.opacity(0.35), lineWidth: 1)
         )
+    }
+}
+
+// MARK: - Progress Pill
+
+/// Compact distance progress indicator for the floating metric platter.
+private struct ProgressPill: View {
+    let progress: Double
+    let currentDistance: Double
+    let targetDistance: Double
+    
+    var body: some View {
+        VStack(spacing: 6) {
+            HStack {
+                Text(String(format: "%.2f mi", currentDistance))
+                    .font(.caption.weight(.bold).monospacedDigit())
+                    .foregroundStyle(.cyan)
+                    .contentTransition(.numericText())
+                
+                Spacer()
+                
+                Text(String(format: "%.1f mi", targetDistance))
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+            
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.1))
+                    
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [.cyan, .green],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: geo.size.width * CGFloat(min(1.0, progress)))
+                        .shadow(color: .cyan.opacity(0.5), radius: 6)
+                        .animation(.easeInOut(duration: 0.5), value: progress)
+                    
+                    // Quarter markers
+                    ForEach([0.25, 0.5, 0.75], id: \.self) { marker in
+                        Circle()
+                            .fill(progress >= marker ? .white : .white.opacity(0.2))
+                            .frame(width: 6, height: 6)
+                            .offset(x: geo.size.width * CGFloat(marker) - 3)
+                    }
+                }
+            }
+            .frame(height: 8)
+        }
     }
 }
 

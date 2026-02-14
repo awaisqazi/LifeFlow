@@ -184,7 +184,7 @@ struct FlowPrintPosterView: View {
         .frame(maxWidth: .infinity)
         .frame(height: isStory ? 760 : 350)
         .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 38))
+        .liquidGlassCard(cornerRadius: 38)
         .overlay(alignment: .bottomLeading) {
             Image("icon_runner_fluid")
                 .resizable()
@@ -196,10 +196,6 @@ struct FlowPrintPosterView: View {
                 .padding(.bottom, 18)
                 .accessibilityHidden(true)
         }
-        .overlay(
-            RoundedRectangle(cornerRadius: 38)
-                .stroke(Color.white.opacity(0.13), lineWidth: 1)
-        )
     }
 
     private var highlightsPanel: some View {
@@ -424,8 +420,8 @@ private struct FlowPrintRouteView: View {
 
     private func waveHeight(at index: Int) -> CGFloat {
         let normalized = Double(index) / 5.3
-        let amplitude = (sin(normalized) + cos(normalized * 0.62)) * 0.5 + 0.5
-        return CGFloat(48 + amplitude * 108)
+        let barScale = (sin(normalized) + cos(normalized * 0.62)) * 0.5 + 0.5
+        return CGFloat(48 + barScale * 108)
     }
 
     private func path(for points: [CGPoint]) -> Path {
