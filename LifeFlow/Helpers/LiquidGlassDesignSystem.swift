@@ -46,6 +46,7 @@ struct LiquidGlassCardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background(.ultraThinMaterial)
+            .compositingGroup() // MARK: GPU Optimization — Flatten material + gradient into one raster layer
             .environment(\.colorScheme, .dark)
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay(
@@ -72,6 +73,7 @@ struct LiquidGlassChipModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background(.ultraThinMaterial)
+            .compositingGroup() // MARK: GPU Optimization — Flatten material + gradient into one raster layer
             .environment(\.colorScheme, .dark)
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay(

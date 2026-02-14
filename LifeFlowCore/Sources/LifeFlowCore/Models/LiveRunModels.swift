@@ -34,10 +34,21 @@ public struct LiveRunMetrics: Codable, Sendable, Equatable {
 public struct BiomechanicalMetrics: Codable, Sendable, Equatable {
     public var verticalOscillationCm: Double
     public var groundContactBalancePercent: Double
+    /// Ground Contact Time in milliseconds (typical: 160–300ms)
+    public var groundContactTimeMs: Double
+    /// Estimated running power in watts (simplified model, 0–600W range)
+    public var runningPowerWatts: Double
 
-    public init(verticalOscillationCm: Double, groundContactBalancePercent: Double) {
+    public init(
+        verticalOscillationCm: Double,
+        groundContactBalancePercent: Double,
+        groundContactTimeMs: Double = 0,
+        runningPowerWatts: Double = 0
+    ) {
         self.verticalOscillationCm = verticalOscillationCm
         self.groundContactBalancePercent = groundContactBalancePercent
+        self.groundContactTimeMs = groundContactTimeMs
+        self.runningPowerWatts = runningPowerWatts
     }
 }
 

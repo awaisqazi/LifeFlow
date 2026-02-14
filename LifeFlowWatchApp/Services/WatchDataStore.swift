@@ -3,14 +3,33 @@ import SwiftData
 import LifeFlowCore
 import os
 
-@MainActor
-final class WatchDataStore: Sendable {
-    static let shared = WatchDataStore()
+// MARK: - WatchDataStore (@ModelActor)
+// Refactored from @MainActor to @ModelActor so that all SwiftData context
+// operations (inserts, fetches, CloudKit sync) happen on a background
+// serial executor. This prevents main-thread congestion and Watchdog
+// terminations under heavy WCSession callback floods on watchOS 26.
 
-    let modelContainer: ModelContainer
-    private let logger = Logger(subsystem: "com.Fez.LifeFlow.watch", category: "DataStore")
+@ModelActor
+actor WatchDataStore {
+    // MARK: - Shared Instance
 
-    private init() {
+    /// Thread-safe shared accessor. The actor is lazily initialized on first access.
+    /// Because `WatchDataStore` is a `@ModelActor`, its `modelContainer` and
+    /// `modelContext` are synthesized by the macro on a private background executor.
+    static let shared: WatchDataStore = {
+        let container = WatchDataStore.createModelContainer()
+        return WatchDataStore(modelContainer: container)
+    }()
+
+    private static let logger = Logger(subsystem: "com.Fez.LifeFlow.watch", category: "DataStore")
+
+    // MARK: - Container Factory
+
+    /// Creates the ModelContainer with a three-tier fallback:
+    /// 1. Persistent local store (no CloudKit — the iPhone handles sync)
+    /// 2. Delete corrupted store files and retry
+    /// 3. In-memory fallback to prevent crash loops
+    nonisolated static func createModelContainer() -> ModelContainer {
         // Use the actual top-level @Model types — NOT the nested VersionedSchema copies.
         // Using Schema(versionedSchema:) registers WatchRunSchemaV1.WatchWorkoutSession,
         // which is a different type than the top-level WatchWorkoutSession used throughout the app.
@@ -35,16 +54,17 @@ final class WatchDataStore: Sendable {
         )
 
         do {
-            modelContainer = try ModelContainer(
+            let container = try ModelContainer(
                 for: schema,
                 configurations: [localConfig]
             )
             logger.info("Local ModelContainer initialized successfully.")
+            return container
         } catch {
             logger.error("Local store init failed: \(error.localizedDescription). Deleting corrupted store and retrying.")
 
             // Attempt 2: Delete corrupted store files and retry
-            Self.deleteStoreFiles(at: storeURL)
+            deleteStoreFiles(at: storeURL)
 
             let freshConfig = ModelConfiguration(
                 schema: schema,
@@ -53,11 +73,12 @@ final class WatchDataStore: Sendable {
             )
 
             do {
-                modelContainer = try ModelContainer(
+                let container = try ModelContainer(
                     for: schema,
                     configurations: [freshConfig]
                 )
                 logger.info("Fresh local ModelContainer initialized after store reset.")
+                return container
             } catch {
                 // Attempt 3: In-memory fallback to prevent crash loops
                 logger.fault("All persistent stores failed. Using in-memory container.")
@@ -65,7 +86,7 @@ final class WatchDataStore: Sendable {
                     schema: schema,
                     isStoredInMemoryOnly: true
                 )
-                modelContainer = try! ModelContainer(
+                return try! ModelContainer(
                     for: schema,
                     configurations: [memoryConfig]
                 )
@@ -73,8 +94,10 @@ final class WatchDataStore: Sendable {
         }
     }
 
+    // MARK: - Store Helpers
+
     /// Deletes the SQLite store and its companion -wal/-shm files.
-    private static func deleteStoreFiles(at url: URL) {
+    private nonisolated static func deleteStoreFiles(at url: URL) {
         let fm = FileManager.default
         let suffixes = ["", "-wal", "-shm"]
         for suffix in suffixes {
@@ -83,7 +106,7 @@ final class WatchDataStore: Sendable {
         }
     }
 
-    private static func storeURL(appGroupID: String) -> URL {
+    private nonisolated static func storeURL(appGroupID: String) -> URL {
         guard let container = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: appGroupID
         ) else {
@@ -91,5 +114,15 @@ final class WatchDataStore: Sendable {
         }
 
         return container.appendingPathComponent("LifeFlowWatch.sqlite")
+    }
+
+    // MARK: - Background Data Ingestion
+
+    /// Ingest a WatchRunMessage payload from WCSession on this background actor,
+    /// keeping SwiftData operations entirely off the main thread.
+    func ingest(_ message: WatchRunMessage) {
+        // Future: decode and persist telemetry snapshots, run events, etc.
+        // This method is the safe entry point for WCSession delegate callbacks.
+        Self.logger.debug("Ingesting WatchRunMessage on background actor: \(message.event.rawValue)")
     }
 }

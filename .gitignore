@@ -1,0 +1,116 @@
+
+# Xcode
+build/
+*.log
+
+# gitignore contributors: remember to update Global/Xcode.gitignore, Objective-C.gitignore & Swift.gitignore
+
+## User settings
+xcuserdata/
+
+## compatibility with Xcode 8 and earlier (ignoring these is safe for newer versions too)
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.uiauser
+*.iws
+
+## Misc
+!default.mode1v3
+!default.mode2v3
+!default.perspectivev3
+ou/
+*.moved-aside
+DerivedData/
+*.hmap
+*.ipa
+*.xccheckout
+*.xcscmblueprint
+
+## Fastlane
+#
+# It is recommended to not store the screenshots in the git repo.
+# Instead, use fastlane to re-generate the screenshots whenever they are needed.
+# For more information about the recommended setup visit:
+# https://docs.fastlane.tools/best-practices/source-control/
+
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+
+## Code Injection
+#
+# After new code Injection tools there's a generated folder /iOSInjectionProject
+# https://github.com/johnno1962/injectionforxcode
+
+iOSInjectionProject/
+
+## CocoaPods
+#
+# We recommend against adding the Pods directory to your .gitignore. However
+# you should judge for yourself, the pros and cons are mentioned at:
+# https://guides.cocoapods.org/using/using-cocoapods.html#should-i-check-the-pods-directory-into-source-control
+#
+# Note: if you ignore the Pods directory, make sure to uncomment
+# the Podfile.lock line too
+
+# Pods/
+# Podfile.lock
+
+## Carthage
+#
+# Add this line if you want to avoid checking in source code from Carthage dependencies.
+# Carthage/Checkouts
+
+Carthage/Build/
+
+## Accio dependency manager
+Dependencies/
+.accio/
+
+## Swift Package Manager
+#
+# Add this line if you want to avoid checking in source code from Swift Package Manager dependencies.
+Packages/
+Package.pins
+.build/
+.swiftpm/xcode/
+.swiftpm/security/
+
+## Obj-C/Swift specific
+#
+*.hmap
+
+## App packaging
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+## Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+## SwiftData / CoreData
+#
+# SwiftData/CoreData generated files causing merge conflicts
+*.momd
+*.xcdatamodeld/*.xcdatamodel/
+
+# SwiftUI Preview Assets
+Preview/
+
+# Flutter / Dart
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/app.flx
+**/ios/Flutter/app.zip
+**/ios/Flutter/flutter_assets/
+**/ios/Flutter/uni_links_desktop.png
+**/ios/Flutter/uni_links_mobile.png
+
+## System
+.DS_Store
+.Trashes
+._*
+Desktop.ini
+Thumbs.db

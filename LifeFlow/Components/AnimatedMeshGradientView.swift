@@ -10,6 +10,9 @@ import SwiftUI
 /// A sophisticated animated mesh gradient that creates an organic "breathing" effect.
 /// Uses TimelineView with complex sine waves to animate control points,
 /// ensuring the animation never repeats exactly for a natural, flowing appearance.
+///
+/// Battery optimization: The animation is gated on `scenePhase` so the GPU
+/// halts rendering when the app is backgrounded or in AOD mode.
 struct AnimatedMeshGradientView: View {
     /// The current theme determining the color palette
     let theme: MeshGradientTheme
@@ -23,6 +26,28 @@ struct AnimatedMeshGradientView: View {
     /// The magnitude of point movement (0.0 to 0.15 recommended)
     private let driftMagnitude: Float = 0.08
     
+    // MARK: - ScenePhase Gating
+    // Reading scenePhase allows us to freeze the animation timeline when
+    // the app goes to the background or the Watch enters Always-On Display,
+    // saving significant GPU power and preventing thermal throttling.
+    @Environment(\.scenePhase) private var scenePhase
+
+    #if os(watchOS)
+    /// On watchOS, also freeze animation when the display enters reduced
+    /// luminance (Always-On Display / wrist-down state).
+    @Environment(\.isLuminanceReduced) private var isLuminanceReduced
+    #endif
+
+    /// Whether the mesh animation should be actively running.
+    /// False when the app is backgrounded, inactive, or in AOD mode.
+    private var isAnimating: Bool {
+        #if os(watchOS)
+        return scenePhase == .active && !isLuminanceReduced
+        #else
+        return scenePhase == .active
+        #endif
+    }
+
     /// Configuration for each control point's animation
     private struct PointAnimation {
         let basePosition: SIMD2<Float>
@@ -61,10 +86,24 @@ struct AnimatedMeshGradientView: View {
         PointAnimation(basePosition: SIMD2(1.0, 1.0), xFrequency: 0.0, yFrequency: 0.0,
                       xPhase: 0, yPhase: 0, xDrift: 0, yDrift: 0),
     ]
+
+    /// Snapshot of the last time used when animation was active, so the
+    /// frozen frame doesn't jump to Date() when the timeline resumes.
+    @State private var frozenTime: TimeInterval = 0
     
     var body: some View {
-        TimelineView(.animation) { timeline in
-            let time = timeline.date.timeIntervalSinceReferenceDate * animationSpeed
+        // MARK: Timeline Schedule Selection
+        // When active, use .animation for 60fps smooth rendering.
+        // When inactive, use .everyMinute to effectively freeze the mesh,
+        // saving the GPU from rendering frames nobody can see.
+        TimelineView(isAnimating ? .animation : .everyMinute) { timeline in
+            let time: TimeInterval = {
+                if isAnimating {
+                    return timeline.date.timeIntervalSinceReferenceDate * animationSpeed
+                } else {
+                    return frozenTime
+                }
+            }()
             
             MeshGradient(
                 width: 3,
@@ -72,7 +111,18 @@ struct AnimatedMeshGradientView: View {
                 points: animatedPoints(at: time),
                 colors: currentColors
             )
+            // MARK: GPU Optimization — Rasterize the animated mesh on the GPU
+            // drawingGroup() renders the MeshGradient into a Metal texture,
+            // compositing it as a single flat bitmap instead of per-frame
+            // through the SwiftUI render tree. Critical for battery life
+            // when layered under .ultraThinMaterial Liquid Glass cards.
+            .drawingGroup()
             .ignoresSafeArea()
+            .onChange(of: isAnimating) { _, newValue in
+                if !newValue {
+                    frozenTime = timeline.date.timeIntervalSinceReferenceDate * animationSpeed
+                }
+            }
         }
     }
     
