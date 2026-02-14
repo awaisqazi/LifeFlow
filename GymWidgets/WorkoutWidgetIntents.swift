@@ -11,7 +11,7 @@ import ActivityKit
 
 // MARK: - Start Workout Intent
 
-struct StartWorkoutIntent: AppIntent {
+struct StartWorkoutIntent: AppIntent, Sendable {
     static var title: LocalizedStringResource = "Start Workout"
     static var description = IntentDescription("Opens the app to start a workout.")
     static var openAppWhenRun: Bool = true
@@ -24,7 +24,7 @@ struct StartWorkoutIntent: AppIntent {
 
 // MARK: - Add Reps Intent
 
-struct AddRepsIntent: AppIntent {
+struct AddRepsIntent: AppIntent, Sendable {
     static var title: LocalizedStringResource = "Add Reps"
     static var description = IntentDescription("Increments the rep count for tracking.")
     
@@ -58,7 +58,7 @@ struct AddRepsIntent: AppIntent {
 
 // MARK: - Add Rest Time Intent
 
-struct AddRestTimeIntent: AppIntent {
+struct AddRestTimeIntent: AppIntent, Sendable {
     static var title: LocalizedStringResource = "Add Rest Time"
     static var description = IntentDescription("Adds time to the current rest timer.")
     
@@ -92,7 +92,7 @@ struct AddRestTimeIntent: AppIntent {
 
 // MARK: - Skip Rest Intent
 
-struct SkipRestIntent: AppIntent {
+struct SkipRestIntent: AppIntent, Sendable {
     static var title: LocalizedStringResource = "Skip Rest"
     static var description = IntentDescription("Skips the current rest timer.")
     
@@ -111,7 +111,7 @@ struct SkipRestIntent: AppIntent {
 
 // MARK: - Pause Workout Intent
 
-struct PauseWorkoutIntent: AppIntent {
+struct PauseWorkoutIntent: AppIntent, Sendable {
     static var title: LocalizedStringResource = "Pause Workout"
     static var description = IntentDescription("Pauses the current active workout.")
 
@@ -163,7 +163,7 @@ struct PauseWorkoutIntent: AppIntent {
 
 // MARK: - Resume Workout Intent
 
-struct ResumeWorkoutIntent: AppIntent {
+struct ResumeWorkoutIntent: AppIntent, Sendable {
     static var title: LocalizedStringResource = "Resume Workout"
     static var description = IntentDescription("Resumes the paused workout.")
 
@@ -207,7 +207,7 @@ struct ResumeWorkoutIntent: AppIntent {
 
 // MARK: - Skip Exercise Intent
 
-struct SkipExerciseIntent: AppIntent {
+struct SkipExerciseIntent: AppIntent, Sendable {
     static var title: LocalizedStringResource = "Skip Exercise"
     static var description = IntentDescription("Skips the current exercise set.")
 

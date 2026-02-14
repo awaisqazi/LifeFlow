@@ -2,7 +2,7 @@ import SwiftUI
 import WidgetKit
 import LifeFlowCore
 
-private struct RunComplicationEntry: TimelineEntry {
+private struct RunComplicationEntry: TimelineEntry, Sendable {
     let date: Date
     let state: WatchWidgetState
     let relevance: TimelineEntryRelevance?
@@ -47,6 +47,49 @@ private struct RunComplicationProvider: TimelineProvider {
     private func relevance(for state: WatchWidgetState) -> TimelineEntryRelevance? {
         // Use enhanced Smart Stack relevance provider
         return SmartStackRelevanceProvider.relevance(for: state)
+    }
+
+    func relevances() async -> WidgetRelevances<Void> {
+        let state = WatchWidgetStateStore.load()
+
+        let calendar = Calendar.current
+        let now = Date()
+        var entries: [WidgetRelevanceEntry<Void>] = []
+
+        // Active workout: max relevance for the next hour
+        if state.lifecycleState == .running || state.lifecycleState == .paused {
+            let end = now.addingTimeInterval(3600)
+            entries.append(
+                WidgetRelevanceEntry(
+                    context: .date(from: now, to: end),
+                    score: 100
+                )
+            )
+        }
+
+        // Morning window (5-9 AM): moderate promotion
+        if let morningStart = calendar.date(bySettingHour: 5, minute: 0, second: 0, of: now),
+           let morningEnd = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: now) {
+            entries.append(
+                WidgetRelevanceEntry(
+                    context: .date(from: morningStart, to: morningEnd),
+                    score: 40
+                )
+            )
+        }
+
+        // Evening window (5-8 PM): moderate promotion
+        if let eveningStart = calendar.date(bySettingHour: 17, minute: 0, second: 0, of: now),
+           let eveningEnd = calendar.date(bySettingHour: 20, minute: 0, second: 0, of: now) {
+            entries.append(
+                WidgetRelevanceEntry(
+                    context: .date(from: eveningStart, to: eveningEnd),
+                    score: 40
+                )
+            )
+        }
+
+        return WidgetRelevances(entries)
     }
 }
 

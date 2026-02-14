@@ -325,41 +325,43 @@ private struct LargeWidgetView: View {
     // MARK: - Header Section
     
     private var headerSection: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 8) {
+            // Full-width header bar: title left, timer right
             HStack {
-                // Workout Title
                 VStack(alignment: .leading, spacing: 2) {
                     Text(state.workoutTitle.isEmpty ? "WORKOUT" : state.workoutTitle.uppercased())
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundStyle(.secondary)
-                    
+
                     if state.totalExercises > 0 {
                         Text("Exercise \(state.currentExerciseIndex + 1) of \(state.totalExercises)")
                             .font(.system(size: 10, weight: .medium, design: .rounded))
                             .foregroundStyle(.tertiary)
                     }
                 }
-                
+
                 Spacer()
-                
-                // Elapsed Timer
-                HStack(spacing: 6) {
-                    Image(systemName: "clock.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                    
+
+                VStack(alignment: .trailing, spacing: 1) {
                     WorkoutTimerText(
                         state: state,
                         referenceDate: referenceDate,
-                        fontSize: 14,
+                        fontSize: 16,
                         isFullColor: isFullColor
                     )
+
+                    Text(state.timerLabel)
+                        .font(.system(size: 8, weight: .bold, design: .rounded))
+                        .foregroundStyle(.tertiary)
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color.white.opacity(0.08), in: Capsule())
             }
-            
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.primary.opacity(isFullColor ? 0.06 : 0.1))
+            }
+
             if state.totalExercises > 0 {
                 WorkoutProgressView(
                     label: "Workout \(state.currentExerciseIndex + 1) of \(state.totalExercises)",
@@ -439,7 +441,7 @@ private struct ExerciseCard: View {
         .background {
             if isFullColor {
                 RoundedRectangle(cornerRadius: 14)
-                    .fill(Color.white.opacity(position == .previous ? 0.04 : 0.06))
+                    .fill(.ultraThinMaterial)
             }
         }
         .overlay(
@@ -531,7 +533,7 @@ private struct CurrentExerciseCard: View {
         .background {
             if isFullColor {
                 RoundedRectangle(cornerRadius: 18)
-                    .fill(Color.white.opacity(0.08))
+                    .fill(.ultraThinMaterial)
             }
         }
         .overlay(
@@ -690,10 +692,10 @@ private struct StatusBadge: View {
     let isFullColor: Bool
     let font: Font
     let dotSize: CGFloat
-    
+
     var body: some View {
         let tint = isFullColor ? state.timerColor : Color.primary
-        HStack(spacing: 4) {
+        let content = HStack(spacing: 4) {
             Circle()
                 .fill(tint)
                 .frame(width: dotSize, height: dotSize)
@@ -702,6 +704,22 @@ private struct StatusBadge: View {
                 .font(font)
                 .foregroundStyle(tint)
                 .widgetAccentable()
+        }
+
+        if isFullColor {
+            content
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background {
+                    Capsule()
+                        .fill(.ultraThinMaterial)
+                        .overlay {
+                            Capsule()
+                                .stroke(tint.opacity(0.42), lineWidth: 0.8)
+                        }
+                }
+        } else {
+            content
         }
     }
 }

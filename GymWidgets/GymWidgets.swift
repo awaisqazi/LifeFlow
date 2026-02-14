@@ -10,7 +10,7 @@ import SwiftUI
 
 // MARK: - Timeline Entry
 
-struct WorkoutEntry: TimelineEntry {
+struct WorkoutEntry: TimelineEntry, Sendable {
     let date: Date
     let state: WorkoutWidgetState
 }

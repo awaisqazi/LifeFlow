@@ -91,16 +91,3 @@ struct SmartStackRelevanceProvider {
         activity.becomeCurrent()
     }
 }
-
-/// Extension to add Smart Stack relevance to widget entries
-extension TimelineEntryRelevance {
-    /// Create relevance with both score and duration
-    /// - Parameters:
-    ///   - score: Relevance score (0-100)
-    ///   - duration: How long this relevance lasts in seconds
-    init(score: Float, duration: TimeInterval) {
-        // TimelineEntryRelevance only has score in the current API
-        // Duration is managed through timeline refresh policy
-        self.init(score: score)
-    }
-}

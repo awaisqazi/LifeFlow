@@ -11,7 +11,7 @@ import WidgetKit
 
 /// Shared workout state between main app and widget extension.
 /// Uses App Group UserDefaults for communication.
-struct WorkoutWidgetState: Codable {
+struct WorkoutWidgetState: Codable, Sendable {
     var isActive: Bool
     var workoutTitle: String
     var exerciseName: String

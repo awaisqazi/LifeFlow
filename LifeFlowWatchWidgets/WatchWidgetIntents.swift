@@ -8,7 +8,7 @@ enum WidgetPendingIntentKind: String, Codable {
     case toggleMetrics
 }
 
-struct WidgetPendingIntentAction: Codable {
+struct WidgetPendingIntentAction: Codable, Sendable {
     var id: UUID
     var kind: WidgetPendingIntentKind
     var timestamp: Date
@@ -42,7 +42,7 @@ enum WidgetIntentRelay {
     }
 }
 
-struct WidgetStartRunIntent: AppIntent {
+struct WidgetStartRunIntent: AppIntent, Sendable {
     static let title: LocalizedStringResource = "Start LifeFlow Run"
 
     func perform() async throws -> some IntentResult {
@@ -53,7 +53,7 @@ struct WidgetStartRunIntent: AppIntent {
     }
 }
 
-struct WidgetLogNutritionIntent: AppIntent {
+struct WidgetLogNutritionIntent: AppIntent, Sendable {
     static let title: LocalizedStringResource = "Log Gel"
 
     @Parameter(title: "Carbs", default: 25)

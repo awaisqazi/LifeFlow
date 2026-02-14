@@ -18,7 +18,7 @@ struct GymWorkoutLiveActivity: Widget {
         ActivityConfiguration(for: GymWorkoutAttributes.self) { context in
             // Lock Screen / Banner UI
             LiveActivityContentView(context: context)
-                .activityBackgroundTint(context.state.accentColor.opacity(0.2))
+                .activityBackgroundTint(.clear)
                 .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { context in
             DynamicIsland {
@@ -92,42 +92,35 @@ struct GymWorkoutLiveActivity: Widget {
                 }
                 
                 DynamicIslandExpandedRegion(.bottom) {
-                    VStack(spacing: 8) {
+                    VStack(spacing: 10) {
                         LiveActivityStateProgressBar(state: context.state)
                         LiveActivityControls(state: context.state, isCompact: true)
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.bottom, 8)
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 10)
                 }
             } compactLeading: {
-                // Timer on the left
-                LiveActivityTimerText(
-                    state: context.state,
-                    fontSize: 14,
-                    showsShadow: false
-                )
+                HStack(spacing: 6) {
+                    Image(systemName: context.state.isResting ? "timer" : context.state.exerciseIcon)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(context.state.accentColor)
+
+                    LiveActivityTimerText(
+                        state: context.state,
+                        fontSize: 14,
+                        showsShadow: false
+                    )
+                }
+                .padding(.leading, 4)
             } compactTrailing: {
-                // Dynamic icon on the right edge
-                if context.state.isResting {
-                    Image(systemName: "timer")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(context.state.accentColor)
-                } else {
-                    Image(systemName: context.state.exerciseIcon)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(context.state.accentColor)
-                }
+                Text(context.state.compactTrailingText)
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .padding(.trailing, 4)
             } minimal: {
-                // Dynamic icon in minimal view
-                if context.state.isResting {
-                    Image(systemName: "timer")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(context.state.accentColor)
-                } else {
-                    Image(systemName: context.state.exerciseIcon)
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(context.state.accentColor)
-                }
+                Image(systemName: context.state.isResting ? "timer" : context.state.exerciseIcon)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(context.state.accentColor)
             }
             .keylineTint(context.state.accentColor)
         }
@@ -327,11 +320,27 @@ private struct LockScreenView: View {
             if context.state.hasGhostRunnerContext {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(context.state.statusText)
-                            .font(.caption2.weight(.black))
-                            .foregroundStyle(context.state.accentColor)
-                            .tracking(1)
-                        
+                        // Glass status badge
+                        HStack(spacing: 5) {
+                            Circle()
+                                .fill(context.state.accentColor)
+                                .frame(width: 6, height: 6)
+                            Text(context.state.statusText)
+                                .font(.system(size: 9, weight: .black, design: .rounded))
+                                .tracking(0.7)
+                        }
+                        .foregroundStyle(context.state.accentColor)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background {
+                            Capsule()
+                                .fill(.ultraThinMaterial)
+                                .overlay {
+                                    Capsule()
+                                        .stroke(context.state.accentColor.opacity(0.42), lineWidth: 0.8)
+                                }
+                        }
+
                         Text(context.state.distanceString)
                             .font(.system(size: 34, weight: .bold, design: .rounded).monospacedDigit())
                             .foregroundStyle(.white)
@@ -364,27 +373,43 @@ private struct LockScreenView: View {
             } else {
                 HStack(alignment: .center) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(context.state.statusText)
-                            .font(.caption2.weight(.black))
-                            .foregroundStyle(context.state.accentColor)
-                            .tracking(1)
-                        
+                        // Glass status badge
+                        HStack(spacing: 5) {
+                            Circle()
+                                .fill(context.state.accentColor)
+                                .frame(width: 6, height: 6)
+                            Text(context.state.statusText)
+                                .font(.system(size: 9, weight: .black, design: .rounded))
+                                .tracking(0.7)
+                        }
+                        .foregroundStyle(context.state.accentColor)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background {
+                            Capsule()
+                                .fill(.ultraThinMaterial)
+                                .overlay {
+                                    Capsule()
+                                        .stroke(context.state.accentColor.opacity(0.42), lineWidth: 0.8)
+                                }
+                        }
+
                         Text(context.state.primaryLabel)
                             .font(.headline)
                             .foregroundStyle(.white)
                             .lineLimit(1)
-                        
+
                         Text(context.state.secondaryLabel)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
-                    
+
                     Spacer()
-                    
+
                     LiveActivityTimerText(
                         state: context.state,
-                        fontSize: 32,
-                        showsShadow: false
+                        fontSize: 38,
+                        showsShadow: true
                     )
                 }
             }
@@ -395,7 +420,16 @@ private struct LockScreenView: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
-        // No background - let the system Live Activity container handle it
+        .background {
+            ZStack {
+                Rectangle().fill(.ultraThinMaterial)
+                LinearGradient(
+                    colors: [context.state.accentColor.opacity(0.15), .clear],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+        }
     }
 }
 
@@ -578,6 +612,14 @@ private extension GymWorkoutAttributes.ContentState {
         }
         return "Set \(currentSet) of \(totalSets)"
     }
+
+    /// Short text for compact trailing region of Dynamic Island
+    var compactTrailingText: String {
+        if isCardio {
+            return cardioSpeed > 0 ? String(format: "%.1f", cardioSpeed) : "—"
+        }
+        return "S\(currentSet)/\(totalSets)"
+    }
 }
 
 private struct LiveActivityTimerText: View {
@@ -682,7 +724,8 @@ private struct LiveActivityStateProgressBar: View {
                 }
             }
             .frame(height: barHeight)
-            
+            .clipShape(Capsule())
+
             if showsSupplementalText, let ghostDeltaText = state.ghostDeltaText {
                 HStack(spacing: 6) {
                     Text(ghostDeltaText)
@@ -734,55 +777,85 @@ private struct LiveActivityGhostRunnerBar: View {
 private struct LiveActivityControls: View {
     let state: GymWorkoutAttributes.ContentState
     let isCompact: Bool
-    
+
+    private var buttonSize: CGFloat { isCompact ? 36 : 48 }
+    private var iconSize: CGFloat { isCompact ? 13 : 17 }
+
     var body: some View {
-        HStack(spacing: 8) {
-            styledLabel(pauseResumeButton)
-            
+        HStack(spacing: isCompact ? 10 : 14) {
+            pauseResumeButton
+
             if state.isResting {
-                styledLabel(skipRestButton)
+                skipRestButton
             }
         }
-        .font(isCompact ? .caption2 : .body)
     }
-    
-    @ViewBuilder
-    private func styledLabel<Content: View>(_ content: Content) -> some View {
-        if isCompact {
-            content
-                .labelStyle(.iconOnly)
-        } else {
-            content
-                .labelStyle(.titleAndIcon)
-        }
-    }
-    
+
     @ViewBuilder
     private var pauseResumeButton: some View {
         if state.isPaused {
-            Button(intent: ResumeWorkoutIntent()) {
-                Label("Resume", systemImage: "play.fill")
-            }
-            .buttonStyle(.bordered)
-            .tint(state.accentColor)
-            .controlSize(isCompact ? .mini : .regular)
+            glassButton(
+                intent: ResumeWorkoutIntent(),
+                icon: "play.fill",
+                tint: state.accentColor,
+                label: isCompact ? nil : "Resume"
+            )
         } else {
-            Button(intent: PauseWorkoutIntent()) {
-                Label("Pause", systemImage: "pause.fill")
-            }
-            .buttonStyle(.bordered)
-            .tint(state.accentColor)
-            .controlSize(isCompact ? .mini : .regular)
+            glassButton(
+                intent: PauseWorkoutIntent(),
+                icon: "pause.fill",
+                tint: state.accentColor,
+                label: isCompact ? nil : "Pause"
+            )
         }
     }
-    
+
     private var skipRestButton: some View {
-        Button(intent: SkipRestIntent()) {
-            Label("Skip Rest", systemImage: "forward.fill")
+        glassButton(
+            intent: SkipRestIntent(),
+            icon: "forward.fill",
+            tint: .orange,
+            label: isCompact ? nil : "Skip"
+        )
+    }
+
+    private func glassButton<I: AppIntent>(intent: I, icon: String, tint: Color, label: String?) -> some View {
+        Button(intent: intent) {
+            if let label {
+                Label {
+                    Text(label)
+                        .font(.caption2.weight(.semibold))
+                } icon: {
+                    Image(systemName: icon)
+                        .font(.system(size: iconSize, weight: .semibold))
+                }
+                .foregroundStyle(tint)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background {
+                    Capsule()
+                        .fill(.ultraThinMaterial)
+                        .overlay {
+                            Capsule()
+                                .stroke(tint.opacity(0.42), lineWidth: 0.8)
+                        }
+                }
+            } else {
+                Image(systemName: icon)
+                    .font(.system(size: iconSize, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .frame(width: buttonSize, height: buttonSize)
+                    .background {
+                        Circle()
+                            .fill(.ultraThinMaterial)
+                            .overlay {
+                                Circle()
+                                    .stroke(tint.opacity(0.42), lineWidth: 0.8)
+                            }
+                    }
+            }
         }
-        .buttonStyle(.bordered)
-        .tint(.orange)
-        .controlSize(isCompact ? .mini : .regular)
+        .buttonStyle(.plain)
     }
 }
 

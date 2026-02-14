@@ -11,9 +11,9 @@ import ActivityKit
 
 /// Activity attributes for the Gym Workout Live Activity.
 /// Shows workout progress in Dynamic Island and Lock Screen.
-public struct GymWorkoutAttributes: ActivityAttributes {
+public struct GymWorkoutAttributes: ActivityAttributes, Sendable {
     /// Content that updates during the Live Activity
-    public struct ContentState: Codable, Hashable {
+    public struct ContentState: Codable, Hashable, Sendable {
         /// Current exercise name
         public var exerciseName: String
         
