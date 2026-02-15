@@ -35,7 +35,7 @@ struct GhostPacerMapView: View {
     /// Elapsed time since workout start, used to interpolate the ghost position.
     var elapsedWorkoutTime: TimeInterval
 
-    @State private var cameraPosition: MapCameraPosition = .userLocation(followsHeading: true)
+    @State private var cameraPosition: MapCameraPosition = .userLocation(fallback: .automatic)
 
     var body: some View {
         Map(position: $cameraPosition) {

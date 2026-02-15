@@ -96,32 +96,45 @@ struct AnimatedMeshGradientView: View {
         // When active, use .animation for 60fps smooth rendering.
         // When inactive, use .everyMinute to effectively freeze the mesh,
         // saving the GPU from rendering frames nobody can see.
-        TimelineView(isAnimating ? .animation : .everyMinute) { timeline in
-            let time: TimeInterval = {
-                if isAnimating {
-                    return timeline.date.timeIntervalSinceReferenceDate * animationSpeed
-                } else {
-                    return frozenTime
-                }
-            }()
-            
-            MeshGradient(
-                width: 3,
-                height: 3,
-                points: animatedPoints(at: time),
-                colors: currentColors
-            )
-            // MARK: GPU Optimization — Rasterize the animated mesh on the GPU
-            // drawingGroup() renders the MeshGradient into a Metal texture,
-            // compositing it as a single flat bitmap instead of per-frame
-            // through the SwiftUI render tree. Critical for battery life
-            // when layered under .ultraThinMaterial Liquid Glass cards.
-            .drawingGroup()
-            .ignoresSafeArea()
-            .onChange(of: isAnimating) { _, newValue in
-                if !newValue {
-                    frozenTime = timeline.date.timeIntervalSinceReferenceDate * animationSpeed
-                }
+        //
+        // Note: .animation and .everyMinute are different TimelineSchedule types,
+        // so they cannot be combined in a single ternary expression.
+        if isAnimating {
+            TimelineView(.animation) { timeline in
+                meshContent(
+                    time: timeline.date.timeIntervalSinceReferenceDate * animationSpeed,
+                    timelineDate: timeline.date
+                )
+            }
+        } else {
+            TimelineView(.everyMinute) { timeline in
+                meshContent(
+                    time: frozenTime,
+                    timelineDate: timeline.date
+                )
+            }
+        }
+    }
+
+    /// Shared mesh content builder used by both timeline branches.
+    @ViewBuilder
+    private func meshContent(time: TimeInterval, timelineDate: Date) -> some View {
+        MeshGradient(
+            width: 3,
+            height: 3,
+            points: animatedPoints(at: time),
+            colors: currentColors
+        )
+        // MARK: GPU Optimization — Rasterize the animated mesh on the GPU
+        // drawingGroup() renders the MeshGradient into a Metal texture,
+        // compositing it as a single flat bitmap instead of per-frame
+        // through the SwiftUI render tree. Critical for battery life
+        // when layered under .ultraThinMaterial Liquid Glass cards.
+        .drawingGroup()
+        .ignoresSafeArea()
+        .onChange(of: isAnimating) { _, newValue in
+            if !newValue {
+                frozenTime = timelineDate.timeIntervalSinceReferenceDate * animationSpeed
             }
         }
     }

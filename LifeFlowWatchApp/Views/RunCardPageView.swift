@@ -25,12 +25,15 @@ struct RunCardPageView: View {
                 .padding(.bottom, 4)
 
             // Hero value
+            // MARK: Contrast — Subtle shadow ensures the text "pops" regardless
+            // of whether the MeshGradient behind it is in a bright cyan or dark purple phase.
             Text(heroValue)
                 .font(.system(size: 48, weight: .bold, design: .rounded))
                 .foregroundStyle(.primary)
                 .monospacedDigit()
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
+                .shadow(color: .black.opacity(0.15), radius: 1)
                 .contentTransition(.numericText(countsDown: false))
                 .animation(.easeInOut(duration: 0.3), value: heroValue)
 
@@ -39,6 +42,7 @@ struct RunCardPageView: View {
                 .font(.system(size: 13, weight: .medium, design: .rounded))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
+                .shadow(color: .black.opacity(0.15), radius: 1)
                 .padding(.top, 1)
 
             // Optional progress / zone bar

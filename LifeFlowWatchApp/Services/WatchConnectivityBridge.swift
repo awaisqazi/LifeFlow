@@ -69,16 +69,9 @@ final class WatchConnectivityBridge: NSObject, WCSessionDelegate {
         Self.dispatchWCSessionOps(session: session, context: context, sendMessage: force)
     }
 
-    // MARK: - iPhone → Watch Workout Launch
-
-    /// Launches the LifeFlow workout view on the paired Apple Watch.
-    /// Uses HealthKit's `startWatchApp(with:)` to seamlessly transition
-    /// the UI to the user's wrist from an iPhone-initiated workout.
-    func startGuidedRunOnWatch(config: HKWorkoutConfiguration) async throws {
-        let healthStore = HKHealthStore()
-        try await healthStore.startWatchApp(with: config)
-    }
-
+    // NOTE: startWatchApp(with:) is iOS-only (launches the watch app from iPhone).
+    // The iOS-side WatchConnectivityManager handles that call.
+    // On watchOS, the app is already running — no launch needed.
     // MARK: - Watch → iPhone Workout Broadcast
 
     /// Broadcasts a workout start event to the iPhone companion app.
@@ -87,25 +80,23 @@ final class WatchConnectivityBridge: NSObject, WCSessionDelegate {
     func broadcastWorkoutStartToPhone(workoutID: UUID, type: String) {
         guard let session else { return }
 
-        activateIfNeeded()
-        guard session.activationState == .activated else { return }
-
         let payload: [String: Any] = [
             "action": "START_LIVE_ACTIVITY",
             "type": type,
             "id": workoutID.uuidString
         ]
 
-        guard session.isReachable else {
-            // Fallback for background transfer if iPhone is completely disconnected
-            session.transferUserInfo(payload)
-            return
-        }
+        // Use nonisolated static helper to avoid capturing @MainActor session
+        Self.dispatchBroadcast(session: session, payload: payload)
+    }
 
-        // sendMessage executes instantly and wakes the counterpart iOS App in the background
-        session.sendMessage(payload, replyHandler: nil) { error in
-            print("Failed to wake iPhone: \(error.localizedDescription)")
-            // Fallback: queue for guaranteed delivery
+    private nonisolated static func dispatchBroadcast(session: WCSession, payload: [String: Any]) {
+        if session.isReachable {
+            session.sendMessage(payload, replyHandler: nil) { error in
+                print("Failed to wake iPhone: \(error.localizedDescription)")
+                session.transferUserInfo(payload)
+            }
+        } else {
             session.transferUserInfo(payload)
         }
     }
@@ -151,37 +142,30 @@ final class WatchConnectivityBridge: NSObject, WCSessionDelegate {
         activationDidCompleteWith activationState: WCSessionActivationState,
         error: Error?
     ) {
-        let errorMessage = error?.localizedDescription
-        let isActivated = activationState == .activated
-        let reachable = session.isReachable
+        if let error {
+            print("WatchConnectivity activation failed: \(error.localizedDescription)")
+        }
+        let reachable = activationState == .activated && session.isReachable
         Task { @MainActor in
-            if let errorMessage {
-                print("WatchConnectivity activation failed: \(errorMessage)")
-            }
-            self.isReachable = isActivated ? reachable : false
+            self.isReachable = reachable
         }
     }
 
     nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
-        let isActivated = session.activationState == .activated
         let reachable = session.isReachable
         Task { @MainActor in
-            self.isReachable = isActivated ? reachable : false
+            self.isReachable = reachable
         }
     }
 
     nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
-        let isActivated = session.activationState == .activated
-        let reachable = session.isReachable
         let decoded = WatchRunMessage.fromWCContext(message)
+        let reachable = session.isReachable
         Task { @MainActor in
-            self.isReachable = isActivated ? reachable : false
+            self.isReachable = reachable
             guard let decoded else { return }
             self.onMessage?(decoded)
         }
-        // MARK: Route data-heavy payloads to background @ModelActor
-        // If the message contains telemetry data, ingest it on the
-        // WatchDataStore actor to avoid blocking the main thread.
         if let decoded {
             Task {
                 await WatchDataStore.shared.ingest(decoded)
@@ -190,15 +174,13 @@ final class WatchConnectivityBridge: NSObject, WCSessionDelegate {
     }
 
     nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
-        let isActivated = session.activationState == .activated
-        let reachable = session.isReachable
         let decoded = WatchRunMessage.fromWCContext(applicationContext)
+        let reachable = session.isReachable
         Task { @MainActor in
-            self.isReachable = isActivated ? reachable : false
+            self.isReachable = reachable
             guard let decoded else { return }
             self.onMessage?(decoded)
         }
-        // Route to background actor for SwiftData operations
         if let decoded {
             Task {
                 await WatchDataStore.shared.ingest(decoded)

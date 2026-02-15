@@ -44,9 +44,17 @@ struct LiquidGlassCardModifier: ViewModifier {
     var cornerRadius: CGFloat
 
     func body(content: Content) -> some View {
+        // MARK: GPU Optimization — Isolate background from foreground.
+        // .compositingGroup() only wraps the material/gradient background layer,
+        // NOT the foreground content. Text rendered inside a compositing group
+        // loses subpixel antialiasing, appearing blurry or "heavy." By keeping
+        // content outside the composited background, text stays crisp.
         content
-            .background(.ultraThinMaterial)
-            .compositingGroup() // MARK: GPU Optimization — Flatten material + gradient into one raster layer
+            .background {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .compositingGroup()
+            }
             .environment(\.colorScheme, .dark)
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay(
@@ -71,9 +79,13 @@ struct LiquidGlassChipModifier: ViewModifier {
     var cornerRadius: CGFloat = LiquidGlass.cornerRadiusSmall
 
     func body(content: Content) -> some View {
+        // Same isolation pattern: compositingGroup wraps only the background.
         content
-            .background(.ultraThinMaterial)
-            .compositingGroup() // MARK: GPU Optimization — Flatten material + gradient into one raster layer
+            .background {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .compositingGroup()
+            }
             .environment(\.colorScheme, .dark)
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay(

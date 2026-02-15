@@ -51,7 +51,15 @@ final class WatchConnectivityManager: NSObject, WCSessionDelegate {
     /// the UI to the user's wrist from an iPhone-initiated guided run.
     func startGuidedRunOnWatch(config: HKWorkoutConfiguration) async throws {
         let healthStore = HKHealthStore()
-        try await healthStore.startWatchApp(with: config)
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            healthStore.startWatchApp(with: config) { success, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
     }
 
     func sendGuidedRunStart(targetDistanceMiles: Double?, targetPaceMinutesPerMile: Double?) {
@@ -181,21 +189,19 @@ final class WatchConnectivityManager: NSObject, WCSessionDelegate {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
 
         let attributes = GymWorkoutAttributes(
-            exerciseName: workoutType,
-            startDate: Date()
+            workoutTitle: workoutType,
+            totalExercises: 1
         )
 
         let initialState = GymWorkoutAttributes.ContentState(
+            exerciseName: workoutType,
             currentSet: 0,
             totalSets: 0,
-            reps: 0,
-            weight: 0,
+            elapsedTime: 0,
             isResting: false,
             restTimeRemaining: 0,
-            exerciseName: workoutType,
-            isCardioMode: true,
-            cardioElapsedTime: 0,
-            isPaused: false
+            isPaused: false,
+            isCardio: true
         )
 
         let content = ActivityContent(state: initialState, staleDate: nil)

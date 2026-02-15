@@ -10,6 +10,8 @@
 	<string>LifeFlow writes completed workouts and fueling events to your Health data.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>LifeFlow uses location to measure outdoor distance, pace, and grade.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>LifeFlow uses motion sensors to analyze your running form, cadence, and ground contact time.</string>
 	<key>WKCompanionAppBundleIdentifier</key>
 	<string>com.fez.LifeFlow</string>
 	<key>WKSupportsLiveActivityLaunchAttributeTypes</key>

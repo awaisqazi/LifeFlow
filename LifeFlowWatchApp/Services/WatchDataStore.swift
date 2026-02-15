@@ -121,8 +121,113 @@ actor WatchDataStore {
     /// Ingest a WatchRunMessage payload from WCSession on this background actor,
     /// keeping SwiftData operations entirely off the main thread.
     func ingest(_ message: WatchRunMessage) {
-        // Future: decode and persist telemetry snapshots, run events, etc.
-        // This method is the safe entry point for WCSession delegate callbacks.
         Self.logger.debug("Ingesting WatchRunMessage on background actor: \(message.event.rawValue)")
+
+        // MARK: Session Lookup / Creation
+        let session: WatchWorkoutSession
+        if let runID = message.runID, let existing = findSession(by: runID) {
+            session = existing
+        } else if message.event == .runStarted, let runID = message.runID {
+            let newSession = WatchWorkoutSession(id: runID, startedAt: message.timestamp)
+            modelContext.insert(newSession)
+            session = newSession
+        } else {
+            // No runID or session — can't persist without a session anchor.
+            return
+        }
+
+        // MARK: Telemetry Ingestion
+        if let snapshot = message.metricSnapshot {
+            let point = TelemetryPoint(
+                timestamp: snapshot.timestamp,
+                distanceMiles: snapshot.distanceMiles,
+                heartRateBPM: snapshot.heartRateBPM,
+                paceSecondsPerMile: snapshot.paceSecondsPerMile,
+                cadenceSPM: snapshot.cadenceSPM,
+                gradePercent: snapshot.gradePercent,
+                fuelRemainingGrams: snapshot.fuelRemainingGrams
+            )
+            point.workoutSession = session
+            if session.telemetryPoints == nil { session.telemetryPoints = [] }
+            session.telemetryPoints?.append(point)
+        }
+
+        // MARK: Run Event Mapping
+        let eventKind: RunEventKind? = {
+            switch message.event {
+            case .runStarted:  return .started
+            case .runPaused:   return .paused
+            case .runResumed:  return .resumed
+            case .runEnded:    return .ended
+            case .fuelLogged:  return .fuelLogged
+            case .lapMarked:   return .lapMarked
+            case .metricSnapshot: return nil // Telemetry-only, no discrete event
+            }
+        }()
+
+        if let eventKind {
+            var payloadDict: [String: Any] = [:]
+            if let carbs = message.carbsGrams { payloadDict["carbs"] = carbs }
+            if let lap = message.lapIndex { payloadDict["lap"] = lap }
+            if let discarded = message.discarded { payloadDict["discarded"] = discarded }
+
+            let payloadJSON: String? = payloadDict.isEmpty ? nil : {
+                guard JSONSerialization.isValidJSONObject(payloadDict),
+                      let data = try? JSONSerialization.data(withJSONObject: payloadDict),
+                      let str = String(data: data, encoding: .utf8) else { return nil }
+                return str
+            }()
+
+            let event = RunEvent(timestamp: message.timestamp, kind: eventKind, payloadJSON: payloadJSON)
+            event.workoutSession = session
+            if session.runEvents == nil { session.runEvents = [] }
+            session.runEvents?.append(event)
+        }
+
+        // MARK: State Snapshot
+        if let lifecycle = message.lifecycleState {
+            let snapshot = WatchRunStateSnapshot(
+                timestamp: message.timestamp,
+                lifecycleState: lifecycle,
+                elapsedSeconds: 0, // Not available in WatchRunMessage; updated from telemetry
+                distanceMiles: message.metricSnapshot?.distanceMiles ?? 0,
+                heartRateBPM: message.heartRateBPM,
+                paceSecondsPerMile: message.metricSnapshot?.paceSecondsPerMile,
+                fuelRemainingGrams: message.metricSnapshot?.fuelRemainingGrams
+            )
+            snapshot.workoutSession = session
+            if session.stateSnapshots == nil { session.stateSnapshots = [] }
+            session.stateSnapshots?.append(snapshot)
+        }
+
+        // MARK: Session Lifecycle Updates
+        switch message.event {
+        case .runEnded:
+            session.endedAt = message.timestamp
+            if let snapshot = message.metricSnapshot {
+                session.totalDistanceMiles = snapshot.distanceMiles
+            }
+            if let hr = message.heartRateBPM {
+                session.averageHeartRate = hr
+            }
+        default:
+            break
+        }
+
+        // MARK: Persist
+        do {
+            try modelContext.save()
+        } catch {
+            Self.logger.error("Failed to save ingested data: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Session Lookup
+
+    /// Finds an existing WatchWorkoutSession by its UUID.
+    private func findSession(by id: UUID) -> WatchWorkoutSession? {
+        let predicate = #Predicate<WatchWorkoutSession> { $0.id == id }
+        let descriptor = FetchDescriptor(predicate: predicate)
+        return try? modelContext.fetch(descriptor).first
     }
 }

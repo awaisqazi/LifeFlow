@@ -38,6 +38,10 @@ public actor VoiceCoachService {
     /// Speech synthesizer — reused across prompts for efficiency.
     #if os(iOS) || os(watchOS)
     private let synthesizer = AVSpeechSynthesizer()
+
+    /// Delegate that deactivates the audio session when speech finishes,
+    /// allowing background music to smoothly ramp back to 100% volume.
+    private let speechDelegate = SpeechDelegate()
     #endif
 
     // MARK: - Init
@@ -46,6 +50,10 @@ public actor VoiceCoachService {
     public init(cooldown: TimeInterval = 120) {
         self.cooldownInterval = cooldown
         self.fallbackEngine = CoachPromptEngine(cooldown: cooldown)
+
+        #if os(iOS) || os(watchOS)
+        synthesizer.delegate = speechDelegate
+        #endif
     }
 
     // MARK: - Public API
@@ -188,3 +196,35 @@ public actor VoiceCoachService {
         #endif
     }
 }
+
+// MARK: - Speech Delegate (Audio Session Deactivation)
+
+/// Handles speech completion to deactivate the audio session with
+/// `.notifyOthersOnDeactivation`, smoothly ramping background music
+/// (Spotify, Apple Music) back to 100% volume after a coaching cue.
+///
+/// Must be a class (not actor) to conform to `AVSpeechSynthesizerDelegate`.
+/// Reference: iOS `VoiceCoach.swift` uses the same pattern.
+#if os(iOS) || os(watchOS)
+private final class SpeechDelegate: NSObject, AVSpeechSynthesizerDelegate, @unchecked Sendable {
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        deactivateAudioSession()
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        deactivateAudioSession()
+    }
+
+    private func deactivateAudioSession() {
+        do {
+            try AVAudioSession.sharedInstance().setActive(
+                false,
+                options: [.notifyOthersOnDeactivation]
+            )
+        } catch {
+            // Non-fatal — background music may stay slightly ducked until
+            // the session is naturally reclaimed by the system.
+        }
+    }
+}
+#endif

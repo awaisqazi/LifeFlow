@@ -1,5 +1,6 @@
+import AppIntents
 import AVFoundation
-import CoreMotion
+@preconcurrency import CoreMotion
 import Foundation
 import HealthKit
 import Observation
@@ -27,7 +28,7 @@ final class WatchWorkoutManager: NSObject {
     }
 
     private let healthStore = HKHealthStore()
-    private let motionManager = CMMotionManager()
+    nonisolated(unsafe) private let batchedSensorManager = CMBatchedSensorManager()
     private let speechSynthesizer = AVSpeechSynthesizer()
 
     private let biomechanicalAnalyzer = BiomechanicalAnalyzer()
@@ -50,7 +51,7 @@ final class WatchWorkoutManager: NSObject {
     private var workoutBuilder: HKLiveWorkoutBuilder?
 
     private var tickTask: Task<Void, Never>?
-    private var motionSamples: [MotionSample] = []
+    private var motionTask: Task<Void, Never>?
     private var telemetryBuffer: [TelemetrySnapshotDTO] = []
     private var stateSnapshotBuffer: [StateSnapshotDraft] = []
 
@@ -219,6 +220,14 @@ final class WatchWorkoutManager: NSObject {
                 force: true
             )
 
+            // MARK: Background Wake — Broadcast to iPhone so it can launch a Live Activity.
+            // The active HKWorkoutSession keeps the HealthKit link alive across devices,
+            // ensuring the iPhone stays awake to process the request.
+            connectivityBridge.broadcastWorkoutStartToPhone(
+                workoutID: record.id,
+                type: style.rawValue
+            )
+
             publishWidgetState(force: true)
             donateSmartStackActivity()
         } catch {
@@ -270,7 +279,8 @@ final class WatchWorkoutManager: NSObject {
 
         tickTask?.cancel()
         tickTask = nil
-        stopMotionUpdates()
+        motionTask?.cancel()
+        motionTask = nil
 
         let endDate = Date()
 
@@ -460,7 +470,6 @@ final class WatchWorkoutManager: NSObject {
         }
 
         let now = Date()
-        await updateBiomechanicalMetricsIfNeeded()
 
         let pace = estimatePace(now: now)
         currentPaceSecondsPerMile = pace
@@ -542,14 +551,8 @@ final class WatchWorkoutManager: NSObject {
         stateSnapshotBuffer.append(draft)
     }
 
-    private func updateBiomechanicalMetricsIfNeeded() async {
-        guard !motionSamples.isEmpty else { return }
-
-        let samples = motionSamples
-        motionSamples.removeAll(keepingCapacity: true)
-
-        latestBiomechanicalMetrics = await biomechanicalAnalyzer.calculateMetrics(from: samples)
-    }
+    // Biomechanical metrics are now updated inline by the CMBatchedSensorManager
+    // Task.detached loop in startBatchedMotionUpdates(). No per-tick processing needed.
 
     private func estimatePace(now: Date) -> Double? {
         guard currentDistanceMiles > 0, elapsedSeconds > 0 else { return nil }
@@ -606,29 +609,41 @@ final class WatchWorkoutManager: NSObject {
     }
 
     private func startMotionUpdates() {
-        guard motionManager.isDeviceMotionAvailable else { return }
+        guard CMBatchedSensorManager.isDeviceMotionSupported else { return }
 
-        let hz = max(15, min(100, thermalGovernor.mode.sensorSampleRateHz))
-        motionManager.deviceMotionUpdateInterval = 1.0 / hz
+        motionTask?.cancel()
 
-        motionManager.startDeviceMotionUpdates(to: .main) { [weak self] motion, _ in
-            guard let self, let motion else { return }
-            guard self.lifecycleState == .running else { return }
+        // MARK: CMBatchedSensorManager — Runs entirely off the MainActor.
+        // Batched sensor data arrives in chunks (typically ~50 samples at ~50Hz),
+        // dramatically reducing MainActor hops compared to the legacy per-sample
+        // CMMotionManager approach. This eliminates frame drops, thermal throttling,
+        // and Watchdog terminations during workouts.
+        motionTask = Task.detached { [weak self] in
+            guard let self else { return }
+            do {
+                for try await batch in self.batchedSensorManager.deviceMotionUpdates() {
+                    guard !Task.isCancelled else { break }
 
-            let sample = MotionSample(
-                verticalAcceleration: motion.userAcceleration.z,
-                lateralBalance: motion.userAcceleration.x
-            )
+                    let samples = batch.map { motion in
+                        MotionSample(
+                            verticalAcceleration: motion.userAcceleration.z,
+                            lateralBalance: motion.userAcceleration.x,
+                            timestamp: motion.timestamp
+                        )
+                    }
 
-            self.motionSamples.append(sample)
-            if self.motionSamples.count > 800 {
-                self.motionSamples.removeFirst(self.motionSamples.count - 800)
+                    let metrics = await self.biomechanicalAnalyzer.calculateMetrics(from: samples)
+
+                    await MainActor.run {
+                        self.latestBiomechanicalMetrics = metrics
+                    }
+                }
+            } catch {
+                // Sensor batching can fail if the device doesn't support it
+                // or the session is interrupted. Non-fatal — biomechanical
+                // metrics will simply stop updating.
             }
         }
-    }
-
-    private func stopMotionUpdates() {
-        motionManager.stopDeviceMotionUpdates()
     }
 
     private func sendConnectivity(_ message: WatchRunMessage, force: Bool = false) {
