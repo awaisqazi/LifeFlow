@@ -42,8 +42,10 @@ final class WatchAppCoordinator {
 
     func handleScenePhase(_ phase: ScenePhase) {
         if phase == .active {
-            workoutManager.applyPendingIntentActions()
-            syncRouteFromRunState()
+            Task { @MainActor in
+                await workoutManager.applyPendingIntentActions()
+                syncRouteFromRunState()
+            }
         }
     }
 

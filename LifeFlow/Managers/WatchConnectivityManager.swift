@@ -25,6 +25,45 @@ final class WatchConnectivityManager: NSObject, WCSessionDelegate {
     var onHeartRateUpdate: ((Double) -> Void)?
     var onRunMessage: ((WatchRunMessage) -> Void)?
 
+    private struct SessionStatusSnapshot: Sendable {
+        let isReachable: Bool
+        let isWatchPaired: Bool
+        let isWatchAppInstalled: Bool
+
+        nonisolated
+        init(session: WCSession) {
+            let activated = session.activationState == .activated
+            self.isReachable = activated ? session.isReachable : false
+            self.isWatchPaired = session.isPaired
+            self.isWatchAppInstalled = session.isWatchAppInstalled
+        }
+    }
+
+    private enum IncomingPayload: Sendable {
+        case startLiveActivity(workoutType: String)
+        case runMessage(WatchRunMessage)
+        case heartRate(Double)
+        case none
+
+        nonisolated
+        static func decode(from dictionary: [String: Any]) -> IncomingPayload {
+            if let action = dictionary["action"] as? String, action == "START_LIVE_ACTIVITY" {
+                let workoutType = dictionary["type"] as? String ?? "Run"
+                return .startLiveActivity(workoutType: workoutType)
+            }
+
+            if let message = WatchRunMessage.fromWCContext(dictionary) {
+                return .runMessage(message)
+            }
+
+            if let heartRate = dictionary["heartRate"] as? Double {
+                return .heartRate(heartRate)
+            }
+
+            return .none
+        }
+    }
+
     override init() {
         super.init()
         activateIfNeeded()
@@ -128,53 +167,36 @@ final class WatchConnectivityManager: NSObject, WCSessionDelegate {
     }
 
     private func syncStatus(from session: WCSession) {
-        guard session.activationState == .activated else {
-            Task { @MainActor in
-                self.isReachable = false
-                self.isWatchPaired = session.isPaired
-                self.isWatchAppInstalled = session.isWatchAppInstalled
-            }
-            return
-        }
-
-        Task { @MainActor in
-            self.isReachable = session.isReachable
-            self.isWatchPaired = session.isPaired
-            self.isWatchAppInstalled = session.isWatchAppInstalled
+        let snapshot = SessionStatusSnapshot(session: session)
+        Task { @MainActor [weak self] in
+            self?.applyStatus(snapshot)
         }
     }
 
-    private func consumePayload(_ payload: [String: Any], from session: WCSession) {
-        syncStatus(from: session)
+    @MainActor
+    private func applyStatus(_ snapshot: SessionStatusSnapshot) {
+        isReachable = snapshot.isReachable
+        isWatchPaired = snapshot.isWatchPaired
+        isWatchAppInstalled = snapshot.isWatchAppInstalled
+    }
 
-        // MARK: Watch → iPhone Live Activity Bridge
-        // When the Watch app starts a workout, it sends a `START_LIVE_ACTIVITY`
-        // action. The iPhone responds by spinning up an ActivityKit Live Activity
-        // on the Lock Screen, so the user sees their workout at a glance.
-        if let action = payload["action"] as? String, action == "START_LIVE_ACTIVITY" {
-            let workoutType = payload["type"] as? String ?? "Run"
-            Task { @MainActor in
-                launchLiveActivityFromWatch(workoutType: workoutType)
-                // Also refresh all widget timelines so the glanceable UI updates
-                WidgetCenter.shared.reloadAllTimelines()
-            }
-            return
-        }
+    @MainActor
+    private func consumePayload(_ payload: IncomingPayload, status: SessionStatusSnapshot) {
+        applyStatus(status)
 
-        if let message = WatchRunMessage.fromWCContext(payload) {
-            Task { @MainActor in
-                if let heartRate = message.heartRateBPM, heartRate > 0 {
-                    self.onHeartRateUpdate?(heartRate)
-                }
-                self.onRunMessage?(message)
+        switch payload {
+        case .startLiveActivity(let workoutType):
+            launchLiveActivityFromWatch(workoutType: workoutType)
+            WidgetCenter.shared.reloadAllTimelines()
+        case .runMessage(let message):
+            if let heartRate = message.heartRateBPM, heartRate > 0 {
+                onHeartRateUpdate?(heartRate)
             }
-            return
-        }
-
-        if let heartRate = payload["heartRate"] as? Double {
-            Task { @MainActor in
-                self.onHeartRateUpdate?(heartRate)
-            }
+            onRunMessage?(message)
+        case .heartRate(let heartRate):
+            onHeartRateUpdate?(heartRate)
+        case .none:
+            break
         }
     }
 
@@ -223,14 +245,16 @@ final class WatchConnectivityManager: NSObject, WCSessionDelegate {
         if let error {
             print("WatchConnectivity activation failed: \(error)")
         }
+        let snapshot = SessionStatusSnapshot(session: session)
         Task { @MainActor in
-            self.syncStatus(from: session)
+            self.applyStatus(snapshot)
         }
     }
 
     nonisolated func sessionDidBecomeInactive(_ session: WCSession) {
+        let snapshot = SessionStatusSnapshot(session: session)
         Task { @MainActor in
-            self.syncStatus(from: session)
+            self.applyStatus(snapshot)
         }
     }
 
@@ -239,20 +263,25 @@ final class WatchConnectivityManager: NSObject, WCSessionDelegate {
     }
 
     nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
+        let snapshot = SessionStatusSnapshot(session: session)
         Task { @MainActor in
-            self.syncStatus(from: session)
+            self.applyStatus(snapshot)
         }
     }
 
     nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        let decoded = IncomingPayload.decode(from: message)
+        let status = SessionStatusSnapshot(session: session)
         Task { @MainActor in
-            self.consumePayload(message, from: session)
+            self.consumePayload(decoded, status: status)
         }
     }
 
     nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
+        let decoded = IncomingPayload.decode(from: applicationContext)
+        let status = SessionStatusSnapshot(session: session)
         Task { @MainActor in
-            self.consumePayload(applicationContext, from: session)
+            self.consumePayload(decoded, status: status)
         }
     }
 }

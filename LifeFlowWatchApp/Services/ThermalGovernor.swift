@@ -30,6 +30,10 @@ final class ThermalGovernor {
         var allowsFluidAnimations: Bool {
             self == .nominal
         }
+
+        var shouldSuspendOnDeviceInference: Bool {
+            self == .serious || self == .critical
+        }
     }
 
     private(set) var mode: Mode = .nominal

@@ -111,6 +111,9 @@ final class GymModeManager {
     /// Whether a cardio session is currently running (timer active)
     var isCardioInProgress: Bool = false
     
+    /// Baseline HealthKit distance captured at guided-run start to avoid stale carryover.
+    var guidedRunDistanceBaselineMiles: Double = 0
+    
     // MARK: - Marathon Coach Integration
     
     /// The target goal for the current workout (from training plan)
@@ -832,6 +835,7 @@ final class GymModeManager {
         elapsedTime = 0
         isPaused = false
         healthKitDistance = 0
+        guidedRunDistanceBaselineMiles = 0
         activeWeatherSummary = nil
         configureVoiceCoachForActiveSession(setupSpeedMPH: nil)
         
@@ -1126,6 +1130,7 @@ final class GymModeManager {
         cardioElapsedTime = 0
         cardioDuration = 0
         isCardioInProgress = false
+        guidedRunDistanceBaselineMiles = 0
         healthKitDistance = 0
         
         // Reset Marathon Coach integration

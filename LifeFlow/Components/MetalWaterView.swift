@@ -16,13 +16,29 @@ struct MetalWaterView: View {
     
     /// Optional pitch for future 3D effects
     var pitchAngle: Double = 0
-    
+
+    @Environment(\.scenePhase) private var scenePhase
+    #if os(watchOS)
+    @Environment(\.isLuminanceReduced) private var isLuminanceReduced
+    #endif
+
     @State private var startTime = Date()
-    
+    @State private var frozenElapsedTime: TimeInterval = 0
+
+    private var isRenderingActive: Bool {
+        #if os(watchOS)
+        return scenePhase == .active && !isLuminanceReduced
+        #else
+        return scenePhase == .active
+        #endif
+    }
+
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
-            let time = Float(timeline.date.timeIntervalSince(startTime))
-            
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !isRenderingActive)) { timeline in
+            let elapsed = timeline.date.timeIntervalSince(startTime)
+            let renderElapsed = isRenderingActive ? elapsed : frozenElapsedTime
+            let time = Float(renderElapsed)
+
             GeometryReader { geo in
                 Rectangle()
                     .fill(Color.blue) // Base color (shader will override)
@@ -36,6 +52,13 @@ struct MetalWaterView: View {
                     )
             }
             .drawingGroup() // GPU acceleration
+            .onChange(of: isRenderingActive) { _, isActive in
+                if isActive {
+                    startTime = timeline.date.addingTimeInterval(-frozenElapsedTime)
+                } else {
+                    frozenElapsedTime = elapsed
+                }
+            }
         }
     }
 }

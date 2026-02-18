@@ -22,8 +22,10 @@ struct LifeFlowWatchApp: App {
                 WatchExtensionDelegate.shared.handleScenePhase(newPhase)
             }
             .onAppear {
-                coordinator.workoutManager.applyPendingIntentActions()
-                coordinator.syncRouteFromRunState()
+                Task { @MainActor in
+                    await coordinator.workoutManager.applyPendingIntentActions()
+                    coordinator.syncRouteFromRunState()
+                }
             }
         }
         .modelContainer(WatchDataStore.shared.modelContainer)

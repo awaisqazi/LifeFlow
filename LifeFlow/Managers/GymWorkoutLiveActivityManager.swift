@@ -106,42 +106,19 @@ final class GymWorkoutLiveActivityManager {
     private(set) var currentActivity: Activity<GymWorkoutAttributes>?
 
     // MARK: - Live Activity Throttle State
-    // Only push ActivityKit updates when the runner crosses a meaningful
-    // milestone, preserving the system's daily update budget.
+    // ActivityKit has a limited update budget. Keep high-frequency metric drift
+    // off the transport and only push significant transitions or coarse milestones.
+    private var lastPushTime: Date = .distantPast
+    private var lastPushedState: GymWorkoutAttributes.ContentState?
 
-    /// Distance (in miles) at the time of the last ActivityKit update.
-    private var lastUpdateDistanceMiles: Double = 0
+    private static let minimumUpdateInterval: TimeInterval = 60
+    private static let staleDateInterval: TimeInterval = 120
+    private static let significantDistanceDeltaMiles: Double = 0.10
+    private static let significantIntervalProgressDelta: Double = 0.25
 
-    /// Heart rate zone at the time of the last ActivityKit update.
-    private var lastUpdateHeartRateZone: Int = 0
-
-    /// The distance increment (in miles) required before pushing a new update.
-    private static let milestoneDistanceMiles: Double = 0.25
-
-    /// Determines whether a Live Activity update should be pushed based on
-    /// distance milestones and heart-rate zone changes.
-    /// - Parameters:
-    ///   - currentDistance: The runner's current cumulative distance in miles.
-    ///   - currentHRZone: The runner's current heart-rate zone (1–5).
-    /// - Returns: `true` if a significant milestone has been reached.
-    func shouldPushUpdate(currentDistance: Double, currentHRZone: Int) -> Bool {
-        let distanceDelta = currentDistance - lastUpdateDistanceMiles
-        let zoneChanged = currentHRZone != lastUpdateHeartRateZone && currentHRZone > 0
-
-        if distanceDelta >= Self.milestoneDistanceMiles || zoneChanged {
-            lastUpdateDistanceMiles = currentDistance
-            if currentHRZone > 0 {
-                lastUpdateHeartRateZone = currentHRZone
-            }
-            return true
-        }
-        return false
-    }
-
-    /// Resets throttle state when starting a new workout session.
     func resetThrottle() {
-        lastUpdateDistanceMiles = 0
-        lastUpdateHeartRateZone = 0
+        lastPushTime = .distantPast
+        lastPushedState = nil
     }
     
     // MARK: - Start Activity
@@ -278,7 +255,11 @@ final class GymWorkoutLiveActivityManager {
         
         print("🏋️ Starting Live Activity with title: \(workoutTitle), exercise: \(exerciseName)")
         
-        let content = ActivityContent(state: initialState, staleDate: nil)
+        let now = Date.now
+        let content = ActivityContent(
+            state: initialState,
+            staleDate: now.addingTimeInterval(Self.staleDateInterval)
+        )
         
         do {
             let activity = try Activity.request(
@@ -287,6 +268,8 @@ final class GymWorkoutLiveActivityManager {
                 pushType: nil
             )
             currentActivity = activity
+            lastPushTime = now
+            lastPushedState = initialState
             print("✅ Started Workout Live Activity: \(activity.id)")
             print("✅ Activity state: \(activity.activityState)")
         } catch {
@@ -318,10 +301,9 @@ final class GymWorkoutLiveActivityManager {
         currentDistanceMiles: Double? = nil,
         targetPaceMinutesPerMile: Double? = nil,
         ghostExpectedDistanceMiles: Double? = nil,
-        ghostDeltaMiles: Double? = nil
+        ghostDeltaMiles: Double? = nil,
+        force: Bool = false
     ) {
-        guard let activity = currentActivity else { return }
-        
         let updatedState = GymWorkoutAttributes.ContentState(
             exerciseName: exerciseName,
             currentSet: currentSet,
@@ -346,12 +328,8 @@ final class GymWorkoutLiveActivityManager {
             ghostExpectedDistanceMiles: ghostExpectedDistanceMiles,
             ghostDeltaMiles: ghostDeltaMiles
         )
-        
-        let content = ActivityContent(state: updatedState, staleDate: nil)
-        
-        Task {
-            await activity.update(content)
-        }
+
+        pushUpdate(state: updatedState, force: force)
     }
     
     /// Start rest timer in the activity
@@ -380,8 +358,6 @@ final class GymWorkoutLiveActivityManager {
         ghostExpectedDistanceMiles: Double? = nil,
         ghostDeltaMiles: Double? = nil
     ) {
-        guard let activity = currentActivity else { return }
-        
         let restState = GymWorkoutAttributes.ContentState(
             exerciseName: exerciseName,
             currentSet: nextSet,
@@ -403,12 +379,8 @@ final class GymWorkoutLiveActivityManager {
             ghostExpectedDistanceMiles: ghostExpectedDistanceMiles,
             ghostDeltaMiles: ghostDeltaMiles
         )
-        
-        let content = ActivityContent(state: restState, staleDate: nil)
-        
-        Task {
-            await activity.update(content)
-        }
+
+        pushUpdate(state: restState, force: true)
     }
     
     /// End rest and resume workout
@@ -444,7 +416,8 @@ final class GymWorkoutLiveActivityManager {
             currentDistanceMiles: currentDistanceMiles,
             targetPaceMinutesPerMile: targetPaceMinutesPerMile,
             ghostExpectedDistanceMiles: ghostExpectedDistanceMiles,
-            ghostDeltaMiles: ghostDeltaMiles
+            ghostDeltaMiles: ghostDeltaMiles,
+            force: true
         )
     }
     
@@ -466,6 +439,7 @@ final class GymWorkoutLiveActivityManager {
         let content = ActivityContent(state: finalState, staleDate: nil)
         await activity.end(content, dismissalPolicy: .default)
         currentActivity = nil
+        resetThrottle()
     }
     
     /// End all gym workout activities
@@ -482,5 +456,111 @@ final class GymWorkoutLiveActivityManager {
             await activity.end(content, dismissalPolicy: .immediate)
         }
         currentActivity = nil
+        resetThrottle()
+    }
+
+    private func pushUpdate(state: GymWorkoutAttributes.ContentState, force: Bool = false) {
+        guard let activity = currentActivity else { return }
+        guard shouldPush(state: state, force: force) else { return }
+
+        let now = Date.now
+        let content = ActivityContent(
+            state: state,
+            staleDate: now.addingTimeInterval(Self.staleDateInterval)
+        )
+
+        lastPushTime = now
+        lastPushedState = state
+
+        Task {
+            await activity.update(content)
+        }
+    }
+
+    private func shouldPush(state: GymWorkoutAttributes.ContentState, force: Bool) -> Bool {
+        if force {
+            return true
+        }
+
+        guard let previous = lastPushedState else {
+            return true
+        }
+
+        if hasSignificantStateChange(from: previous, to: state) {
+            return true
+        }
+
+        return Date.now.timeIntervalSince(lastPushTime) >= Self.minimumUpdateInterval
+    }
+
+    private func hasSignificantStateChange(
+        from previous: GymWorkoutAttributes.ContentState,
+        to next: GymWorkoutAttributes.ContentState
+    ) -> Bool {
+        if previous.exerciseName != next.exerciseName ||
+            previous.exerciseIcon != next.exerciseIcon ||
+            previous.currentSet != next.currentSet ||
+            previous.totalSets != next.totalSets ||
+            previous.currentExerciseIndex != next.currentExerciseIndex ||
+            previous.isResting != next.isResting ||
+            previous.restEndTime != next.restEndTime ||
+            previous.isPaused != next.isPaused ||
+            previous.isCardio != next.isCardio ||
+            previous.cardioModeIndex != next.cardioModeIndex ||
+            previous.currentIntervalName != next.currentIntervalName ||
+            previous.targetDistanceTotal != next.targetDistanceTotal ||
+            previous.targetPaceMinutesPerMile != next.targetPaceMinutesPerMile {
+            return true
+        }
+
+        if exceedsDelta(
+            previous.currentDistanceMiles,
+            next.currentDistanceMiles,
+            threshold: Self.significantDistanceDeltaMiles
+        ) {
+            return true
+        }
+
+        if exceedsDelta(
+            previous.targetDistanceRemaining,
+            next.targetDistanceRemaining,
+            threshold: Self.significantDistanceDeltaMiles
+        ) {
+            return true
+        }
+
+        if exceedsDelta(
+            previous.intervalProgress,
+            next.intervalProgress,
+            threshold: Self.significantIntervalProgressDelta
+        ) {
+            return true
+        }
+
+        if exceedsDelta(
+            previous.ghostDeltaMiles,
+            next.ghostDeltaMiles,
+            threshold: Self.significantDistanceDeltaMiles
+        ) {
+            return true
+        }
+
+        if abs(previous.cardioSpeed - next.cardioSpeed) >= 0.25 ||
+            abs(previous.cardioIncline - next.cardioIncline) >= 0.5 {
+            return true
+        }
+
+        return false
+    }
+
+    private func exceedsDelta(_ lhs: Double?, _ rhs: Double?, threshold: Double) -> Bool {
+        switch (lhs, rhs) {
+        case (.none, .none):
+            return false
+        case let (.some(a), .some(b)):
+            return abs(a - b) >= threshold
+        default:
+            return true
+        }
     }
 }

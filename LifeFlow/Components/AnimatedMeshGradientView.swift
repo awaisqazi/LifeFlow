@@ -92,33 +92,22 @@ struct AnimatedMeshGradientView: View {
     @State private var frozenTime: TimeInterval = 0
     
     var body: some View {
-        // MARK: Timeline Schedule Selection
-        // When active, use .animation for 60fps smooth rendering.
-        // When inactive, use .everyMinute to effectively freeze the mesh,
-        // saving the GPU from rendering frames nobody can see.
-        //
-        // Note: .animation and .everyMinute are different TimelineSchedule types,
-        // so they cannot be combined in a single ternary expression.
-        if isAnimating {
-            TimelineView(.animation) { timeline in
-                meshContent(
-                    time: timeline.date.timeIntervalSinceReferenceDate * animationSpeed,
-                    timelineDate: timeline.date
-                )
-            }
-        } else {
-            TimelineView(.everyMinute) { timeline in
-                meshContent(
-                    time: frozenTime,
-                    timelineDate: timeline.date
-                )
-            }
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isAnimating)) { timeline in
+            let liveTime = timeline.date.timeIntervalSinceReferenceDate * animationSpeed
+            let renderTime = isAnimating ? liveTime : frozenTime
+
+            meshContent(time: renderTime)
+                .onChange(of: isAnimating) { _, newValue in
+                    if !newValue {
+                        frozenTime = liveTime
+                    }
+                }
         }
     }
 
-    /// Shared mesh content builder used by both timeline branches.
+    /// Shared mesh content builder used by the timeline.
     @ViewBuilder
-    private func meshContent(time: TimeInterval, timelineDate: Date) -> some View {
+    private func meshContent(time: TimeInterval) -> some View {
         MeshGradient(
             width: 3,
             height: 3,
@@ -132,11 +121,6 @@ struct AnimatedMeshGradientView: View {
         // when layered under .ultraThinMaterial Liquid Glass cards.
         .drawingGroup()
         .ignoresSafeArea()
-        .onChange(of: isAnimating) { _, newValue in
-            if !newValue {
-                frozenTime = timelineDate.timeIntervalSinceReferenceDate * animationSpeed
-            }
-        }
     }
     
     /// Calculates animated positions for all 9 control points at a given time

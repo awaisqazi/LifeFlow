@@ -286,16 +286,19 @@ struct HorizonView: View {
 
     /// Remove all TrainingPlan objects (and cascade-delete their sessions)
     /// when no race training goals remain.
+    ///
+    /// Note: `TrainingPlan.sessions` uses `@Relationship(deleteRule: .cascade)`,
+    /// so SwiftData automatically deletes child `TrainingSession` objects.
+    /// We must NOT iterate `plan.sessions` here because the backing data may
+    /// already be partially detached after `cancelPlan`, which causes a fatal
+    /// fault‐resolution crash on unresolved attributes like `raceDistance`.
     private func deleteOrphanedTrainingPlans() {
         let descriptor = FetchDescriptor<TrainingPlan>()
         guard let plans = try? modelContext.fetch(descriptor) else { return }
         for plan in plans {
-            // Delete child sessions first in case cascade isn't configured
-            for session in plan.sessions {
-                modelContext.delete(session)
-            }
             modelContext.delete(plan)
         }
+        // Single save after all deletions; cascade handles child sessions.
         try? modelContext.save()
     }
 }

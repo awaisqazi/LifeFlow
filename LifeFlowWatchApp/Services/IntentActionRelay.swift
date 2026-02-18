@@ -1,7 +1,7 @@
 import Foundation
 import LifeFlowCore
 
-enum PendingWatchIntentKind: String, Codable {
+enum PendingWatchIntentKind: String, Codable, Sendable {
     case startRun
     case logNutrition
     case markLap
@@ -9,7 +9,7 @@ enum PendingWatchIntentKind: String, Codable {
     case toggleMetrics
 }
 
-struct PendingWatchIntentAction: Codable {
+struct PendingWatchIntentAction: Codable, Sendable {
     var id: UUID
     var kind: PendingWatchIntentKind
     var timestamp: Date
@@ -23,11 +23,18 @@ struct PendingWatchIntentAction: Codable {
     }
 }
 
-enum IntentActionRelay {
-    private static let queueKey = "watchIntentActionQueue"
+actor IntentActionRelay {
+    static let shared = IntentActionRelay()
 
-    static func enqueue(_ action: PendingWatchIntentAction, appGroupID: String = LifeFlowSharedConfig.appGroupID) {
-        guard let defaults = UserDefaults(suiteName: appGroupID) else { return }
+    private let queueKey = "watchIntentActionQueue"
+    private let appGroupID: String
+
+    init(appGroupID: String = LifeFlowSharedConfig.appGroupID) {
+        self.appGroupID = appGroupID
+    }
+
+    func enqueue(_ action: PendingWatchIntentAction) {
+        guard let defaults = defaults else { return }
 
         var queue = loadQueue(defaults: defaults)
         queue.append(action)
@@ -37,15 +44,19 @@ enum IntentActionRelay {
         }
     }
 
-    static func consumeAll(appGroupID: String = LifeFlowSharedConfig.appGroupID) -> [PendingWatchIntentAction] {
-        guard let defaults = UserDefaults(suiteName: appGroupID) else { return [] }
+    func consumeAll() -> [PendingWatchIntentAction] {
+        guard let defaults = defaults else { return [] }
 
         let queue = loadQueue(defaults: defaults)
         defaults.removeObject(forKey: queueKey)
         return queue
     }
 
-    private static func loadQueue(defaults: UserDefaults) -> [PendingWatchIntentAction] {
+    private var defaults: UserDefaults? {
+        UserDefaults(suiteName: appGroupID)
+    }
+
+    private func loadQueue(defaults: UserDefaults) -> [PendingWatchIntentAction] {
         guard let data = defaults.data(forKey: queueKey),
               let queue = try? JSONDecoder().decode([PendingWatchIntentAction].self, from: data) else {
             return []

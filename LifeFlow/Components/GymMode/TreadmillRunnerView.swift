@@ -22,12 +22,18 @@ struct TreadmillRunnerView: View {
     let ghostDeltaLabel: String
     let ghostDelta: Double
     let showGhostRunner: Bool
+
+    @Environment(\.scenePhase) private var scenePhase
+    #if os(watchOS)
+    @Environment(\.isLuminanceReduced) private var isLuminanceReduced
+    #endif
     
     @State private var scrollOffset: CGFloat = 0
     @State private var displayedMilestone: MilestoneData? = nil
     @State private var passedMilestones: Set<Int> = []
     @State private var runnerBounce: Bool = false
     @State private var pulseGlow: Bool = false
+    @State private var isAnimationLoopActive: Bool = false
     
     private var progress: Double {
         guard targetDistance > 0 else { return 0 }
@@ -36,6 +42,14 @@ struct TreadmillRunnerView: View {
     
     private var speedFactor: CGFloat {
         max(0.1, CGFloat(speed) / 6.0)
+    }
+
+    private var isSceneAnimating: Bool {
+        #if os(watchOS)
+        return scenePhase == .active && !isLuminanceReduced
+        #else
+        return scenePhase == .active
+        #endif
     }
     
     struct MilestoneData: Equatable {
@@ -243,23 +257,46 @@ struct TreadmillRunnerView: View {
             }
         }
         .onAppear {
-            startAnimations()
+            if isSceneAnimating {
+                startAnimations()
+            }
+        }
+        .onChange(of: isSceneAnimating) { _, isAnimating in
+            if isAnimating {
+                startAnimations()
+            } else {
+                stopAnimations()
+            }
         }
         .onChange(of: currentDistance) { _, newVal in
             checkMilestones(distance: newVal)
         }
         .onReceive(Timer.publish(every: 0.03, on: .main, in: .common).autoconnect()) { _ in
+            guard isSceneAnimating else { return }
             scrollOffset += speedFactor * 3.5
         }
     }
     
     private func startAnimations() {
+        guard !isAnimationLoopActive else { return }
+        isAnimationLoopActive = true
+
+        runnerBounce = false
+        pulseGlow = false
+
         withAnimation(.easeInOut(duration: 0.3).repeatForever(autoreverses: true)) {
             runnerBounce = true
         }
         withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
             pulseGlow = true
         }
+    }
+
+    private func stopAnimations() {
+        guard isAnimationLoopActive else { return }
+        isAnimationLoopActive = false
+        runnerBounce = false
+        pulseGlow = false
     }
     
     private func checkMilestones(distance: Double) {

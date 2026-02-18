@@ -22,6 +22,8 @@ actor WatchDataStore {
     }()
 
     private static let logger = Logger(subsystem: "com.Fez.LifeFlow.watch", category: "DataStore")
+    private static let telemetryFlushThreshold = 60
+    private var telemetryBufferBySessionID: [UUID: [TelemetrySnapshotDTO]] = [:]
 
     // MARK: - Container Factory
 
@@ -118,38 +120,33 @@ actor WatchDataStore {
 
     // MARK: - Background Data Ingestion
 
-    /// Ingest a WatchRunMessage payload from WCSession on this background actor,
-    /// keeping SwiftData operations entirely off the main thread.
+    /// Ingest a WatchRunMessage payload from WCSession on this background actor.
+    /// Telemetry snapshots are buffered and flushed in batches to avoid per-tick saves.
     func ingest(_ message: WatchRunMessage) {
         Self.logger.debug("Ingesting WatchRunMessage on background actor: \(message.event.rawValue)")
 
         // MARK: Session Lookup / Creation
         let session: WatchWorkoutSession
+        var didMutateStore = false
         if let runID = message.runID, let existing = findSession(by: runID) {
             session = existing
         } else if message.event == .runStarted, let runID = message.runID {
             let newSession = WatchWorkoutSession(id: runID, startedAt: message.timestamp)
             modelContext.insert(newSession)
             session = newSession
+            didMutateStore = true
         } else {
             // No runID or session — can't persist without a session anchor.
             return
         }
 
-        // MARK: Telemetry Ingestion
+        // MARK: Telemetry Buffering
         if let snapshot = message.metricSnapshot {
-            let point = TelemetryPoint(
-                timestamp: snapshot.timestamp,
-                distanceMiles: snapshot.distanceMiles,
-                heartRateBPM: snapshot.heartRateBPM,
-                paceSecondsPerMile: snapshot.paceSecondsPerMile,
-                cadenceSPM: snapshot.cadenceSPM,
-                gradePercent: snapshot.gradePercent,
-                fuelRemainingGrams: snapshot.fuelRemainingGrams
-            )
-            point.workoutSession = session
-            if session.telemetryPoints == nil { session.telemetryPoints = [] }
-            session.telemetryPoints?.append(point)
+            bufferTelemetrySnapshot(snapshot, for: session.id)
+
+            if shouldFlushTelemetry(for: session.id) {
+                didMutateStore = flushBufferedTelemetry(for: session) || didMutateStore
+            }
         }
 
         // MARK: Run Event Mapping
@@ -182,10 +179,13 @@ actor WatchDataStore {
             event.workoutSession = session
             if session.runEvents == nil { session.runEvents = [] }
             session.runEvents?.append(event)
+            didMutateStore = true
         }
 
         // MARK: State Snapshot
-        if let lifecycle = message.lifecycleState {
+        // Metric snapshots arrive every second; persisting state transitions only for
+        // discrete events keeps the store size and write pressure manageable.
+        if let lifecycle = message.lifecycleState, message.event != .metricSnapshot {
             let snapshot = WatchRunStateSnapshot(
                 timestamp: message.timestamp,
                 lifecycleState: lifecycle,
@@ -198,6 +198,7 @@ actor WatchDataStore {
             snapshot.workoutSession = session
             if session.stateSnapshots == nil { session.stateSnapshots = [] }
             session.stateSnapshots?.append(snapshot)
+            didMutateStore = true
         }
 
         // MARK: Session Lifecycle Updates
@@ -210,19 +211,61 @@ actor WatchDataStore {
             if let hr = message.heartRateBPM {
                 session.averageHeartRate = hr
             }
+            didMutateStore = true
+            didMutateStore = flushBufferedTelemetry(for: session) || didMutateStore
         default:
             break
         }
 
         // MARK: Persist
-        do {
-            try modelContext.save()
-        } catch {
-            Self.logger.error("Failed to save ingested data: \(error.localizedDescription)")
+        if didMutateStore {
+            do {
+                try modelContext.save()
+            } catch {
+                Self.logger.error("Failed to save ingested data: \(error.localizedDescription)")
+            }
         }
     }
 
     // MARK: - Session Lookup
+
+    private func bufferTelemetrySnapshot(_ snapshot: TelemetrySnapshotDTO, for sessionID: UUID) {
+        telemetryBufferBySessionID[sessionID, default: []].append(snapshot)
+    }
+
+    private func shouldFlushTelemetry(for sessionID: UUID) -> Bool {
+        let count = telemetryBufferBySessionID[sessionID]?.count ?? 0
+        return count >= Self.telemetryFlushThreshold
+    }
+
+    @discardableResult
+    private func flushBufferedTelemetry(for session: WatchWorkoutSession) -> Bool {
+        guard let buffered = telemetryBufferBySessionID.removeValue(forKey: session.id),
+              !buffered.isEmpty else {
+            return false
+        }
+
+        if session.telemetryPoints == nil {
+            session.telemetryPoints = []
+        }
+
+        for snapshot in buffered {
+            let point = TelemetryPoint(
+                timestamp: snapshot.timestamp,
+                distanceMiles: snapshot.distanceMiles,
+                heartRateBPM: snapshot.heartRateBPM,
+                paceSecondsPerMile: snapshot.paceSecondsPerMile,
+                cadenceSPM: snapshot.cadenceSPM,
+                gradePercent: snapshot.gradePercent,
+                fuelRemainingGrams: snapshot.fuelRemainingGrams
+            )
+            point.workoutSession = session
+            session.telemetryPoints?.append(point)
+        }
+
+        Self.logger.debug("Flushed \(buffered.count, privacy: .public) telemetry points for watch session.")
+        return true
+    }
 
     /// Finds an existing WatchWorkoutSession by its UUID.
     private func findSession(by id: UUID) -> WatchWorkoutSession? {

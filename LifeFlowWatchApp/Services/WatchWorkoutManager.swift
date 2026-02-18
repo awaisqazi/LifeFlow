@@ -417,8 +417,8 @@ final class WatchWorkoutManager: NSObject {
         try? modelContext.save()
     }
 
-    func applyPendingIntentActions() {
-        let actions = IntentActionRelay.consumeAll()
+    func applyPendingIntentActions() async {
+        let actions = await IntentActionRelay.shared.consumeAll()
         guard !actions.isEmpty else { return }
 
         for action in actions {
@@ -427,9 +427,7 @@ final class WatchWorkoutManager: NSObject {
                 if lifecycleState == .paused {
                     resumeRun()
                 } else if lifecycleState == .idle || lifecycleState == .ended {
-                    Task {
-                        await startRun(style: .base)
-                    }
+                    await startRun(style: .base)
                 }
             case .logNutrition:
                 logNutrition(carbsGrams: action.value)
@@ -457,7 +455,7 @@ final class WatchWorkoutManager: NSObject {
     }
 
     private func tick() async {
-        applyPendingIntentActions()
+        await applyPendingIntentActions()
 
         guard let startedAt else { return }
         elapsedSeconds = max(0, Date().timeIntervalSince(startedAt))
@@ -503,8 +501,13 @@ final class WatchWorkoutManager: NSObject {
             }
         }
 
-        if thermalGovernor.mode.allowsVoicePrompts,
-           let prompt = coachPromptEngine.prompt(for: decision, now: now, lastPromptAt: lastPromptAt) {
+        if thermalGovernor.mode.shouldSuspendOnDeviceInference {
+            latestPrompt = nil
+            if speechSynthesizer.isSpeaking {
+                speechSynthesizer.stopSpeaking(at: .immediate)
+            }
+        } else if thermalGovernor.mode.allowsVoicePrompts,
+                  let prompt = coachPromptEngine.prompt(for: decision, now: now, lastPromptAt: lastPromptAt) {
             lastPromptAt = now
             latestPrompt = prompt
             speak(prompt)

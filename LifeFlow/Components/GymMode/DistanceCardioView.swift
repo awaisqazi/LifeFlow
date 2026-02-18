@@ -74,8 +74,11 @@ struct DistanceCardioView: View {
         }
         .onAppear {
             weatherService.fetchIfNeeded()
+            restoreActiveRunIfNeeded()
         }
         .onDisappear {
+            timer?.invalidate()
+            timer = nil
             liveLocationTracker.stopTracking()
         }
         .onChange(of: gymModeManager.isIndoorRun) { _, isIndoor in
@@ -539,6 +542,15 @@ struct DistanceCardioView: View {
         max(0, targetDistance - displayDistance)
     }
     
+    private var normalizedOutdoorHealthKitDistance: Double {
+        let rawDistance = max(0, healthKitManager.currentSessionDistance)
+        let baseline = max(0, gymModeManager.guidedRunDistanceBaselineMiles)
+        
+        // If HealthKit restarted from zero after run start, use raw distance directly.
+        guard rawDistance >= baseline else { return rawDistance }
+        return rawDistance - baseline
+    }
+    
     private var displayDistance: Double {
         // Indoor sessions prioritize local treadmill progression.
         if gymModeManager.isIndoorRun {
@@ -552,8 +564,8 @@ struct DistanceCardioView: View {
         }
         
         // Outdoor sessions prioritize GPS-backed HealthKit distance.
-        if healthKitManager.currentSessionDistance > 0 {
-            return healthKitManager.currentSessionDistance
+        if normalizedOutdoorHealthKitDistance > 0 {
+            return normalizedOutdoorHealthKitDistance
         }
         if liveLocationTracker.trackedDistanceMiles > 0 {
             return liveLocationTracker.trackedDistanceMiles
@@ -708,11 +720,19 @@ struct DistanceCardioView: View {
     // MARK: - Actions
     
     private func startWorkout() {
+        if gymModeManager.isCardioInProgress {
+            restoreActiveRunIfNeeded()
+            return
+        }
+        
         currentDistance = 0
         elapsedTime = 0
         phase = .active
         SoundManager.shared.play(.startGun, volume: 0.62)
         gymModeManager.isCardioInProgress = true
+        gymModeManager.guidedRunDistanceBaselineMiles = gymModeManager.isIndoorRun
+            ? 0
+            : max(0, healthKitManager.currentSessionDistance)
         hasCenteredMap = false
         mapPosition = .automatic
         liveLocationTracker.resetRoute()
@@ -732,33 +752,77 @@ struct DistanceCardioView: View {
         currentIntervalStart = Date()
         intervals = []
         
-        // Start timer - update every second
-        // Distance is simulated based on speed (mph converted to miles per second)
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-            guard !gymModeManager.isPaused else { return }
-            elapsedTime += 1
-            
-            if gymModeManager.isIndoorRun {
-                // Treadmill sessions use user-set speed and simulated progression.
-                let distanceThisSecond = speed / 3600.0
-                currentDistance += distanceThisSecond
-            } else {
-                // Outdoor sessions are sensor-driven (HealthKit distance + GPS fallback).
-                speed = sensorSpeedForOutdoor
-                incline = sensorInclineForOutdoor
-            }
-            
-            syncCardioStateToManager()
-            
-            // Check if target reached
-            if displayDistance >= targetDistance {
-                timer?.invalidate()
-                timer = nil
-                gymModeManager.isCardioInProgress = false
-                liveLocationTracker.stopTracking()
-                phase = .complete
-            }
+        startProgressTimer()
+    }
+    
+    private func restoreActiveRunIfNeeded() {
+        guard gymModeManager.isCardioInProgress else { return }
+        
+        phase = .active
+        elapsedTime = max(elapsedTime, gymModeManager.cardioElapsedTime)
+        
+        if gymModeManager.cardioSpeed > 0 {
+            speed = gymModeManager.cardioSpeed
         }
+        if gymModeManager.cardioIncline.isFinite {
+            incline = gymModeManager.cardioIncline
+        }
+        
+        if gymModeManager.isIndoorRun {
+            liveLocationTracker.stopTracking()
+        } else {
+            weatherService.fetchIfNeeded()
+            liveLocationTracker.startTracking(indoor: false)
+        }
+        
+        syncCardioStateToManager()
+        startProgressTimerIfNeeded()
+    }
+    
+    private func startProgressTimerIfNeeded() {
+        guard timer == nil else { return }
+        startProgressTimer()
+    }
+    
+    private func startProgressTimer() {
+        timer?.invalidate()
+        
+        // Distance updates at 1 Hz keep UI + widgets in sync while active.
+        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+            tickWorkoutProgress()
+        }
+    }
+    
+    private func tickWorkoutProgress() {
+        guard phase == .active else { return }
+        guard !gymModeManager.isPaused else { return }
+        
+        elapsedTime += 1
+        
+        if gymModeManager.isIndoorRun {
+            // Treadmill sessions use user-set speed and simulated progression.
+            let distanceThisSecond = speed / 3600.0
+            currentDistance += distanceThisSecond
+        } else {
+            // Outdoor sessions are sensor-driven (HealthKit distance + GPS fallback).
+            speed = sensorSpeedForOutdoor
+            incline = sensorInclineForOutdoor
+        }
+        
+        syncCardioStateToManager()
+        
+        if displayDistance >= targetDistance {
+            completeWorkout()
+        }
+    }
+    
+    private func completeWorkout() {
+        timer?.invalidate()
+        timer = nil
+        gymModeManager.isCardioInProgress = false
+        gymModeManager.guidedRunDistanceBaselineMiles = 0
+        liveLocationTracker.stopTracking()
+        phase = .complete
     }
     
     private var runEnvironmentToggle: some View {
@@ -825,6 +889,7 @@ struct DistanceCardioView: View {
         timer?.invalidate()
         timer = nil
         gymModeManager.isCardioInProgress = false
+        gymModeManager.guidedRunDistanceBaselineMiles = 0
         liveLocationTracker.stopTracking()
         
         let finalIntervals = allIntervalsWithCurrent

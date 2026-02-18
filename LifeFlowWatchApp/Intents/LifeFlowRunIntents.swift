@@ -70,9 +70,7 @@ struct StartLifeFlowRunIntent: StartWorkoutIntent {
     }
 
     func perform() async throws -> some IntentResult {
-        await MainActor.run {
-            IntentActionRelay.enqueue(PendingWatchIntentAction(kind: .startRun))
-        }
+        await IntentActionRelay.shared.enqueue(PendingWatchIntentAction(kind: .startRun))
         return .result(dialog: "Run ready")
     }
 }
@@ -92,14 +90,12 @@ struct LogNutritionIntent: AppIntent {
     }
 
     func perform() async throws -> some IntentResult {
-        await MainActor.run {
-            IntentActionRelay.enqueue(
-                PendingWatchIntentAction(
-                    kind: .logNutrition,
-                    value: max(15, min(40, carbs))
-                )
+        await IntentActionRelay.shared.enqueue(
+            PendingWatchIntentAction(
+                kind: .logNutrition,
+                value: max(15, min(40, carbs))
             )
-        }
+        )
         return .result(dialog: "Fuel logged")
     }
 }
@@ -110,9 +106,7 @@ struct MarkLapIntent: AppIntent {
     static let description = IntentDescription("Insert a lap marker in the active workout.")
 
     func perform() async throws -> some IntentResult {
-        await MainActor.run {
-            IntentActionRelay.enqueue(PendingWatchIntentAction(kind: .markLap))
-        }
+        await IntentActionRelay.shared.enqueue(PendingWatchIntentAction(kind: .markLap))
         return .result(dialog: "Lap marked")
     }
 }
@@ -123,9 +117,7 @@ struct DismissRunAlertIntent: AppIntent {
     static let description = IntentDescription("Dismiss the active run alert.")
 
     func perform() async throws -> some IntentResult {
-        await MainActor.run {
-            IntentActionRelay.enqueue(PendingWatchIntentAction(kind: .dismissAlert))
-        }
+        await IntentActionRelay.shared.enqueue(PendingWatchIntentAction(kind: .dismissAlert))
         return .result()
     }
 }
@@ -136,9 +128,7 @@ struct ToggleMetricsIntent: AppIntent {
     static let description = IntentDescription("Switch between primary and secondary metric stacks.")
 
     func perform() async throws -> some IntentResult {
-        await MainActor.run {
-            IntentActionRelay.enqueue(PendingWatchIntentAction(kind: .toggleMetrics))
-        }
+        await IntentActionRelay.shared.enqueue(PendingWatchIntentAction(kind: .toggleMetrics))
         return .result()
     }
 }

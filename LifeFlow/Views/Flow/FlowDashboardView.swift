@@ -262,10 +262,10 @@ struct FlowDashboardView: View {
                 coachManager.cancelPlan(modelContext: modelContext)
             }
             // Delete any stale TrainingPlans left over from deleted goals
+            // Cascade delete rule on TrainingPlan.sessions handles child sessions.
+            // Do NOT iterate plan.sessions here — backing data may be partially
+            // detached after cancelPlan, causing a fatal fault-resolution crash.
             for plan in trainingPlans {
-                for session in plan.sessions {
-                    modelContext.delete(session)
-                }
                 modelContext.delete(plan)
             }
             if !trainingPlans.isEmpty {
