@@ -68,59 +68,16 @@ struct TreadmillRunnerView: View {
     var body: some View {
         GeometryReader { geo in
             let topInset = geo.safeAreaInsets.top
-            let bottomInset = geo.safeAreaInsets.bottom
             let topHUDHorizontalInset: CGFloat = 12
             let topHUDWidth = max(200, min(geo.size.width - (topHUDHorizontalInset * 2), 760))
-            let runnerBottomPadding = max(bottomInset + 188, geo.size.height * 0.22)
+            let runnerBottomPadding = max(geo.safeAreaInsets.bottom + 188, geo.size.height * 0.22)
             let topHUDPadding = max(topInset + 8, 48)
 
             ZStack {
-                // MARK: - Environment Layer
-                AnimatedMeshGradientView(
-                    theme: .horizon,
-                    animationSpeed: 0.18 + (normalizedSpeed * 0.2)
-                )
-                .ignoresSafeArea()
+                // MARK: - Environment Layer (ignores safe area)
+                environmentLayer(geo: geo)
 
-                LinearGradient(
-                    colors: [
-                        Color.black.opacity(0.28),
-                        Color(red: 0.04, green: 0.03, blue: 0.08).opacity(0.68)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
-
-                Image("texture_noise_grain")
-                    .resizable()
-                    .scaledToFill()
-                    .ignoresSafeArea()
-                    .blendMode(.overlay)
-                    .opacity(0.3)
-                    .allowsHitTesting(false)
-
-                TwinklingStarsView(
-                    isAnimating: isSceneAnimating,
-                    progress: progress
-                )
-                .blendMode(.screen)
-
-                MoonBeaconView(progress: progress)
-                    .offset(
-                        x: geo.size.width * 0.32,
-                        y: -geo.size.height * (0.28 - (0.08 * progress))
-                    )
-                    .blendMode(.screen)
-
-                CityscapeParallaxView(
-                    scrollSpeed: CGFloat(normalizedSpeed),
-                    paceSecondsPerMile: paceSecondsPerMile,
-                    isAnimating: isSceneAnimating
-                )
-                .ignoresSafeArea(edges: .bottom)
-
-                // MARK: - Foreground Runner
+                // MARK: - Foreground Runner (respects safe area implicitly)
                 RunnerForegroundView(
                     speed: speed,
                     cadenceHz: cadenceHz,
@@ -144,7 +101,6 @@ struct TreadmillRunnerView: View {
             .frame(width: geo.size.width, height: geo.size.height)
             .clipped()
             .overlay(alignment: .top) {
-                // Keep HUD out of the scene ZStack layout so it cannot drift.
                 VStack(spacing: 10) {
                     RunStatusStrip(
                         formattedPace: formattedPace,
@@ -168,6 +124,55 @@ struct TreadmillRunnerView: View {
         .onChange(of: currentDistance) { _, newDistance in
             checkMilestones(distance: newDistance)
         }
+    }
+
+    // MARK: - Environment Layer
+
+    @ViewBuilder
+    private func environmentLayer(geo: GeometryProxy) -> some View {
+        AnimatedMeshGradientView(
+            theme: .horizon,
+            animationSpeed: 0.18 + (normalizedSpeed * 0.2)
+        )
+        .ignoresSafeArea()
+
+        LinearGradient(
+            colors: [
+                Color.black.opacity(0.28),
+                Color(red: 0.04, green: 0.03, blue: 0.08).opacity(0.68)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .ignoresSafeArea()
+
+        Image("texture_noise_grain")
+            .resizable()
+            .scaledToFill()
+            .ignoresSafeArea()
+            .blendMode(.overlay)
+            .opacity(0.3)
+            .allowsHitTesting(false)
+
+        TwinklingStarsView(
+            isAnimating: isSceneAnimating,
+            progress: progress
+        )
+        .blendMode(.screen)
+
+        MoonBeaconView(progress: progress)
+            .offset(
+                x: geo.size.width * 0.32,
+                y: -geo.size.height * (0.28 - (0.08 * progress))
+            )
+            .blendMode(.screen)
+
+        CityscapeParallaxView(
+            scrollSpeed: CGFloat(normalizedSpeed),
+            paceSecondsPerMile: paceSecondsPerMile,
+            isAnimating: isSceneAnimating
+        )
+        .ignoresSafeArea()
     }
 
     private func checkMilestones(distance: Double) {
@@ -217,32 +222,36 @@ private struct CityscapeParallaxView: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .bottom) {
+                // Background layer — heavy blur, low opacity, atmospheric haze
                 SkylineLayerCanvas(
                     layer: .back,
                     scrollSpeed: scrollSpeed,
                     isAnimating: isAnimating
                 )
                 .offset(y: -geo.size.height * 0.23)
-                .blur(radius: 2.4)
-                .opacity(0.42)
+                .blur(radius: 6)
+                .opacity(0.45)
 
+                // Midground layer — slight blur, medium opacity
                 SkylineLayerCanvas(
                     layer: .mid,
                     scrollSpeed: scrollSpeed,
                     isAnimating: isAnimating
                 )
                 .offset(y: -geo.size.height * 0.16)
-                .blur(radius: 1.0)
-                .opacity(0.62)
+                .blur(radius: 2)
+                .opacity(0.65)
 
+                // Foreground layer — sharp, darkest silhouettes
                 SkylineLayerCanvas(
                     layer: .front,
                     scrollSpeed: scrollSpeed,
                     isAnimating: isAnimating
                 )
                 .offset(y: -geo.size.height * 0.085)
-                .opacity(0.9)
+                .opacity(0.92)
 
+                // Treadmill floor
                 TreadmillFloorView(
                     scrollSpeed: scrollSpeed,
                     paceSecondsPerMile: paceSecondsPerMile,
@@ -250,6 +259,19 @@ private struct CityscapeParallaxView: View {
                 )
                 .frame(height: geo.size.height * 0.2)
             }
+            // Fade the bottom of the cityscape so it dissolves into the background
+            // rather than having a hard cutoff behind the dashboard.
+            .mask(
+                VStack(spacing: 0) {
+                    Rectangle() // top portion fully visible
+                    LinearGradient(
+                        colors: [.white, .white.opacity(0.5), .clear],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: geo.size.height * 0.18)
+                }
+            )
         }
     }
 }
@@ -379,24 +401,23 @@ private struct SkylineLayerCanvas: View {
             }
         }
 
+        /// Deep midnight-blue monolithic silhouette colors.
+        /// Back is lightest (atmospheric haze), front is near-black.
         var bodyColor: Color {
             switch self {
-            case .back: return Color(red: 0.22, green: 0.24, blue: 0.36)
-            case .mid: return Color(red: 0.12, green: 0.12, blue: 0.21)
-            case .front: return Color(red: 0.04, green: 0.05, blue: 0.1)
+            case .back: return Color(red: 0.10, green: 0.11, blue: 0.22)
+            case .mid:  return Color(red: 0.06, green: 0.06, blue: 0.15)
+            case .front: return Color(red: 0.02, green: 0.02, blue: 0.07)
             }
         }
 
-        var windowColor: Color {
+        /// Subtle roof highlight opacity per layer.
+        var roofHighlightOpacity: Double {
             switch self {
-            case .back: return Color(red: 0.75, green: 0.85, blue: 1.0)
-            case .mid: return Color(red: 0.98, green: 0.86, blue: 0.55)
-            case .front: return Color(red: 0.93, green: 0.79, blue: 0.47)
+            case .back: return 0.06
+            case .mid:  return 0.10
+            case .front: return 0.14
             }
-        }
-
-        var showsWindows: Bool {
-            self != .back
         }
     }
 
@@ -429,27 +450,27 @@ private struct SkylineLayerCanvas: View {
                         height: height
                     )
 
+                    // Monolithic silhouette — no windows
                     context.fill(Rectangle().path(in: rect), with: .color(layer.bodyColor))
 
+                    // Subtle roof edge highlight
                     let roof = CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: 1)
-                    context.fill(Rectangle().path(in: roof), with: .color(.white.opacity(0.12)))
+                    context.fill(Rectangle().path(in: roof), with: .color(.white.opacity(layer.roofHighlightOpacity)))
 
-                    if layer.showsWindows {
-                        let stripCount = Int(1 + floor(hash(index, salt: 37) * 3))
-                        for strip in 0..<stripCount {
-                            let xOffset = 4 + (CGFloat(strip) * ((rect.width - 8) / CGFloat(max(1, stripCount))))
-                            let visibleHeight = rect.height * lerp(0.22, 0.82, hash(index + strip, salt: 59))
-                            let stripRect = CGRect(
-                                x: min(rect.maxX - 2.2, rect.minX + xOffset),
-                                y: rect.maxY - visibleHeight,
-                                width: 1.4,
-                                height: visibleHeight - 6
-                            )
-                            context.fill(
-                                RoundedRectangle(cornerRadius: 0.6).path(in: stripRect),
-                                with: .color(layer.windowColor.opacity(0.08 + (0.24 * hash(index + strip, salt: 73))))
-                            )
-                        }
+                    // Occasional subtle vertical accent line for architectural detail
+                    if hash(index, salt: 41) > 0.55 {
+                        let accentX = rect.minX + (rect.width * lerp(0.25, 0.75, hash(index, salt: 53)))
+                        let accentHeight = rect.height * lerp(0.3, 0.85, hash(index, salt: 67))
+                        let accentRect = CGRect(
+                            x: accentX,
+                            y: rect.maxY - accentHeight,
+                            width: 1,
+                            height: accentHeight
+                        )
+                        context.fill(
+                            Rectangle().path(in: accentRect),
+                            with: .color(.white.opacity(0.03))
+                        )
                     }
                 }
             }
@@ -511,38 +532,57 @@ private struct MoonBeaconView: View {
 
     var body: some View {
         ZStack {
+            // Outermost atmospheric glow
             Circle()
-                .fill(Color.white.opacity(0.09))
-                .frame(width: 300, height: 300)
-                .blur(radius: 66)
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color.white.opacity(0.07),
+                            Color(red: 0.53, green: 0.69, blue: 1.0).opacity(0.04),
+                            .clear
+                        ],
+                        center: .center,
+                        startRadius: 40,
+                        endRadius: 180
+                    )
+                )
+                .frame(width: 360, height: 360)
                 .blendMode(.screen)
 
+            // Secondary halo
             Circle()
-                .fill(Color(red: 0.53, green: 0.69, blue: 1.0).opacity(0.16))
-                .frame(width: 210, height: 210)
-                .blur(radius: 36)
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color(red: 0.53, green: 0.69, blue: 1.0).opacity(0.14),
+                            Color(red: 0.53, green: 0.69, blue: 1.0).opacity(0.04),
+                            .clear
+                        ],
+                        center: .center,
+                        startRadius: 20,
+                        endRadius: 110
+                    )
+                )
+                .frame(width: 220, height: 220)
                 .blendMode(.screen)
 
-            Circle()
-                .fill(Color.white.opacity(0.45))
-                .frame(width: 128, height: 128)
-                .blur(radius: 8)
-                .blendMode(.screen)
-
+            // Inner bright core
             Circle()
                 .fill(
                     RadialGradient(
                         colors: [
                             .white.opacity(0.96),
-                            Color(red: 0.75, green: 0.85, blue: 1.0).opacity(0.5),
+                            Color(red: 0.85, green: 0.92, blue: 1.0).opacity(0.6),
+                            Color(red: 0.75, green: 0.85, blue: 1.0).opacity(0.15),
                             .clear
                         ],
                         center: .center,
-                        startRadius: 8,
+                        startRadius: 4,
                         endRadius: 56
                     )
                 )
                 .frame(width: 112, height: 112)
+                .blendMode(.screen)
         }
         .opacity(0.82 - (progress * 0.2))
     }
@@ -565,24 +605,25 @@ private struct RunnerForegroundView: View {
             let trailPulse = 0.4 + (0.6 * (0.5 + (0.5 * sin(t * 6))))
 
             ZStack {
-                // Treadmill floor reflection + motion trail
+                // Soft floor reflection — elliptical ground glow
                 Ellipse()
                     .fill(
                         RadialGradient(
                             colors: [
-                                Color.white.opacity(0.13),
-                                Color.cyan.opacity(0.2),
+                                Color.cyan.opacity(0.35),
+                                Color.cyan.opacity(0.12),
                                 .clear
                             ],
                             center: .center,
-                            startRadius: 8,
-                            endRadius: 94
+                            startRadius: 2,
+                            endRadius: 40
                         )
                     )
-                    .frame(width: 220, height: 76)
+                    .frame(width: 70, height: 8)
                     .blur(radius: 6)
-                    .offset(y: 48)
+                    .offset(y: 50)
 
+                // Motion trail particles at high speed
                 if speed > 2.8 {
                     ForEach(0..<4, id: \.self) { index in
                         Capsule()
@@ -593,6 +634,7 @@ private struct RunnerForegroundView: View {
                     }
                 }
 
+                // Ghost runner
                 if showGhostRunner {
                     Image(systemName: "figure.run")
                         .font(.system(size: 50, weight: .thin, design: .rounded))
@@ -602,6 +644,7 @@ private struct RunnerForegroundView: View {
                         .blur(radius: 0.5)
                 }
 
+                // Primary runner
                 Image(systemName: "figure.run")
                     .font(.system(size: 84, weight: .medium, design: .rounded))
                     .foregroundStyle(
@@ -615,9 +658,10 @@ private struct RunnerForegroundView: View {
                             endPoint: .bottom
                         )
                     )
-                    .shadow(color: .white.opacity(0.62), radius: 3, y: -1)
-                    .shadow(color: Color.cyan.opacity(0.76), radius: 18, y: 2)
-                    .shadow(color: Color.cyan.opacity(0.34), radius: 48, y: 12)
+                    // Stacked glow: tight white core + diffuse cyan halo
+                    .shadow(color: .white.opacity(0.8), radius: 4)
+                    .shadow(color: .cyan.opacity(0.4), radius: 15)
+                    .shadow(color: .cyan.opacity(0.18), radius: 40, y: 8)
                     .offset(y: bob)
             }
         }

@@ -397,34 +397,31 @@ struct DistanceCardioView: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
-                .padding(.horizontal, 18)
-                .padding(.vertical, 16)
-                .background {
-                    Capsule()
-                        .fill(.ultraThinMaterial)
-                        .overlay(
-                            Capsule()
-                                .strokeBorder(
-                                    LiquidGlass.specularGradient,
-                                    lineWidth: LiquidGlass.strokeWidth
-                                )
-                                .blendMode(.overlay)
+                .padding(.horizontal, 20)
+                .padding(.top, 18)
+                .padding(.bottom, 16)
+                .background(
+                    .ultraThinMaterial,
+                    in: RoundedRectangle(cornerRadius: 32, style: .continuous)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 32, style: .continuous)
+                        .stroke(
+                            LinearGradient(
+                                colors: [.white.opacity(0.3), .clear],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 1
                         )
-                        .shadow(
-                            color: LiquidGlass.shadowColor,
-                            radius: LiquidGlass.shadowRadius * 0.75,
-                            y: LiquidGlass.shadowY * 0.7
-                        )
-                }
-                .overlay(alignment: .top) {
-                    Capsule()
-                        .fill(Color.white.opacity(0.26))
-                        .frame(height: 1)
-                        .padding(.horizontal, 22)
-                        .padding(.top, 1)
-                }
+                )
+                .shadow(
+                    color: Color.black.opacity(0.35),
+                    radius: 24,
+                    y: -8
+                )
                 .padding(.horizontal, 12)
-                .padding(.bottom, 8)
+                .safeAreaPadding(.bottom)
             }
         }
         .toolbarBackground(.hidden, for: .navigationBar)
@@ -1132,15 +1129,15 @@ private struct DashboardMetricColumn: View {
     let unitLabel: String
 
     var body: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 3) {
             Text(value)
-                .font(.system(size: 29, weight: .black, design: .rounded).monospacedDigit())
+                .font(.system(size: 32, weight: .bold, design: .rounded).monospacedDigit())
                 .foregroundStyle(.white)
                 .contentTransition(.numericText(value: valueTransition))
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
             Text(unitLabel)
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .font(.caption2.bold())
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
@@ -1164,9 +1161,9 @@ private struct BreathingStopButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "stop.fill")
-                .font(.system(size: 17, weight: .bold, design: .rounded))
+                .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
-                .frame(width: 56, height: 56)
+                .frame(width: 64, height: 64)
                 .background(
                     Circle()
                         .fill(
@@ -1180,6 +1177,7 @@ private struct BreathingStopButton: View {
                             )
                         )
                 )
+                .clipShape(Circle())
                 .overlay(
                     Circle()
                         .stroke(.white.opacity(0.3), lineWidth: 1)
