@@ -73,7 +73,7 @@ struct HorizonView: View {
                 goalToDelete = nil
             }
         } message: {
-            Text("This will permanently delete \"\(goalToDelete?.title ?? "this goal")\" and all its progress data.")
+            Text("This will permanently delete \"\(goalToDelete?.title ?? "this goal")\" and all \(goalToDelete?.entries.count ?? 0) logged entries.")
         }
     }
 

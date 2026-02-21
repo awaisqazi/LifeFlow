@@ -149,7 +149,6 @@
 				Models/GoalFrequency.swift,
 				Models/GoalStatus.swift,
 				Models/GoalType.swift,
-				Models/LifeFlowSchemaVersions.swift,
 				Models/LifeFlowTab.swift,
 				Models/MeshGradientTheme.swift,
 				Models/UnitType.swift,

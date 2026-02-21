@@ -45,6 +45,7 @@ struct HydrationCard: View {
             HStack(spacing: 4) {
                 Button {
                     if dayLog.waterIntake >= 8 {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                         dayLog.waterIntake -= 8
                         HydrationSettings.saveCurrentIntake(dayLog.waterIntake)
                         try? modelContext.save()
@@ -56,8 +57,9 @@ struct HydrationCard: View {
                         .background(.ultraThinMaterial, in: Circle())
                 }
                 .buttonStyle(.plain)
-                
+
                 Button {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     dayLog.waterIntake += 8
                     HydrationSettings.saveCurrentIntake(dayLog.waterIntake)
                     try? modelContext.save()

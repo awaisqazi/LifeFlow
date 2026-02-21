@@ -360,7 +360,7 @@ struct TempleView: View {
                     showingHealthKitAlert = true
                 }
             } else {
-                print("Temple HealthKit sync (silent) failed: \(error)")
+                _ = error
             }
         }
     }

@@ -826,7 +826,6 @@ final class GymModeManager {
     /// Start a new workout session
     /// - Parameter session: The workout session to start
     func startWorkout(session: WorkoutSession) {
-        print("🔥 GymModeManager.startWorkout called with session: \(session.title)")
         
         activeSession = session
         currentExerciseIndex = 0
@@ -849,7 +848,6 @@ final class GymModeManager {
         let firstExercise = session.sortedExercises.first?.name ?? "Workout"
         let firstSets = session.sortedExercises.first?.sets.count ?? 0
         let context = liveContextValues()
-        print("🔥 Calling workoutLiveActivityManager.startWorkout...")
         workoutLiveActivityManager.startWorkout(
             workoutTitle: session.title,
             totalExercises: session.exercises.count,
@@ -902,7 +900,6 @@ final class GymModeManager {
                 }
             } catch {
                 hkManager.onDistanceUpdate = nil
-                print("Failed to start HealthKit run: \(error)")
             }
         }
     }
@@ -1070,7 +1067,6 @@ final class GymModeManager {
                     )
                 }
             } catch {
-                print("Failed to end HealthKit workout cleanly: \(error)")
                 if #available(iOS 26.0, *) {
                     await healthKitManager.discardLiveWorkout()
                 }
@@ -1218,20 +1214,15 @@ final class GymModeManager {
     /// Select a specific exercise to work on (allows any order)
     /// - Parameter exercise: The exercise to select
     func selectExercise(_ exercise: WorkoutExercise) {
-        print("DEBUG: selectExercise called for \(exercise.name) (ID: \(exercise.id))")
         guard let session = activeSession else {
-            print("DEBUG: No active session")
             return
         }
         let exercises = session.sortedExercises
-        print("DEBUG: Active session exercises: \(exercises.map { $0.name })")
-        
+
         if let index = exercises.firstIndex(where: { $0.id == exercise.id }) {
-            print("DEBUG: Found exercise at index \(index)")
             currentExerciseIndex = index
             // Find the next incomplete set for this exercise
             currentSetIndex = getNextIncompleteSetIndex(for: exercise)
-            print("DEBUG: New currentExerciseIndex: \(currentExerciseIndex), currentSetIndex: \(currentSetIndex)")
             
             // Synchronize Live Activity
             let context = liveContextValues()
@@ -1539,7 +1530,7 @@ final class GymModeManager {
             totalSets: totalSets,
             currentExerciseIndex: currentExerciseIndex,
             elapsedTime: Int(elapsedTime),
-            restEndTime: restEndTime!,
+            restEndTime: restEndTime ?? Date(),
             workoutStartDate: self.workoutStartTime ?? Date(),
             isPaused: isPaused,
             intervalProgress: context.intervalProgress,
@@ -1673,22 +1664,16 @@ final class GymModeManager {
     // MARK: - Elapsed Time Timer
     
     private func startElapsedTimer() {
-        print("⏱️ GymModeManager: Starting elapsed timer...")
         stopElapsedTimer()
         let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
             guard let self = self, let startTime = self.workoutStartTime else { return }
             self.elapsedTime = Date().timeIntervalSince(startTime)
-            print("⏱️ Tick: \(self.elapsedTime)")
         }
         RunLoop.main.add(timer, forMode: .common)
         elapsedTimer = timer
-        print("⏱️ GymModeManager: Timer scheduled.")
     }
-    
+
     private func stopElapsedTimer() {
-        if elapsedTimer != nil {
-            print("⏱️ GymModeManager: Stopping elapsed timer.")
-        }
         elapsedTimer?.invalidate()
         elapsedTimer = nil
     }
@@ -1742,9 +1727,9 @@ final class GymModeManager {
                 }
             }
         } catch {
-            print("Error fetching previous set data: \(error)")
+            // ignore fetch errors; progressive overload suggestions are best-effort
         }
-        
+
         return nil
     }
     

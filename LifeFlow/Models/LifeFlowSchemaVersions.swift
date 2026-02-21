@@ -10,6 +10,8 @@ import SwiftData
 
 /// Schema versioning for LifeFlow data models.
 /// Used for migration planning when schema changes are introduced.
+/// App target only: HydrationWidgetExtension maintains its own schema in
+/// HydrationWidget/WidgetDataLayer.swift.
 enum LifeFlowSchemaV1: VersionedSchema {
     static var versionIdentifier: Schema.Version = Schema.Version(1, 0, 0)
     
@@ -20,7 +22,13 @@ enum LifeFlowSchemaV1: VersionedSchema {
             DayLog.self,
             WorkoutSession.self,
             WorkoutExercise.self,
-            ExerciseSet.self
+            ExerciseSet.self,
+            WorkoutRoutine.self,
+            TrainingPlan.self,
+            TrainingSession.self,
+            TelemetryPoint.self,
+            RunEvent.self,
+            WatchRunStateSnapshot.self
         ]
     }
 }

@@ -41,6 +41,7 @@ struct DistanceCardioView: View {
     @State private var timer: Timer?
     @State private var showCelebration: Bool = false
     @State private var showEndEarlyAlert: Bool = false
+    @State private var interactionFeedbackTick: Int = 0
     
     // History tracking
     @State private var intervals: [CardioInterval] = []
@@ -270,130 +271,118 @@ struct DistanceCardioView: View {
                 .ignoresSafeArea()
             }
             
-            // === COMPACT FLOATING CONTROLS ===
+            // === GLASS DASHBOARD HUD ===
             VStack(spacing: 0) {
                 Spacer()
-                
-                VStack(spacing: 12) {
-                    // Metric row — single line
+
+                VStack(spacing: 14) {
                     HStack(spacing: 0) {
-                        // Distance
-                        VStack(spacing: 2) {
-                            Text(String(format: "%.2f", displayDistance))
-                                .font(.system(size: 28, weight: .black, design: .rounded).monospacedDigit())
-                                .foregroundStyle(.white)
-                                .contentTransition(.numericText())
-                            Text("MI")
-                                .font(.system(size: 9, weight: .heavy))
-                                .foregroundStyle(.white.opacity(0.5))
-                        }
-                        .frame(maxWidth: .infinity)
-                        
-                        // Divider
-                        RoundedRectangle(cornerRadius: 1)
-                            .fill(.white.opacity(0.15))
-                            .frame(width: 1, height: 32)
-                        
-                        // Pace
-                        VStack(spacing: 2) {
-                            Text(paceDisplayValue)
-                                .font(.system(size: 28, weight: .black, design: .rounded).monospacedDigit())
-                                .foregroundStyle(.white)
-                                .contentTransition(.numericText())
-                            Text("/MI")
-                                .font(.system(size: 9, weight: .heavy))
-                                .foregroundStyle(.white.opacity(0.5))
-                        }
-                        .frame(maxWidth: .infinity)
-                        
-                        // Divider
-                        RoundedRectangle(cornerRadius: 1)
-                            .fill(.white.opacity(0.15))
-                            .frame(width: 1, height: 32)
-                        
-                        // Time
-                        VStack(spacing: 2) {
-                            Text(formattedElapsedTime)
-                                .font(.system(size: 28, weight: .black, design: .rounded).monospacedDigit())
-                                .foregroundStyle(.white)
-                                .contentTransition(.numericText())
-                            Text("TIME")
-                                .font(.system(size: 9, weight: .heavy))
-                                .foregroundStyle(.white.opacity(0.5))
-                        }
-                        .frame(maxWidth: .infinity)
+                        DashboardMetricColumn(
+                            value: String(format: "%.2f", displayDistance),
+                            valueTransition: displayDistance,
+                            unitLabel: "MI"
+                        )
+                        hudDivider
+                        DashboardMetricColumn(
+                            value: paceDisplayValue,
+                            valueTransition: paceSecondsPerMileValue,
+                            unitLabel: "/MI"
+                        )
+                        hudDivider
+                        DashboardMetricColumn(
+                            value: formattedElapsedTime,
+                            valueTransition: elapsedTime,
+                            unitLabel: "TIME"
+                        )
                     }
-                    
-                    // Controls strip
-                    HStack(spacing: 16) {
-                        // Voice
+
+                    HStack(spacing: 10) {
                         Button {
+                            interactionFeedbackTick += 1
                             gymModeManager.toggleVoiceCoachMute()
                         } label: {
                             Image(systemName: gymModeManager.isVoiceCoachMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                                .font(.body.weight(.semibold))
+                                .font(.system(size: 18, weight: .semibold, design: .rounded))
                                 .foregroundStyle(gymModeManager.isVoiceCoachMuted ? .orange : .green)
-                                .frame(width: 44, height: 44)
-                                .background(Color.white.opacity(0.08), in: Circle())
+                                .frame(width: 46, height: 46)
+                                .background(.regularMaterial, in: Circle())
+                                .overlay(
+                                    Circle()
+                                        .strokeBorder(LiquidGlass.specularGradient, lineWidth: 1)
+                                        .blendMode(.overlay)
+                                )
                         }
-                        .buttonStyle(.plain)
-                        
+                        .buttonStyle(GlassControlPressStyle())
+                        .sensoryFeedback(.impact(flexibility: .solid), trigger: interactionFeedbackTick)
+
                         if gymModeManager.isIndoorRun {
-                            // Compact speed/incline
                             Button {
-                                withAnimation(.spring(response: 0.3)) {
+                                interactionFeedbackTick += 1
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
                                     expandedSetting = expandedSetting == .speed ? nil : .speed
                                 }
                             } label: {
-                                HStack(spacing: 4) {
+                                HStack(spacing: 6) {
                                     Image(systemName: "speedometer")
-                                        .font(.caption2)
+                                        .font(.system(size: 12, weight: .bold, design: .rounded))
                                     Text(String(format: "%.1f", speed))
-                                        .font(.caption.weight(.bold).monospacedDigit())
+                                        .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
+                                    Text("MPH")
+                                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                        .foregroundStyle(.secondary)
                                 }
                                 .foregroundStyle(.green)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(Color.green.opacity(0.12), in: Capsule())
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 10)
+                                .background(.regularMaterial, in: Capsule())
+                                .overlay(
+                                    Capsule()
+                                        .strokeBorder(LiquidGlass.specularGradient, lineWidth: 1)
+                                        .blendMode(.overlay)
+                                )
                             }
-                            .buttonStyle(.plain)
-                            
+                            .buttonStyle(GlassControlPressStyle())
+                            .sensoryFeedback(.impact(flexibility: .solid), trigger: interactionFeedbackTick)
+
                             Button {
-                                withAnimation(.spring(response: 0.3)) {
+                                interactionFeedbackTick += 1
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
                                     expandedSetting = expandedSetting == .incline ? nil : .incline
                                 }
                             } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "arrow.up.right")
-                                        .font(.caption2)
-                                    Text(String(format: "%.1f%%", incline))
-                                        .font(.caption.weight(.bold).monospacedDigit())
+                                HStack(spacing: 6) {
+                                    Image(systemName: "mountain.2.fill")
+                                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                                    Text(String(format: "%.1f", incline))
+                                        .font(.system(size: 14, weight: .bold, design: .rounded).monospacedDigit())
+                                    Text("%")
+                                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                        .foregroundStyle(.secondary)
                                 }
                                 .foregroundStyle(.orange)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(Color.orange.opacity(0.12), in: Capsule())
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 10)
+                                .background(.regularMaterial, in: Capsule())
+                                .overlay(
+                                    Capsule()
+                                        .strokeBorder(LiquidGlass.specularGradient, lineWidth: 1)
+                                        .blendMode(.overlay)
+                                )
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(GlassControlPressStyle())
+                            .sensoryFeedback(.impact(flexibility: .solid), trigger: interactionFeedbackTick)
                         }
-                        
-                        Spacer()
-                        
-                        // Stop
-                        Button {
+
+                        Spacer(minLength: 0)
+
+                        BreathingStopButton(isWorkoutActive: phase == .active) {
+                            interactionFeedbackTick += 1
                             showEndEarlyAlert = true
-                        } label: {
-                            Image(systemName: "stop.fill")
-                                .font(.body.weight(.bold))
-                                .foregroundStyle(.white)
-                                .frame(width: 52, height: 52)
-                                .background(.red.gradient, in: Circle())
-                                .shadow(color: .red.opacity(0.4), radius: 8, y: 4)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(GlassControlPressStyle())
+                        .sensoryFeedback(.impact(flexibility: .solid), trigger: interactionFeedbackTick)
                     }
-                    
-                    // Expanded speed/incline adjuster
+
                     if gymModeManager.isIndoorRun, let setting = expandedSetting {
                         CardioIncrementInput(
                             value: setting == .speed ? $speed : $incline,
@@ -401,19 +390,42 @@ struct DistanceCardioView: View {
                             color: setting == .speed ? .green : .orange,
                             increments: setting == .speed ? [0.1, 0.5, 1.0, 2.5] : [0.1, 0.5, 2.5, 5.0],
                             onValueChanged: {
+                                interactionFeedbackTick += 1
                                 syncCardioStateToManager()
                             }
                         )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 18)
                 .padding(.vertical, 16)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28))
+                .background {
+                    Capsule()
+                        .fill(.ultraThinMaterial)
+                        .overlay(
+                            Capsule()
+                                .strokeBorder(
+                                    LiquidGlass.specularGradient,
+                                    lineWidth: LiquidGlass.strokeWidth
+                                )
+                                .blendMode(.overlay)
+                        )
+                        .shadow(
+                            color: LiquidGlass.shadowColor,
+                            radius: LiquidGlass.shadowRadius * 0.75,
+                            y: LiquidGlass.shadowY * 0.7
+                        )
+                }
+                .overlay(alignment: .top) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.26))
+                        .frame(height: 1)
+                        .padding(.horizontal, 22)
+                        .padding(.top, 1)
+                }
                 .padding(.horizontal, 12)
                 .padding(.bottom, 8)
             }
-            .ignoresSafeArea(edges: .bottom)
         }
         .toolbarBackground(.hidden, for: .navigationBar)
     }
@@ -708,6 +720,18 @@ struct DistanceCardioView: View {
         let mins = Int(paceSeconds) / 60
         let secs = Int(paceSeconds) % 60
         return String(format: "%d:%02d", mins, secs)
+    }
+
+    private var paceSecondsPerMileValue: Double {
+        guard displayDistance > 0 else { return 0 }
+        return elapsedTime / displayDistance
+    }
+
+    private var hudDivider: some View {
+        RoundedRectangle(cornerRadius: 0.5)
+            .fill(.white.opacity(0.18))
+            .frame(width: 1, height: 42)
+            .padding(.horizontal, 10)
     }
     
     private var allIntervalsWithCurrent: [CardioInterval] {
@@ -1099,6 +1123,87 @@ private struct SensorReadoutBox: View {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(color.opacity(0.35), lineWidth: 1)
         )
+    }
+}
+
+private struct DashboardMetricColumn: View {
+    let value: String
+    let valueTransition: Double
+    let unitLabel: String
+
+    var body: some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.system(size: 29, weight: .black, design: .rounded).monospacedDigit())
+                .foregroundStyle(.white)
+                .contentTransition(.numericText(value: valueTransition))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+            Text(unitLabel)
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct GlassControlPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.spring(response: 0.26, dampingFraction: 0.62), value: configuration.isPressed)
+    }
+}
+
+private struct BreathingStopButton: View {
+    let isWorkoutActive: Bool
+    let action: () -> Void
+
+    @State private var isBreathing = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "stop.fill")
+                .font(.system(size: 17, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .frame(width: 56, height: 56)
+                .background(
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 1.0, green: 0.47, blue: 0.41),
+                                    Color(red: 0.92, green: 0.20, blue: 0.34)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                )
+                .overlay(
+                    Circle()
+                        .stroke(.white.opacity(0.3), lineWidth: 1)
+                )
+                .shadow(color: Color(red: 0.95, green: 0.24, blue: 0.36).opacity(isBreathing ? 0.78 : 0.45), radius: isBreathing ? 22 : 12, y: 6)
+                .scaleEffect(isWorkoutActive && isBreathing ? 1.05 : 1.0)
+        }
+        .onAppear {
+            updateBreathingState(isWorkoutActive)
+        }
+        .onChange(of: isWorkoutActive) { _, newValue in
+            updateBreathingState(newValue)
+        }
+    }
+
+    private func updateBreathingState(_ active: Bool) {
+        guard active else {
+            isBreathing = false
+            return
+        }
+
+        withAnimation(.easeInOut(duration: 1.25).repeatForever(autoreverses: true)) {
+            isBreathing = true
+        }
     }
 }
 

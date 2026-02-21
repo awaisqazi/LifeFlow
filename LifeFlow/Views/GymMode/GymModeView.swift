@@ -43,7 +43,6 @@ struct GymModeView: View {
     @State private var completedTrainingSession: TrainingSession? = nil
     
     // Drag and drop state for live reordering
-    @State private var draggedItem: WorkoutExercise? = nil
     @State private var localExercises: [WorkoutExercise] = []
     
     // Cardio safeguard state

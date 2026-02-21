@@ -287,7 +287,6 @@ struct AddGoalSheet: View {
             }
             .sheet(isPresented: $showRaceOnboarding) {
                 RaceOnboardingSheet()
-                    .onDisappear { dismiss() }
             }
         }
     }

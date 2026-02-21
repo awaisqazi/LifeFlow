@@ -490,7 +490,7 @@ final class HealthKitManager: NSObject {
             // Create date predicate for today
             let calendar = Calendar.current
             let startOfDay = calendar.startOfDay(for: Date())
-            let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+            let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) ?? Date()
             
             let datePredicate = HKQuery.predicateForSamples(
                 withStart: startOfDay,
@@ -567,11 +567,11 @@ final class HealthKitManager: NSObject {
         
         switch scope {
         case .week:
-            startDate = calendar.date(byAdding: .day, value: -7, to: now)!
+            startDate = calendar.date(byAdding: .day, value: -7, to: now) ?? Date()
         case .month:
-            startDate = calendar.date(byAdding: .month, value: -1, to: now)!
+            startDate = calendar.date(byAdding: .month, value: -1, to: now) ?? Date()
         case .year:
-            startDate = calendar.date(byAdding: .year, value: -1, to: now)!
+            startDate = calendar.date(byAdding: .year, value: -1, to: now) ?? Date()
         }
         
         return try await fetchWorkouts(from: startDate, to: now)

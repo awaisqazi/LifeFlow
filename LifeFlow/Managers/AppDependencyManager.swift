@@ -257,7 +257,11 @@ final class AppDependencyManager {
         }
 
         modelContext.insert(workoutSession)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            print("AppDependencyManager: Failed to save workout session: \(error)")
+        }
 
         linkWorkoutToTodaysSessionIfNeeded(
             workoutSession: workoutSession,
@@ -297,7 +301,11 @@ final class AppDependencyManager {
         )
 
         session.healthKitWorkoutID = workoutSession.id
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            print("AppDependencyManager: Failed to save session link: \(error)")
+        }
     }
 
     private func resolveRunID(for message: WatchRunMessage) -> UUID {
